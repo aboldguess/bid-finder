@@ -1,5 +1,5 @@
 const fetch = require('node-fetch');
-const cheerio = require('cheerio');
+const { parseTenders } = require('./htmlParser');
 const db = require('./db');
 const config = require('./config');
 const logger = require('./logger');
@@ -28,27 +28,25 @@ module.exports.run = async function (onProgress) {
       }
     });
 
-    // Load the response body into cheerio for easy DOM traversal.
+    // Grab the raw HTML then extract tender information using our small
+    // regex-based parser. This avoids the need for external HTML libraries.
     const html = await res.text();
-    const $ = cheerio.load(html);
+    const tenders = parseTenders(html);
 
     // Track how many tenders were inserted during this run.
     let count = 0;
 
-    // Grab all search result elements so we know the total number upfront.
-    const results = $('.search-result').toArray();
-    const total = results.length;
+    // "tenders" already contains each result, so we know the total count.
+    const total = tenders.length;
 
-    // Iterate over each search result and insert it into the database. The
+    // Iterate over each result and insert it into the database. The
     // insertTender function resolves with the number of rows inserted so we can
     // keep track of how many new tenders were added.
-    for (const [i, el] of results.entries()) {
-      // Extract tender details from the DOM element.
-      const title = $(el).find('h2').text().trim();
-      const link =
-        config.scrapeBase + $(el).find('a').attr('href');
-      const date = $(el).find('.date').text().trim();
-      const desc = $(el).find('p').text().trim();
+    for (const [i, tender] of tenders.entries()) {
+      const title = tender.title;
+      const link = config.scrapeBase + tender.link;
+      const date = tender.date;
+      const desc = tender.desc;
 
       // Notify listeners of progress so the UI can be updated in real time.
       if (onProgress) {
