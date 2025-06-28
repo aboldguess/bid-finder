@@ -28,3 +28,16 @@ th, td {
 #addSourceForm input {
   margin-right: 0.5rem;
 }
+
+/* Highlighted callout containing usage help */
+#instructions {
+  background: #f5f5f5;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  border-radius: 4px;
+}
+
+#instructions ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}

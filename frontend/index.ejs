@@ -6,6 +6,17 @@
 </head>
 <body>
   <h1>New Tenders</h1>
+  <!-- Brief instructions help new users understand the workflow -->
+  <div id="instructions">
+    <ul>
+      <!-- Choose which configured site the scraper will run against -->
+      <li>Select a tender source from the dropdown below.</li>
+      <!-- Manual execution immediately runs the scraper for the chosen source -->
+      <li>Click <strong>Run Scraper Now</strong> to start a manual scrape.</li>
+      <!-- Additional sources can be added at any time via the form -->
+      <li>Use the <strong>Add Source</strong> form to register a new target.</li>
+    </ul>
+  </div>
   <!-- Source selector allows the user to choose which site to scrape -->
   <label for="sourceSelect">Source:</label>
   <select id="sourceSelect">
