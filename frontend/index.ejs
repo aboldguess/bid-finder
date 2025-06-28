@@ -6,7 +6,10 @@
 </head>
 <body>
   <h1>New Tenders</h1>
-  <button onclick="location.href='/scrape'">Run Scraper Now</button>
+  <!-- Button triggers the scraper via AJAX instead of navigating away -->
+  <button id="scrapeBtn">Run Scraper Now</button>
+  <!-- Area to show status messages while scraping -->
+  <div id="status"></div>
   <table>
     <tr><th>Title</th><th>Date</th><th>Description</th><th>Link</th></tr>
     <% tenders.forEach(t => { %>
@@ -18,5 +21,35 @@
       </tr>
     <% }) %>
   </table>
+  <!-- Asynchronous scraping logic -->
+  <script>
+    // When the "Run Scraper Now" button is clicked, fire off a fetch to the
+    // /scrape endpoint. While the request is in flight we display a temporary
+    // "Scraping..." message. Once complete, show how many tenders were added
+    // then refresh the page so the table reflects any new data.
+    document.getElementById('scrapeBtn').addEventListener('click', async () => {
+      const statusEl = document.getElementById('status');
+
+      // Inform the user that work is in progress.
+      statusEl.textContent = 'Scraping...';
+
+      try {
+        // Call the backend endpoint which kicks off the scraper.
+        const res = await fetch('/scrape');
+        const data = await res.json();
+
+        // Show how many new tenders were stored before reloading.
+        statusEl.textContent = `Added ${data.added} new tenders.`;
+
+        // Give the user a moment to read the message, then reload the page to
+        // display the latest results.
+        setTimeout(() => location.reload(), 1000);
+      } catch (err) {
+        // Network or server errors end up here. Display a generic failure
+        // message so the user knows something went wrong.
+        statusEl.textContent = 'Error running scraper.';
+      }
+    });
+  </script>
 </body>
 </html>
