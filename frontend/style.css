@@ -58,3 +58,16 @@ button {
 button:hover {
   background-color: #0056b3;
 }
+
+/* Highlighted callout containing usage help */
+#instructions {
+  background: #f5f5f5;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  border-radius: 4px;
+}
+
+#instructions ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
