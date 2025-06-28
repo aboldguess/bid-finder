@@ -16,21 +16,27 @@ app.use(express.static(config.frontendDir));
 // GET / - Render the dashboard listing all tenders stored in the database.
 app.get('/', async (req, res) => {
   const tenders = await db.getTenders();
-  res.render('index', { tenders });
+  // Pass the list of available sources to the frontend so it can populate the
+  // new source selection dropdown.
+  res.render('index', { tenders, sources: config.sources });
 });
 
 // GET /scrape - Trigger the scraper manually via an HTTP request. The route
 // responds with the number of new tenders that were inserted.
 app.get('/scrape', async (req, res) => {
-  logger.info('Manual scrape triggered');
-  const newTenders = await scrape.run();
+  const sourceKey = req.query.source || 'default';
+  const source = config.sources[sourceKey] || config.sources.default;
+  logger.info(`Manual scrape triggered for ${sourceKey}`);
+  const newTenders = await scrape.run(null, source);
   res.json({ added: newTenders });
 });
 
 // GET /scrape-stream - Same as /scrape but streams progress updates using
 // Server-Sent Events so the frontend can display real-time feedback.
 app.get('/scrape-stream', async (req, res) => {
-  logger.info('Manual SSE scrape triggered');
+  const sourceKey = req.query.source || 'default';
+  const source = config.sources[sourceKey] || config.sources.default;
+  logger.info(`Manual SSE scrape triggered for ${sourceKey}`);
 
   // Setup headers required for Server-Sent Events. `flushHeaders()` forces the
   // headers to be sent immediately so the connection remains open while we
@@ -45,8 +51,9 @@ app.get('/scrape-stream', async (req, res) => {
   // Helper to send a data payload to the client as a single SSE message.
   const send = data => res.write(`data: ${JSON.stringify(data)}\n\n`);
 
-  // Run the scraper and stream progress for each tender found.
-  const count = await scrape.run(progress => send(progress));
+  // Run the scraper and stream progress for each tender found. The selected
+  // source is forwarded to the scraper so different sites can be targeted.
+  const count = await scrape.run(progress => send(progress), source);
 
   // Emit a final message indicating completion and close the connection.
   send({ done: true, added: count });
