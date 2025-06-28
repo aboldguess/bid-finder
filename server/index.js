@@ -7,6 +7,9 @@ const logger = require('./logger');
 
 const app = express();
 
+// Parse JSON request bodies so the UI can post new sources
+app.use(express.json());
+
 // Configure EJS for HTML templates and serve static assets from the
 // frontend directory defined in config.js
 app.set('view engine', 'ejs');
@@ -19,6 +22,26 @@ app.get('/', async (req, res) => {
   // Pass the list of available sources to the frontend so it can populate the
   // new source selection dropdown.
   res.render('index', { tenders, sources: config.sources });
+});
+
+// POST /sources - Add a new scraping source at runtime. The request should
+// include a unique key along with label, url and base properties. Sources are
+// stored in memory so they persist only for the lifetime of the process.
+app.post('/sources', (req, res) => {
+  const { key, label, url, base } = req.body || {};
+
+  // Basic validation of the supplied data
+  if (!key || !label || !url || !base) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  if (config.sources[key]) {
+    return res.status(400).json({ error: 'Source key already exists' });
+  }
+
+  config.sources[key] = { label, url, base };
+  logger.info(`Added new source ${key}: ${label}`);
+  res.json({ success: true });
 });
 
 // GET /scrape - Trigger the scraper manually via an HTTP request. The route
