@@ -1,12 +1,14 @@
 const sqlite3 = require('sqlite3').verbose();
+const config = require('./config');
+const logger = require('./logger');
 
-// Open a connection to the SQLite database stored in tenders.db. The file will
-// be created automatically if it does not already exist.
-const db = new sqlite3.Database('./tenders.db', err => {
+// Open a connection to the SQLite database. The file will be created
+// automatically if it does not already exist.
+const db = new sqlite3.Database(config.dbFile, err => {
   if (err) {
     // Log connection errors but allow the application to continue so that any
     // subsequent operations can surface their own failures clearly.
-    console.error('Failed to open database:', err);
+    logger.error('Failed to open database:', err);
   }
 });
 
