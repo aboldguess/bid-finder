@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Tender Dashboard</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <h1>New Tenders</h1>
+  <button onclick="location.href='/scrape'">Run Scraper Now</button>
+  <table>
+    <tr><th>Title</th><th>Date</th><th>Description</th><th>Link</th></tr>
+    <% tenders.forEach(t => { %>
+      <tr>
+        <td><%= t.title %></td>
+        <td><%= t.date %></td>
+        <td><%= t.description %></td>
+        <td><a href="<%= t.link %>">View</a></td>
+      </tr>
+    <% }) %>
+  </table>
+</body>
+</html>
