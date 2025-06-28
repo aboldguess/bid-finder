@@ -25,6 +25,12 @@ module.exports.run = async function (onProgress, source) {
     // otherwise fall back to the defaults defined in config.js.
     const src = source || { url: config.scrapeUrl, base: config.scrapeBase };
 
+    // Let the caller know which URL is being scraped. This is useful feedback
+    // for both the UI and logs.
+    if (onProgress) {
+      onProgress({ step: 'start', source: src });
+    }
+
     // Fetch the search page with a realistic User-Agent so the request looks
     // like it is coming from a normal browser.
     const res = await fetch(src.url, {
@@ -38,6 +44,11 @@ module.exports.run = async function (onProgress, source) {
     // regex-based parser. This avoids the need for external HTML libraries.
     const html = await res.text();
     const tenders = parseTenders(html);
+
+    // Notify listeners how many tenders were discovered on the page.
+    if (onProgress) {
+      onProgress({ step: 'found', count: tenders.length });
+    }
 
     // Track how many tenders were inserted during this run.
     let count = 0;
@@ -54,15 +65,11 @@ module.exports.run = async function (onProgress, source) {
       const date = tender.date;
       const desc = tender.desc;
 
-      // Notify listeners of progress so the UI can be updated in real time.
-      if (onProgress) {
-        onProgress({ title, index: i + 1, total });
-      }
-
+      let inserted = 0;
       try {
         // Attempt to store the tender. `insertTender` resolves with 1 when a
         // new record was inserted or 0 if the tender already existed.
-        const inserted = await db.insertTender(title, link, date, desc);
+        inserted = await db.insertTender(title, link, date, desc);
 
         if (inserted) {
           count += 1;
@@ -70,6 +77,17 @@ module.exports.run = async function (onProgress, source) {
       } catch (err) {
         // Log database errors but continue processing the remaining tenders.
         logger.error('Error inserting tender:', err);
+      }
+
+      // Notify listeners of progress so the UI can be updated in real time.
+      if (onProgress) {
+        onProgress({
+          step: 'tender',
+          title,
+          index: i + 1,
+          total,
+          inserted: Boolean(inserted)
+        });
       }
     }
 

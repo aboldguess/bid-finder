@@ -53,6 +53,9 @@ app.get('/scrape-stream', async (req, res) => {
 
   // Run the scraper and stream progress for each tender found. The selected
   // source is forwarded to the scraper so different sites can be targeted.
+  // Emit an initial event letting the client know which source will be used.
+  send({ start: true, source: source.label, url: source.url });
+
   const count = await scrape.run(progress => send(progress), source);
 
   // Emit a final message indicating completion and close the connection.

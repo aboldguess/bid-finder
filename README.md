@@ -32,3 +32,10 @@ This application scrapes new tenders from the UK government's Contracts Finder w
 ## Scheduled cron job
 
 The scraper runs automatically using `node-cron`. With the default schedule `0 6 * * *` the job executes once every day at 06:00. Adjust `CRON_SCHEDULE` to change the frequency. You can also trigger a manual scrape by visiting `/scrape` or clicking the button on the dashboard.
+
+## Real-time feedback
+
+When a scrape is triggered the dashboard streams progress updates. It reports
+the source being scraped, how many tenders were discovered and whether each one
+was added to the database or skipped as a duplicate. A final message summarises
+how many new tenders were stored.
