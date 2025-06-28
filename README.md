@@ -18,6 +18,19 @@ This application scrapes new tenders from the UK government's Contracts Finder w
    ```
    The UI will be available at `http://localhost:<PORT>`.
 
+## Usage
+
+- **Access the dashboard** by navigating to `http://localhost:<PORT>` once the
+  server is running.
+- **Run the scraper** by selecting a source from the drop-down list and clicking
+  **Scrape**. Progress messages stream to the page and new tenders appear in the
+  results table.
+- **Add a source** using the *Add Source* form. Provide a key, label, search URL
+  and base URL. The source is added immediately for the current session.
+- **Automatic scraping** runs in the background according to the `CRON_SCHEDULE`
+  environment variable (default `0 6 * * *`). Results are stored in the
+  database without any manual interaction.
+
 ## Environment variables
 
 - `PORT` - port for the Express server (default `3000`).
