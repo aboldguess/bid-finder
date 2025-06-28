@@ -15,13 +15,19 @@ const logger = require('./logger');
  * @param {function(object):void} [onProgress] - Optional callback invoked after
  *   each tender is processed. Receives an object containing the title, 1-based
  *   index and total number of tenders.
+ * @param {{url: string, base: string}} [source] - Override the default scrape
+ *   target. This allows the scraper to run against different tender sources.
  * @returns {Promise<number>} number of new tenders inserted into the database
  */
-module.exports.run = async function (onProgress) {
+module.exports.run = async function (onProgress, source) {
   try {
+    // Determine the URL/base for this run. If a source is provided use it,
+    // otherwise fall back to the defaults defined in config.js.
+    const src = source || { url: config.scrapeUrl, base: config.scrapeBase };
+
     // Fetch the search page with a realistic User-Agent so the request looks
     // like it is coming from a normal browser.
-    const res = await fetch(config.scrapeUrl, {
+    const res = await fetch(src.url, {
       headers: {
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
@@ -44,7 +50,7 @@ module.exports.run = async function (onProgress) {
     // keep track of how many new tenders were added.
     for (const [i, tender] of tenders.entries()) {
       const title = tender.title;
-      const link = config.scrapeBase + tender.link;
+      const link = src.base + tender.link;
       const date = tender.date;
       const desc = tender.desc;
 

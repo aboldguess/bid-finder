@@ -6,6 +6,14 @@
 </head>
 <body>
   <h1>New Tenders</h1>
+  <!-- Source selector allows the user to choose which site to scrape -->
+  <label for="sourceSelect">Source:</label>
+  <select id="sourceSelect">
+    <% Object.keys(sources).forEach(key => { %>
+      <option value="<%= key %>"><%= sources[key].label %></option>
+    <% }) %>
+  </select>
+
   <!-- Button triggers the scraper via AJAX instead of navigating away -->
   <button id="scrapeBtn">Run Scraper Now</button>
   <!-- Area to show status messages while scraping -->
@@ -36,7 +44,10 @@
       feedEl.innerHTML = '';
       statusEl.textContent = 'Scraping...';
 
-      const src = new EventSource('/scrape-stream');
+      // Include the selected source in the request so the server knows which
+      // site to scrape.
+      const source = document.getElementById('sourceSelect').value;
+      const src = new EventSource(`/scrape-stream?source=${encodeURIComponent(source)}`);
 
       // Handle each message from the server. Regular updates contain progress
       // info while the final message includes `done: true`.
@@ -45,7 +56,11 @@
 
         if (data.done) {
           // Final event - show summary and reload the page after a short delay.
-          statusEl.textContent = `Added ${data.added} new tenders.`;
+          if (data.added === 0) {
+            statusEl.textContent = 'No new tenders found.';
+          } else {
+            statusEl.textContent = `Added ${data.added} new tenders.`;
+          }
           setTimeout(() => location.reload(), 1000);
           src.close();
         } else {
