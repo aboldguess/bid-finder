@@ -1,14 +1,28 @@
 body {
   font-family: sans-serif;
   padding: 2rem;
+  /* Light background so the table and form stand out */
+  background-color: #f9f9f9;
 }
 table {
   width: 100%;
   border-collapse: collapse;
+  /* Separate the results table from the controls */
+  margin-top: 1rem;
 }
-th, td {
+th,
+td {
   padding: 0.5rem;
   border: 1px solid #ccc;
+}
+
+/* Highlight the table header and alternate rows for readability */
+th {
+  background-color: #eee;
+  text-align: left;
+}
+tr:nth-child(even) {
+  background-color: #fafafa;
 }
 
 /* Scrollable area showing progress messages during scraping */
@@ -23,8 +37,24 @@ th, td {
 /* Small layout tweaks for the add-source form */
 #addSourceForm {
   margin-top: 1rem;
+  margin-bottom: 1rem;
 }
 
 #addSourceForm input {
   margin-right: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Consistent look for all buttons in the UI */
+button {
+  padding: 0.4rem 0.8rem;
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #0056b3;
 }
