@@ -10,6 +10,8 @@
   <button id="scrapeBtn">Run Scraper Now</button>
   <!-- Area to show status messages while scraping -->
   <div id="status"></div>
+  <!-- Rolling feed of progress messages from the scraper -->
+  <ul id="feed"></ul>
   <table>
     <tr><th>Title</th><th>Date</th><th>Description</th><th>Link</th></tr>
     <% tenders.forEach(t => { %>
@@ -23,32 +25,41 @@
   </table>
   <!-- Asynchronous scraping logic -->
   <script>
-    // When the "Run Scraper Now" button is clicked, fire off a fetch to the
-    // /scrape endpoint. While the request is in flight we display a temporary
-    // "Scraping..." message. Once complete, show how many tenders were added
-    // then refresh the page so the table reflects any new data.
-    document.getElementById('scrapeBtn').addEventListener('click', async () => {
+    // When the "Run Scraper Now" button is clicked we open an EventSource
+    // connection to /scrape-stream. Progress events are pushed from the server
+    // so we can update the UI in real time.
+    document.getElementById('scrapeBtn').addEventListener('click', () => {
       const statusEl = document.getElementById('status');
+      const feedEl = document.getElementById('feed');
 
-      // Inform the user that work is in progress.
+      // Reset any previous messages.
+      feedEl.innerHTML = '';
       statusEl.textContent = 'Scraping...';
 
-      try {
-        // Call the backend endpoint which kicks off the scraper.
-        const res = await fetch('/scrape');
-        const data = await res.json();
+      const src = new EventSource('/scrape-stream');
 
-        // Show how many new tenders were stored before reloading.
-        statusEl.textContent = `Added ${data.added} new tenders.`;
+      // Handle each message from the server. Regular updates contain progress
+      // info while the final message includes `done: true`.
+      src.onmessage = e => {
+        const data = JSON.parse(e.data);
 
-        // Give the user a moment to read the message, then reload the page to
-        // display the latest results.
-        setTimeout(() => location.reload(), 1000);
-      } catch (err) {
-        // Network or server errors end up here. Display a generic failure
-        // message so the user knows something went wrong.
+        if (data.done) {
+          // Final event - show summary and reload the page after a short delay.
+          statusEl.textContent = `Added ${data.added} new tenders.`;
+          setTimeout(() => location.reload(), 1000);
+          src.close();
+        } else {
+          // Append the current progress message to the feed list.
+          const li = document.createElement('li');
+          li.textContent = `(${data.index}/${data.total}) ${data.title}`;
+          feedEl.appendChild(li);
+        }
+      };
+
+      src.onerror = () => {
         statusEl.textContent = 'Error running scraper.';
-      }
+        src.close();
+      };
     });
   </script>
 </body>
