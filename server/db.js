@@ -26,8 +26,15 @@ db.serialize(() => {
 });
 
 module.exports = {
-  // Insert a tender into the database. The promise resolves with the number of
-  // rows inserted (0 if the tender already existed).
+  /**
+   * Insert a tender into the database if it does not already exist.
+   *
+   * @param {string} title - Tender title
+   * @param {string} link - Unique link to the tender
+   * @param {string} date - Published date string
+   * @param {string} description - Short description of the tender
+   * @returns {Promise<number>} resolves with 1 when inserted or 0 if skipped
+   */
   insertTender: (title, link, date, description) => {
     return new Promise((resolve, reject) => {
       db.run(
@@ -47,7 +54,11 @@ module.exports = {
       );
     });
   },
-  // Retrieve all tenders from the database ordered by the published date.
+
+  /**
+   * Retrieve all stored tenders ordered by published date descending.
+   * @returns {Promise<Array>} resolves with an array of tender rows
+   */
   getTenders: () => {
     return new Promise((resolve, reject) => {
       db.all("SELECT * FROM tenders ORDER BY date DESC", [], (err, rows) => {

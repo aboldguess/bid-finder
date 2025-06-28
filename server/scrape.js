@@ -4,9 +4,11 @@ const db = require('./db');
 const config = require('./config');
 const logger = require('./logger');
 
-// Scrape the government's Contracts Finder site for the latest tenders.
-// The function returns the number of new tenders successfully stored in the
-// database.
+/**
+ * Scrape the government's Contracts Finder site for the latest tenders.
+ *
+ * @returns {Promise<number>} number of new tenders inserted into the database
+ */
 module.exports.run = async function () {
   try {
     // Fetch the search page with a realistic User-Agent so the request looks

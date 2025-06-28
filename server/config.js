@@ -1,5 +1,8 @@
 const path = require('path');
 
+// Centralised configuration object used throughout the server code. Values can
+// be overridden via environment variables for flexibility in different
+// deployment environments.
 module.exports = {
   // Port the Express server listens on
   port: process.env.PORT || 3000,
