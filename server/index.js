@@ -6,30 +6,36 @@ const config = require('./config');
 const logger = require('./logger');
 
 const app = express();
+
+// Configure EJS for HTML templates and serve static assets from the
+// frontend directory defined in config.js
 app.set('view engine', 'ejs');
-// Use the configured path for templates and static assets
 app.set('views', config.frontendDir);
 app.use(express.static(config.frontendDir));
 
-// Render the dashboard showing all stored tenders
+// GET / - Render the dashboard listing all tenders stored in the database.
 app.get('/', async (req, res) => {
   const tenders = await db.getTenders();
   res.render('index', { tenders });
 });
 
+// GET /scrape - Trigger the scraper manually via an HTTP request. The route
+// responds with the number of new tenders that were inserted.
 app.get('/scrape', async (req, res) => {
   logger.info('Manual scrape triggered');
   const newTenders = await scrape.run();
   res.json({ added: newTenders });
 });
 
-// Kick off the scraper based on the configured cron schedule
+// Schedule automatic scraping based on the CRON_SCHEDULE environment
+// variable. By default this runs once per day at 06:00.
 cron.schedule(config.cronSchedule, async () => {
   logger.info('Running scheduled scrape...');
   await scrape.run();
 });
 
-// Start the HTTP server
+// Start the HTTP server and log the URL so the user knows where to point
+// their browser.
 app.listen(config.port, () =>
   logger.info(`Server running on http://localhost:${config.port}`)
 );
