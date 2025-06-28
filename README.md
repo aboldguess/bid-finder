@@ -27,6 +27,9 @@ This application scrapes new tenders from the UK government's Contracts Finder w
 - `SCRAPE_BASE` - base URL prepended to scraped tender links.
 - `EXAMPLE_URL` and `EXAMPLE_BASE` - optional secondary source used in the
   dropdown menu.
+- `SCOTLAND_URL` and `SCOTLAND_BASE` - overrides for the predefined Public
+  Contracts Scotland source.
+- `WALES_URL` and `WALES_BASE` - overrides for the predefined Sell2Wales source.
 - `CRON_SCHEDULE` - cron expression controlling automatic scraping (defaults to `0 6 * * *`).
 
 ## Scheduled cron job
@@ -39,3 +42,10 @@ When a scrape is triggered the dashboard streams progress updates. It reports
 the source being scraped, how many tenders were discovered and whether each one
 was added to the database or skipped as a duplicate. A final message summarises
 how many new tenders were stored.
+
+## Adding new sources
+
+The dashboard includes a small form for defining additional tender sources at
+runtime. Provide a unique key, display label, search URL and base URL. Newly
+added sources appear in the drop-down menu immediately but are not persisted
+beyond the current process.

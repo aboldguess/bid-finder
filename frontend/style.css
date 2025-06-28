@@ -19,3 +19,12 @@ th, td {
   border: 1px solid #ccc;
   padding-left: 1rem;
 }
+
+/* Small layout tweaks for the add-source form */
+#addSourceForm {
+  margin-top: 1rem;
+}
+
+#addSourceForm input {
+  margin-right: 0.5rem;
+}

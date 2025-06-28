@@ -23,6 +23,27 @@ const exampleSource = {
   base: process.env.EXAMPLE_BASE || 'https://example.com'
 };
 
+// Additional predefined sources showcasing how multiple tender portals can be
+// targeted. These are merely examples and may not be fully compatible with the
+// simple HTML parser used by the scraper.
+const scotlandSource = {
+  label: 'Public Contracts Scotland',
+  url:
+    process.env.SCOTLAND_URL ||
+    'https://www.publiccontractsscotland.gov.uk/Search/search_main.aspx',
+  base:
+    process.env.SCOTLAND_BASE ||
+    'https://www.publiccontractsscotland.gov.uk'
+};
+
+const walesSource = {
+  label: 'Sell2Wales',
+  url:
+    process.env.WALES_URL ||
+    'https://www.sell2wales.gov.wales/Search/Search_Switch.aspx',
+  base: process.env.WALES_BASE || 'https://www.sell2wales.gov.wales'
+};
+
 module.exports = {
   // Port the Express server listens on
   port: process.env.PORT || 3000,
@@ -37,7 +58,9 @@ module.exports = {
   // added here or injected via environment variables.
   sources: {
     default: defaultSource,
-    example: exampleSource
+    example: exampleSource,
+    scotland: scotlandSource,
+    wales: walesSource
   },
 
   // Legacy fields maintained for backwards compatibility. These map to the
