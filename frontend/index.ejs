@@ -54,7 +54,19 @@
       src.onmessage = e => {
         const data = JSON.parse(e.data);
 
-        if (data.done) {
+        if (data.start) {
+          // Initial event tells us which source is being scraped.
+          statusEl.textContent = `Scraping from ${data.source}...`;
+        } else if (data.step === 'found') {
+          // The scraper has parsed the page and knows how many tenders exist.
+          statusEl.textContent = `Found ${data.count} tenders.`;
+        } else if (data.step === 'tender') {
+          // Update the rolling feed with each tender processed.
+          const li = document.createElement('li');
+          li.textContent = `(${data.index}/${data.total}) ${data.title} - ${
+            data.inserted ? 'added' : 'skipped'}`;
+          feedEl.appendChild(li);
+        } else if (data.done) {
           // Final event - show summary and reload the page after a short delay.
           if (data.added === 0) {
             statusEl.textContent = 'No new tenders found.';
@@ -63,11 +75,6 @@
           }
           setTimeout(() => location.reload(), 1000);
           src.close();
-        } else {
-          // Append the current progress message to the feed list.
-          const li = document.createElement('li');
-          li.textContent = `(${data.index}/${data.total}) ${data.title}`;
-          feedEl.appendChild(li);
         }
       };
 
