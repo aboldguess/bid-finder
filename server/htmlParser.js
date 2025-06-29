@@ -23,9 +23,9 @@ function parseContractsFinder(html) {
 }
 
 /**
- * Rough parser for Sell2Wales listings. The site uses table rows for each
- * opportunity so we scan for <tr> elements and extract link/text from the first
- * anchor tag.
+ * Rough parser for Sell2Wales listings. This is retained for reference only
+ * as the live site has changed and the scraper no longer targets it by
+ * default. The code scans table rows for the first anchor tag.
  */
 function parseSell2Wales(html) {
   const tenders = [];
@@ -45,8 +45,10 @@ function parseSell2Wales(html) {
 }
 
 /**
- * Parser for UKRI opportunities. Opportunities are usually wrapped in <article>
- * elements with a heading link, description paragraph and optional <time> tag.
+ * Parser for UKRI opportunities. The InnovateUK platform this targeted is not
+ * currently scraped but the function remains for anyone experimenting with
+ * custom sources.
+ * Opportunities are typically wrapped in <article> elements.
  */
 function parseUkri(html) {
   const tenders = [];
@@ -92,12 +94,11 @@ function parseEuSupply(html) {
  */
 exports.parseTenders = function parseTenders(html, site = 'contractsFinder') {
   switch (site) {
-    case 'sell2wales':
-      return parseSell2Wales(html);
-    case 'ukri':
-      return parseUkri(html);
+    // EU Supply uses a different table structure so it has its own parser.
     case 'eusupply':
       return parseEuSupply(html);
+    // Any unknown keys fall back to the Contracts Finder format which our
+    // tests are based on.
     case 'contractsFinder':
     default:
       return parseContractsFinder(html);
