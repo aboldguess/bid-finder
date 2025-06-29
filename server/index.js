@@ -24,6 +24,13 @@ app.get('/', async (req, res) => {
   res.render('index', { tenders, sources: config.sources });
 });
 
+// GET /stats - Simple page showing the timestamp of the last successful scrape
+// so users know how fresh the displayed data is.
+app.get('/stats', async (req, res) => {
+  const lastScraped = await db.getLastScraped();
+  res.render('stats', { lastScraped });
+});
+
 // POST /sources - Add a new scraping source at runtime. The request should
 // include a unique key along with label, url and base properties. Sources are
 // stored in memory so they persist only for the lifetime of the process.

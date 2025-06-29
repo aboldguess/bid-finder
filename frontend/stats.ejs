@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Scrape Stats</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <h1>Scrape Statistics</h1>
+  <a href="/">Back to dashboard</a>
+  <p>
+    <!-- Display the stored timestamp or a placeholder when no scrape has been run yet -->
+    Last scraped: <%= lastScraped ? lastScraped : 'Never' %>
+  </p>
+</body>
+</html>

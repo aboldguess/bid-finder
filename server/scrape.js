@@ -98,6 +98,14 @@ module.exports.run = async function (onProgress, source) {
       }
     }
 
+    // Record when this scrape completed successfully so the UI can show
+    // freshnes information. Failures in this step should not abort the run.
+    try {
+      await db.setLastScraped(new Date().toISOString());
+    } catch (err) {
+      logger.error('Failed to update last_scraped timestamp:', err);
+    }
+
     // Return the number of newly inserted tenders.
     return count;
   } catch (err) {
