@@ -7,13 +7,15 @@ const path = require('path');
 // Default data source pointing at the UK government's Contracts Finder site.
 const defaultSource = {
   label: 'Contracts Finder',
+  // Contracts Finder exposes an RSS feed which is easier to scrape than the
+  // JavaScript-heavy search page.
   url:
     process.env.SCRAPE_URL ||
-    'https://www.contractsfinder.service.gov.uk/Search',
+    'https://www.contractsfinder.service.gov.uk/RSSFeed.aspx?type=Projects&Status=Open',
   base:
     process.env.SCRAPE_BASE ||
     'https://www.contractsfinder.service.gov.uk',
-  parser: 'contractsFinder'
+  parser: 'rss'
 };
 
 // Other sources previously included here have been removed as they either no
@@ -32,19 +34,66 @@ const euSupplySource = {
 // Example Sell2Wales source used by the additional `sell2wales` parser.
 const sell2walesSource = {
   label: 'Sell2Wales',
+  // RSS feed provides server-rendered listings without needing scripting.
   url:
     process.env.SELL2WALES_URL ||
-    'https://www.sell2wales.gov.wales/search?q=',
+    'https://www.sell2wales.gov.wales/rss/authority',
   base: process.env.SELL2WALES_BASE || 'https://www.sell2wales.gov.wales',
-  parser: 'sell2wales'
+  parser: 'rss'
 };
 
 // Example UKRI opportunities source.
 const ukriSource = {
   label: 'UKRI',
-  url: process.env.UKRI_URL || 'https://www.ukri.org/opportunities',
+  // Opportunities feed published by UKRI.
+  url: process.env.UKRI_URL || 'https://www.ukri.org/feed/',
   base: process.env.UKRI_BASE || 'https://www.ukri.org',
-  parser: 'ukri'
+  parser: 'rss'
+};
+
+// Additional procurement portals that expose RSS feeds. These are included as
+// examples and may require adjusting the URLs depending on the organisation.
+const pcsSource = {
+  label: 'Public Contracts Scotland',
+  url:
+    process.env.PCS_URL ||
+    'https://www.publiccontractsscotland.gov.uk/rss/rss.xml',
+  base: process.env.PCS_BASE || 'https://www.publiccontractsscotland.gov.uk',
+  parser: 'rss'
+};
+
+const etendersniSource = {
+  label: 'eTenders NI',
+  url:
+    process.env.ETENDERSNI_URL ||
+    'https://etendersni.gov.uk/epps/cft/list?ext_t=RSS',
+  base: process.env.ETENDERSNI_BASE || 'https://etendersni.gov.uk',
+  parser: 'rss'
+};
+
+const etendersIEsource = {
+  label: 'eTenders Ireland',
+  url:
+    process.env.ETENDERSIE_URL ||
+    'https://www.etenders.gov.ie/feeds/rss',
+  base: process.env.ETENDERSIE_BASE || 'https://www.etenders.gov.ie',
+  parser: 'rss'
+};
+
+const procontractSource = {
+  label: 'ProContract',
+  url:
+    process.env.PROCONTRACT_URL ||
+    'https://procontract.due-north.com/rss/rss.xml',
+  base: process.env.PROCONTRACT_BASE || 'https://procontract.due-north.com',
+  parser: 'rss'
+};
+
+const intendSource = {
+  label: 'In-Tend',
+  url: process.env.INTEND_URL || 'https://in-tendhost.co.uk/feed/',
+  base: process.env.INTEND_BASE || 'https://in-tendhost.co.uk',
+  parser: 'rss'
 };
 
 module.exports = {
@@ -63,7 +112,12 @@ module.exports = {
     default: defaultSource,
     eusupply: euSupplySource,
     sell2wales: sell2walesSource,
-    ukri: ukriSource
+    ukri: ukriSource,
+    pcs: pcsSource,
+    etendersni: etendersniSource,
+    etendersie: etendersIEsource,
+    procontract: procontractSource,
+    intend: intendSource
   },
 
   // Legacy fields maintained for backwards compatibility. These map to the
