@@ -43,6 +43,8 @@ This application scrapes new tenders from the UK government's Contracts Finder w
 - `SCOTLAND_URL` and `SCOTLAND_BASE` - overrides for the predefined Public
   Contracts Scotland source.
 - `WALES_URL` and `WALES_BASE` - overrides for the predefined Sell2Wales source.
+- `UKRI_URL` and `UKRI_BASE` - overrides for the predefined UKRI opportunities source.
+- `EUSUPPLY_URL` and `EUSUPPLY_BASE` - overrides for the predefined EU Supply source.
 - `CRON_SCHEDULE` - cron expression controlling automatic scraping (defaults to `0 6 * * *`).
 
 ## Scheduled cron job
