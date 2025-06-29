@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <h1>Admin</h1>
+  <a href="/">Back to dashboard</a>
+
+  <!-- Form to trigger a full database reset -->
+  <h2>Database</h2>
+  <form id="resetForm" method="POST" action="/admin/reset-db">
+    <button type="submit">Reset Tenders Table</button>
+  </form>
+
+  <!-- Form allowing the cron schedule to be changed dynamically -->
+  <h2>Cron Schedule</h2>
+  <form id="cronForm">
+    <input id="cronInput" placeholder="* * * * *" value="<%= cron %>" required>
+    <button type="submit">Update Schedule</button>
+  </form>
+
+  <!-- Manage scraping sources -->
+  <h2>Sources</h2>
+  <ul id="sourceList">
+    <% Object.keys(sources).forEach(key => { %>
+      <li><%= key %> - <%= sources[key].label %></li>
+    <% }) %>
+  </ul>
+  <form id="addSourceForm">
+    <input id="newKey" placeholder="Key" required>
+    <input id="newLabel" placeholder="Label" required>
+    <input id="newUrl" placeholder="Search URL" required>
+    <input id="newBase" placeholder="Base URL" required>
+    <button type="submit">Add Source</button>
+  </form>
+
+<script>
+// Add a new tender source and reload on success.
+document.getElementById('addSourceForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const key = document.getElementById('newKey').value.trim();
+  const label = document.getElementById('newLabel').value.trim();
+  const url = document.getElementById('newUrl').value.trim();
+  const base = document.getElementById('newBase').value.trim();
+  const res = await fetch('/sources', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key, label, url, base })
+  });
+  if (res.ok) {
+    location.reload();
+  } else {
+    alert('Failed to add source');
+  }
+});
+
+// Submit new cron schedule so the server can reschedule the scraper.
+document.getElementById('cronForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const schedule = document.getElementById('cronInput').value.trim();
+  const res = await fetch('/admin/cron', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ schedule })
+  });
+  if (res.ok) {
+    alert('Schedule updated');
+  } else {
+    alert('Failed to update schedule');
+  }
+});
+
+// Confirm and send a request to drop and recreate the tenders table.
+document.getElementById('resetForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!confirm('This will delete all tenders. Continue?')) return;
+  const res = await fetch('/admin/reset-db', { method: 'POST' });
+  if (res.ok) {
+    alert('Database reset');
+  } else {
+    alert('Failed to reset database');
+  }
+});
+</script>
+</body>
+</html>

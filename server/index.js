@@ -86,9 +86,43 @@ app.get('/scrape-stream', async (req, res) => {
   res.end();
 });
 
-// Schedule automatic scraping based on the CRON_SCHEDULE environment
-// variable. By default this runs once per day at 06:00.
-cron.schedule(config.cronSchedule, async () => {
+// GET /admin - Render the admin interface used for maintenance tasks.
+app.get('/admin', (req, res) => {
+  res.render('admin', { sources: config.sources, cron: config.cronSchedule });
+});
+
+// POST /admin/reset-db - Drop and recreate the tenders table. This allows the
+// admin to clear out old data without restarting the server.
+app.post('/admin/reset-db', async (req, res) => {
+  try {
+    await db.reset();
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('Failed to reset database:', err);
+    res.status(500).json({ error: 'Reset failed' });
+  }
+});
+
+// POST /admin/cron - Update the cron schedule at runtime. The existing job is
+// stopped and a new one is created using the supplied expression.
+app.post('/admin/cron', (req, res) => {
+  const schedule = req.body && req.body.schedule;
+  if (!schedule || !cron.validate(schedule)) {
+    return res.status(400).json({ error: 'Invalid schedule' });
+  }
+  config.cronSchedule = schedule;
+  scheduledJob.stop();
+  scheduledJob = cron.schedule(config.cronSchedule, async () => {
+    logger.info('Running scheduled scrape...');
+    await scrape.run();
+  });
+  res.json({ success: true });
+});
+
+// Schedule automatic scraping based on the cronSchedule in config. Storing the
+// resulting job reference lets us reschedule it later if the admin updates the
+// timing.
+let scheduledJob = cron.schedule(config.cronSchedule, async () => {
   logger.info('Running scheduled scrape...');
   await scrape.run();
 });
