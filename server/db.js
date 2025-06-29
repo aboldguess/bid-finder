@@ -69,5 +69,30 @@ module.exports = {
         }
       });
     });
+  },
+
+  /**
+   * Drop and recreate the tenders table. This is used by the admin interface
+   * to clear all stored data without restarting the application.
+   * @returns {Promise<void>} resolves once the table has been recreated
+   */
+  reset: () => {
+    return new Promise((resolve, reject) => {
+      db.serialize(() => {
+        db.run('DROP TABLE IF EXISTS tenders', err => {
+          if (err) return reject(err);
+          db.run(`CREATE TABLE tenders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT,
+            link TEXT UNIQUE,
+            date TEXT,
+            description TEXT
+          )`, err2 => {
+            if (err2) return reject(err2);
+            resolve();
+          });
+        });
+      });
+    });
   }
 };
