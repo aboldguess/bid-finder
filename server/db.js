@@ -36,6 +36,13 @@ db.serialize(() => {
     key TEXT PRIMARY KEY,
     value TEXT
   )`);
+  // Store registered users. Passwords are hashed using bcrypt before
+  // insertion so this table only needs to hold the username and hash.
+  db.run(`CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE,
+    password TEXT
+  )`);
 });
 
 module.exports = {
@@ -125,6 +132,45 @@ module.exports = {
   },
 
   /**
+   * Create a new user with the given username and hashed password.
+   *
+   * @param {string} username - Unique username for the account
+   * @param {string} passwordHash - Bcrypt hashed password string
+   * @returns {Promise<void>} resolves once the row is inserted
+   */
+  createUser: (username, passwordHash) => {
+    return new Promise((resolve, reject) => {
+      db.run(
+        'INSERT INTO users (username, password) VALUES (?, ?)',
+        [username, passwordHash],
+        err => {
+          if (err) return reject(err);
+          resolve();
+        }
+      );
+    });
+  },
+
+  /**
+   * Look up a user by username.
+   *
+   * @param {string} username - Username to search for
+   * @returns {Promise<object|null>} resolves with the user row or null if none
+   */
+  getUserByUsername: username => {
+    return new Promise((resolve, reject) => {
+      db.get(
+        'SELECT * FROM users WHERE username = ?',
+        [username],
+        (err, row) => {
+          if (err) return reject(err);
+          resolve(row || null);
+        }
+      );
+    });
+  },
+
+  /**
    * Drop and recreate the tenders table. This is used by the admin interface
    * to clear all stored data without restarting the application.
    * @returns {Promise<void>} resolves once the table has been recreated
@@ -134,6 +180,7 @@ module.exports = {
       db.serialize(() => {
         db.run('DROP TABLE IF EXISTS tenders');
         db.run('DROP TABLE IF EXISTS metadata');
+        db.run('DROP TABLE IF EXISTS users');
         db.run(`CREATE TABLE tenders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT,
@@ -146,6 +193,11 @@ module.exports = {
         db.run(`CREATE TABLE metadata (
             key TEXT PRIMARY KEY,
             value TEXT
+          )`);
+        db.run(`CREATE TABLE users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE,
+            password TEXT
           )`, err2 => {
             if (err2) return reject(err2);
             resolve();
