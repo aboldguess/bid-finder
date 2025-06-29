@@ -1,6 +1,6 @@
 # Procurement Scraper GUI
 
-This application scrapes new tenders from the UK government's Contracts Finder website (or other configurable sources) and displays them in a simple dashboard. Results are stored in a local SQLite database so you can browse them even after the scraper has finished running.
+This application scrapes new tenders from the UK government's Contracts Finder website and the EU Supply portal (or other configurable sources) and displays them in a simple dashboard. Results are stored in a local SQLite database so you can browse them even after the scraper has finished running.
 
 ## Setup
 
@@ -41,13 +41,7 @@ This application scrapes new tenders from the UK government's Contracts Finder w
 - `DB_FILE` - path to the SQLite database file.
 - `SCRAPE_URL` - URL used to fetch tender data.
 - `SCRAPE_BASE` - base URL prepended to scraped tender links.
-- `EXAMPLE_URL` and `EXAMPLE_BASE` - optional secondary source used in the
-  dropdown menu.
-- `SCOTLAND_URL` and `SCOTLAND_BASE` - overrides for the predefined Public
-  Contracts Scotland source.
-- `WALES_URL` and `WALES_BASE` - overrides for the predefined Sell2Wales source.
-- `UKRI_URL` and `UKRI_BASE` - overrides for the predefined UKRI opportunities source.
-- `EUSUPPLY_URL` and `EUSUPPLY_BASE` - overrides for the predefined EU Supply source.
+- `EUSUPPLY_URL` and `EUSUPPLY_BASE` - overrides for the built-in EU Supply source.
 - `CRON_SCHEDULE` - cron expression controlling automatic scraping (defaults to `0 6 * * *`).
 
 ## Scheduled cron job
