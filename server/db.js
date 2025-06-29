@@ -15,13 +15,19 @@ const db = new sqlite3.Database(config.dbFile, err => {
 // Ensure the tenders table exists before we attempt any writes. This table will
 // hold every tender that we scrape, avoiding duplicates via the UNIQUE link
 // constraint.
+// Create tables on startup if they do not already exist. Additional columns
+// store metadata about where each tender came from and when it was scraped.
 db.serialize(() => {
   db.run(`CREATE TABLE IF NOT EXISTS tenders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT,
     link TEXT UNIQUE,
     date TEXT,
-    description TEXT
+    description TEXT,
+    /* Source site label */
+    source TEXT,
+    /* Time the tender was scraped (ISO string) */
+    scraped_at TEXT
   )`);
   // Small metadata table used to store global key/value pairs such as the
   // timestamp of the last successful scrape. Using a key column keeps the
@@ -40,14 +46,16 @@ module.exports = {
    * @param {string} link - Unique link to the tender
    * @param {string} date - Published date string
    * @param {string} description - Short description of the tender
+   * @param {string} source - Label of the source site
+   * @param {string} scrapedAt - ISO timestamp when the tender was scraped
    * @returns {Promise<number>} resolves with 1 when inserted or 0 if skipped
    */
-  insertTender: (title, link, date, description) => {
+  insertTender: (title, link, date, description, source, scrapedAt) => {
     return new Promise((resolve, reject) => {
       db.run(
         // Use INSERT OR IGNORE so that duplicate links are skipped silently.
-        "INSERT OR IGNORE INTO tenders (title, link, date, description) VALUES (?, ?, ?, ?)",
-        [title, link, date, description],
+        "INSERT OR IGNORE INTO tenders (title, link, date, description, source, scraped_at) VALUES (?, ?, ?, ?, ?, ?)",
+        [title, link, date, description, source, scrapedAt],
         function (err) {
           if (err) {
             // Propagate database errors to the caller.
@@ -131,7 +139,9 @@ module.exports = {
             title TEXT,
             link TEXT UNIQUE,
             date TEXT,
-            description TEXT
+            description TEXT,
+            source TEXT,
+            scraped_at TEXT
           )`);
         db.run(`CREATE TABLE metadata (
             key TEXT PRIMARY KEY,

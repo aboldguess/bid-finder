@@ -71,12 +71,16 @@ module.exports.run = async function (onProgress, source) {
       const link = src.base + tender.link;
       const date = tender.date;
       const desc = tender.desc;
+      // Include metadata about where and when the tender was scraped so
+      // the dashboard can display this context to the user.
+      const srcLabel = src.label;
+      const scrapedAt = new Date().toISOString();
 
       let inserted = 0;
       try {
         // Attempt to store the tender. `insertTender` resolves with 1 when a
         // new record was inserted or 0 if the tender already existed.
-        inserted = await db.insertTender(title, link, date, desc);
+        inserted = await db.insertTender(title, link, date, desc, srcLabel, scrapedAt);
 
         if (inserted) {
           count += 1;

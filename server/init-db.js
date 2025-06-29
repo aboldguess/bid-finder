@@ -23,7 +23,9 @@ db.serialize(() => {
     title TEXT,
     link TEXT UNIQUE,
     date TEXT,
-    description TEXT
+    description TEXT,
+    source TEXT,
+    scraped_at TEXT
   )`);
   db.run(`CREATE TABLE IF NOT EXISTS metadata (
     key TEXT PRIMARY KEY,
