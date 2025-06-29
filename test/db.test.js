@@ -52,4 +52,11 @@ describe('Database helpers', () => {
     const stored = await db.getCronSchedule();
     expect(stored).to.equal('*/5 * * * *');
   });
+
+  it('sources can be persisted and loaded', async () => {
+    await db.insertSource('x', 'Example', 'http://e', 'http://b', 'contractsFinder');
+    const rows = await db.getSources();
+    expect(rows).to.have.length(1);
+    expect(rows[0].key).to.equal('x');
+  });
 });

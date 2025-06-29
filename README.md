@@ -70,5 +70,5 @@ helps you confirm that automated cron jobs are running as expected.
 
 The dashboard includes a small form for defining additional tender sources at
 runtime. Provide a unique key, display label, search URL and base URL. Newly
-added sources appear in the drop-down menu immediately but are not persisted
-beyond the current process.
+added sources appear in the drop-down menu immediately and are also stored in
+the SQLite database so they are available after restarting the server.
