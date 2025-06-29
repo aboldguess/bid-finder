@@ -40,8 +40,9 @@ async function runInternal(onProgress, source) {
         parser: 'contractsFinder'
       };
 
-    // Let the caller know which URL is being scraped. This is useful feedback
-    // for both the UI and logs.
+    // Log the start of the scrape and let any progress listener know which
+    // source is being processed.
+    logger.info(`Starting scrape for ${src.label} (${src.url})`);
     if (onProgress) {
       onProgress({ step: 'start', source: src });
     }
@@ -60,6 +61,8 @@ async function runInternal(onProgress, source) {
     const html = await res.text();
     // Forward the parser key so htmlParser knows which scraping strategy to use.
     const tenders = parseTenders(html, src.parser);
+
+    logger.info(`Found ${tenders.length} tenders on ${src.label}`);
 
     // Notify listeners how many tenders were discovered on the page.
     if (onProgress) {
@@ -99,7 +102,11 @@ async function runInternal(onProgress, source) {
         logger.error('Error inserting tender:', err);
       }
 
-      // Notify listeners of progress so the UI can be updated in real time.
+      // Log progress for debugging purposes and notify listeners so the UI can
+      // update in real time.
+      logger.info(
+        `[${i + 1}/${total}] ${title} - ${inserted ? 'inserted' : 'duplicate'}`
+      );
       if (onProgress) {
         onProgress({
           step: 'tender',
@@ -112,11 +119,25 @@ async function runInternal(onProgress, source) {
     }
 
     // Record when this scrape completed successfully so the UI can show
-    // freshnes information. Failures in this step should not abort the run.
+    // freshness information. Failures in this step should not abort the run.
     try {
       await db.setLastScraped(new Date().toISOString());
     } catch (err) {
       logger.error('Failed to update last_scraped timestamp:', err);
+    }
+
+    // Provide additional debug output when no new tenders were stored so that
+    // any issues with the parser or source can be investigated more easily.
+    if (count === 0) {
+      if (tenders.length === 0) {
+        logger.info(`No tenders were returned for ${src.label}`);
+      } else {
+        logger.info(
+          `${tenders.length} tenders found on ${src.label} but all were duplicates`
+        );
+      }
+    } else {
+      logger.info(`Inserted ${count} new tenders from ${src.label}`);
     }
 
     // Return the number of newly inserted tenders.
@@ -147,6 +168,7 @@ module.exports.run = async function (onProgress, source) {
  * @returns {Promise<Object>} results keyed by source key
  */
 module.exports.runAll = async function (onProgress) {
+  logger.info('Starting scrape for all configured sources');
   const results = {};
   for (const [key, src] of Object.entries(config.sources)) {
     const progress = p => onProgress && onProgress({ source: key, ...p });
