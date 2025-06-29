@@ -7,17 +7,28 @@
  * Parse Contracts Finder markup. This is the original parser used by the
  * project and acts as the default.
  */
+// Helper to strip any nested HTML tags and normalise whitespace
+const clean = str => str.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+
 function parseContractsFinder(html) {
   const tenders = [];
-  const blockRe = /<div class="search-result">([^]*?)<\/div>/g;
+  // Results are contained within elements that include the "search-result" class
+  const blockRe = /<div[^>]*class="[^"]*search-result[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
   let blockMatch;
   while ((blockMatch = blockRe.exec(html))) {
     const block = blockMatch[1];
-    const title = /<h2>(.*?)<\/h2>/.exec(block)?.[1].trim() || '';
-    const link = /<a[^>]*href="([^"]+)"/.exec(block)?.[1] || '';
-    const date = /<span class="date">(.*?)<\/span>/.exec(block)?.[1].trim() || '';
-    const desc = /<p>(.*?)<\/p>/.exec(block)?.[1].trim() || '';
-    tenders.push({ title, link, date, desc });
+    const link = /<a[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/i.exec(block);
+    // Some templates place the title inside the anchor, others in a sibling h2
+    const title = link ? clean(link[2]) : clean(/<h2[^>]*>(.*?)<\/h2>/i.exec(block)?.[1] || '');
+    const href = link ? link[1] : /<a[^>]*href="([^"]+)"/i.exec(block)?.[1] || '';
+    const dateMatch =
+      /<time[^>]*>(.*?)<\/time>/i.exec(block) ||
+      /<span[^>]*class="[^"]*date[^"]*"[^>]*>(.*?)<\/span>/i.exec(block);
+    const date = dateMatch ? clean(dateMatch[1]) : '';
+    const desc = clean(/<p[^>]*>(.*?)<\/p>/i.exec(block)?.[1] || '');
+    if (href && title) {
+      tenders.push({ title, link: href, date, desc });
+    }
   }
   return tenders;
 }
@@ -29,17 +40,26 @@ function parseContractsFinder(html) {
  */
 function parseSell2Wales(html) {
   const tenders = [];
-  const rowRe = /<tr[^>]*>([^]*?)<\/tr>/g;
+  const rowRe = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
   let row;
   while ((row = rowRe.exec(html))) {
     const block = row[1];
-    const link = /<a[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/.exec(block);
+    const link = /<a[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/i.exec(block);
     if (!link) continue;
-    const title = link[2].trim();
+    const title = clean(link[2]);
     const href = link[1];
-    const date = /(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2})/.exec(block)?.[1] || '';
-    const desc = /<p[^>]*>(.*?)<\/p>/.exec(block)?.[1].trim() || '';
-    tenders.push({ title, link: href, date, desc });
+    const dateMatch =
+      /(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2})/.exec(block) ||
+      /<time[^>]*>(.*?)<\/time>/i.exec(block);
+    const date = dateMatch ? clean(dateMatch[1]) : '';
+    const desc = clean(
+      /<td[^>]*class="[^"]*description[^"]*"[^>]*>([\s\S]*?)<\/td>/i.exec(block)?.[1] ||
+        /<p[^>]*>([\s\S]*?)<\/p>/i.exec(block)?.[1] ||
+        ''
+    );
+    if (title && href) {
+      tenders.push({ title, link: href, date, desc });
+    }
   }
   return tenders;
 }
@@ -52,17 +72,19 @@ function parseSell2Wales(html) {
  */
 function parseUkri(html) {
   const tenders = [];
-  const artRe = /<article[^>]*>([^]*?)<\/article>/g;
+  const artRe = /<article[^>]*>([\s\S]*?)<\/article>/gi;
   let art;
   while ((art = artRe.exec(html))) {
     const block = art[1];
-    const link = /<a[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/.exec(block);
+    const link = /<a[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/i.exec(block);
     if (!link) continue;
-    const title = link[2].trim();
+    const title = clean(link[2]);
     const href = link[1];
-    const date = /<time[^>]*>(.*?)<\/time>/.exec(block)?.[1].trim() || '';
-    const desc = /<p[^>]*>(.*?)<\/p>/.exec(block)?.[1].trim() || '';
-    tenders.push({ title, link: href, date, desc });
+    const date = clean(/<time[^>]*>(.*?)<\/time>/i.exec(block)?.[1] || '');
+    const desc = clean(/<p[^>]*>([\s\S]*?)<\/p>/i.exec(block)?.[1] || '');
+    if (!/contact\s+us/i.test(title)) {
+      tenders.push({ title, link: href, date, desc });
+    }
   }
   return tenders;
 }
