@@ -98,5 +98,11 @@ runtime. Follow these steps to register a new site:
 7. Click **Add Source** to save. The source is stored in the database and can be
    selected immediately.
 
+When filling in the form you will be asked for four pieces of information:
+- **Key** – a short unique identifier used internally (e.g. `eusupply`).
+- **Label** – human readable name shown in the dashboard (e.g. `EU Supply UK`).
+- **Search URL** – the RSS feed or results page to scrape (e.g. `https://uk.eu-supply.com/ctm/supplier/publictenders?B=UK`).
+- **Base URL** – the website root prepended to tender links (e.g. `https://uk.eu-supply.com`).
+
 The application ships with Contracts Finder, EU Supply and a selection of other
 procurement portals pre-configured so you can start scraping immediately.

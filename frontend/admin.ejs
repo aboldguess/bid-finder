@@ -24,6 +24,19 @@
 
   <!-- Manage scraping sources -->
   <h2>Sources</h2>
+  <!-- Help text explaining what each Add Source field does. The EU Supply
+       values are shown as a concrete example that users can copy -->
+  <div id="sourceHelp">
+    <p>Fill out the form below to register a new tender source.</p>
+    <ul>
+      <li><strong>Key</strong> &ndash; short identifier, e.g. <code>eusupply</code></li>
+      <li><strong>Label</strong> &ndash; display name such as <code>EU Supply UK</code></li>
+      <li><strong>Search URL</strong> &ndash; feed or listing, for EU Supply
+        <code>https://uk.eu-supply.com/ctm/supplier/publictenders?B=UK</code></li>
+      <li><strong>Base URL</strong> &ndash; website root, e.g.
+        <code>https://uk.eu-supply.com</code></li>
+    </ul>
+  </div>
   <ul id="sourceList">
     <% Object.keys(sources).forEach(key => { %>
       <li><%= key %> - <%= sources[key].label %></li>
