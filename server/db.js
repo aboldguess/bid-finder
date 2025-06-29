@@ -43,6 +43,18 @@ db.serialize(() => {
     username TEXT UNIQUE,
     password TEXT
   )`);
+
+  // Persist custom scraping sources so they survive process restarts. Each
+  // source is keyed by a short unique string which is also used in the
+  // `config.sources` object. Having the parser column allows different HTML
+  // extraction strategies to be used for each source.
+  db.run(`CREATE TABLE IF NOT EXISTS sources (
+    key TEXT PRIMARY KEY,
+    label TEXT,
+    url TEXT,
+    base TEXT,
+    parser TEXT
+  )`);
 });
 
 module.exports = {
@@ -171,6 +183,43 @@ module.exports = {
   },
 
   /**
+   * Insert a new scraping source definition.
+   *
+   * @param {string} key - Unique identifier used in config.sources
+   * @param {string} label - Display name for the source
+   * @param {string} url - Search URL
+   * @param {string} base - Base URL for tender links
+   * @param {string} parser - htmlParser key determining which parser to use
+   * @returns {Promise<void>} resolves once the row has been inserted
+   */
+  insertSource: (key, label, url, base, parser) => {
+    return new Promise((resolve, reject) => {
+      db.run(
+        'INSERT OR IGNORE INTO sources (key, label, url, base, parser) VALUES (?, ?, ?, ?, ?)',
+        [key, label, url, base, parser],
+        err => {
+          if (err) return reject(err);
+          resolve();
+        }
+      );
+    });
+  },
+
+  /**
+   * Retrieve all stored scraping sources.
+   *
+   * @returns {Promise<Array>} resolves with each source row
+   */
+  getSources: () => {
+    return new Promise((resolve, reject) => {
+      db.all('SELECT * FROM sources', (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows);
+      });
+    });
+  },
+
+  /**
    * Create a new user with the given username and hashed password.
    *
    * @param {string} username - Unique username for the account
@@ -220,6 +269,7 @@ module.exports = {
         db.run('DROP TABLE IF EXISTS tenders');
         db.run('DROP TABLE IF EXISTS metadata');
         db.run('DROP TABLE IF EXISTS users');
+        db.run('DROP TABLE IF EXISTS sources');
         db.run(`CREATE TABLE tenders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT,
@@ -237,6 +287,13 @@ module.exports = {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE,
             password TEXT
+          )`);
+        db.run(`CREATE TABLE sources (
+            key TEXT PRIMARY KEY,
+            label TEXT,
+            url TEXT,
+            base TEXT,
+            parser TEXT
           )`, err2 => {
             if (err2) return reject(err2);
             resolve();

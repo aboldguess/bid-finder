@@ -25,15 +25,28 @@ async function scheduleJob() {
   });
 }
 
-// Load any persisted cron schedule from the database before starting the job.
+// Load settings such as the cron schedule and any user-added sources from the
+// database before the server begins handling requests. This ensures the in-memory
+// configuration matches what was saved previously.
 (async () => {
   try {
     const stored = await db.getCronSchedule();
     if (stored && cron.validate(stored)) {
       config.cronSchedule = stored;
     }
+
+    // Load any persisted sources and merge them into the config object.
+    const rows = await db.getSources();
+    for (const row of rows) {
+      config.sources[row.key] = {
+        label: row.label,
+        url: row.url,
+        base: row.base,
+        parser: row.parser
+      };
+    }
   } catch (err) {
-    logger.error('Failed to load cron schedule from DB:', err);
+    logger.error('Failed to load settings from DB:', err);
   }
   await scheduleJob();
 })();
@@ -134,8 +147,10 @@ app.get('/logout', (req, res) => {
 // POST /sources - Add a new scraping source at runtime. The request should
 // include a unique key along with label, url and base properties. Sources are
 // stored in memory so they persist only for the lifetime of the process.
-app.post('/sources', (req, res) => {
-  const { key, label, url, base } = req.body || {};
+// Persist new sources in the database so they remain available after a restart.
+// The parser field defaults to "contractsFinder" since it matches our test HTML.
+app.post('/sources', async (req, res) => {
+  const { key, label, url, base, parser = 'contractsFinder' } = req.body || {};
 
   // Basic validation of the supplied data
   if (!key || !label || !url || !base) {
@@ -146,9 +161,17 @@ app.post('/sources', (req, res) => {
     return res.status(400).json({ error: 'Source key already exists' });
   }
 
-  config.sources[key] = { label, url, base };
-  logger.info(`Added new source ${key}: ${label}`);
-  res.json({ success: true });
+  try {
+    // Store the new source definition then add it to the in-memory object used
+    // by the rest of the application.
+    await db.insertSource(key, label, url, base, parser);
+    config.sources[key] = { label, url, base, parser };
+    logger.info(`Added new source ${key}: ${label}`);
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('Failed to persist source:', err);
+    res.status(500).json({ error: 'Failed to save source' });
+  }
 });
 
 // GET /scrape - Trigger the scraper manually via an HTTP request. The route
