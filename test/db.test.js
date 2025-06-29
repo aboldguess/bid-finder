@@ -42,4 +42,14 @@ describe('Database helpers', () => {
     expect(rows[0].source).to.be.a('string');
     expect(rows[0].scraped_at).to.be.a('string');
   });
+
+  it('cron schedule can be stored and retrieved', async () => {
+    // Initially no schedule should exist
+    const none = await db.getCronSchedule();
+    expect(none).to.equal(null);
+    // Persist a schedule and fetch it back
+    await db.setCronSchedule('*/5 * * * *');
+    const stored = await db.getCronSchedule();
+    expect(stored).to.equal('*/5 * * * *');
+  });
 });
