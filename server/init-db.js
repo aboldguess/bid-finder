@@ -35,7 +35,7 @@ db.serialize(() => {
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE,
     password TEXT
-  );
+  )`);
   db.run(`CREATE TABLE IF NOT EXISTS sources (
     key TEXT PRIMARY KEY,
     label TEXT,
