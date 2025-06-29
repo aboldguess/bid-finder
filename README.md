@@ -72,6 +72,13 @@ how many new tenders were stored.
 The `/stats` page displays when the scraper last completed successfully. This
 helps you confirm that automated cron jobs are running as expected.
 
+## Logs
+
+All console output is also written to `logs/app.log` so you can review what the
+scraper was doing after it finishes. The log file persists across restarts and
+includes messages for every tender processed. If no new tenders are stored the
+log will explain whether none were found or all were detected as duplicates.
+
 ## Adding new sources
 
 The dashboard includes a small form for defining additional tender sources at
