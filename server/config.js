@@ -17,8 +17,8 @@ const defaultSource = {
 };
 
 // Other sources previously included here have been removed as they either no
-// longer work or never provided reliable results. Only Contracts Finder and
-// EU Supply remain as built-in options.
+// longer work or never provided reliable results. A small selection is kept to
+// demonstrate multiple scraping strategies.
 
 const euSupplySource = {
   label: 'EU Supply UK',
@@ -27,6 +27,24 @@ const euSupplySource = {
     'https://uk.eu-supply.com/ctm/supplier/publictenders?B=UK',
   base: process.env.EUSUPPLY_BASE || 'https://uk.eu-supply.com',
   parser: 'eusupply'
+};
+
+// Example Sell2Wales source used by the additional `sell2wales` parser.
+const sell2walesSource = {
+  label: 'Sell2Wales',
+  url:
+    process.env.SELL2WALES_URL ||
+    'https://www.sell2wales.gov.wales/search?q=',
+  base: process.env.SELL2WALES_BASE || 'https://www.sell2wales.gov.wales',
+  parser: 'sell2wales'
+};
+
+// Example UKRI opportunities source.
+const ukriSource = {
+  label: 'UKRI',
+  url: process.env.UKRI_URL || 'https://www.ukri.org/opportunities',
+  base: process.env.UKRI_BASE || 'https://www.ukri.org',
+  parser: 'ukri'
 };
 
 module.exports = {
@@ -43,7 +61,9 @@ module.exports = {
   // added here or injected via environment variables.
   sources: {
     default: defaultSource,
-    eusupply: euSupplySource
+    eusupply: euSupplySource,
+    sell2wales: sell2walesSource,
+    ukri: ukriSource
   },
 
   // Legacy fields maintained for backwards compatibility. These map to the

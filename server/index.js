@@ -184,6 +184,13 @@ app.get('/scrape', async (req, res) => {
   res.json({ added: newTenders });
 });
 
+// GET /scrape-all - Run the scraper against every configured source.
+app.get('/scrape-all', async (req, res) => {
+  logger.info('Manual scrape triggered for all sources');
+  const results = await scrape.runAll();
+  res.json(results);
+});
+
 // GET /scrape-stream - Same as /scrape but streams progress updates using
 // Server-Sent Events so the frontend can display real-time feedback.
 app.get('/scrape-stream', async (req, res) => {
