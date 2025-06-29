@@ -43,8 +43,10 @@
     <button type="submit">Add</button>
   </form>
 
-  <!-- Button triggers the scraper via AJAX instead of navigating away -->
+  <!-- Buttons for manual scraping -->
   <button id="scrapeBtn">Run Scraper Now</button>
+  <!-- New button kicks off scraping for every configured source -->
+  <button id="scrapeAllBtn">Run Scraper For All Sources</button>
   <!-- Area to show status messages while scraping -->
   <div id="status"></div>
   <!-- Rolling feed of progress messages from the scraper -->
@@ -113,6 +115,40 @@
       statusEl.textContent = 'Error running scraper.';
       src.close();
     };
+  });
+
+  // Trigger scraping across all configured sources. This sends a simple
+  // fetch request to the /scrape-all endpoint and displays a summary once
+  // complete.
+  document.getElementById('scrapeAllBtn').addEventListener('click', async () => {
+    const statusEl = document.getElementById('status');
+    const feedEl = document.getElementById('feed');
+
+    // Clear previous output and show a starting message
+    feedEl.innerHTML = '';
+    statusEl.textContent = 'Scraping all sources...';
+
+    try {
+      const res = await fetch('/scrape-all');
+      if (!res.ok) throw new Error('Request failed');
+      const data = await res.json();
+
+      let total = 0;
+      // Display one line per source summarising how many tenders were added
+      Object.keys(data).forEach(key => {
+        const { added, error } = data[key];
+        total += added;
+        const li = document.createElement('li');
+        li.textContent = `${key}: ${error ? 'error' : `${added} added`}`;
+        feedEl.appendChild(li);
+      });
+
+      statusEl.textContent = `Added ${total} new tenders in total.`;
+      // Brief delay so the user can read the summary before reloading
+      setTimeout(() => location.reload(), 1000);
+    } catch (err) {
+      statusEl.textContent = 'Error running scraper.';
+    }
   });
 
   // Allow users to submit the Add Source form to register a new scraping

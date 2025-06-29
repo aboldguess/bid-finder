@@ -184,7 +184,9 @@ app.get('/scrape', async (req, res) => {
   res.json({ added: newTenders });
 });
 
-// GET /scrape-all - Run the scraper against every configured source.
+// GET /scrape-all - Run the scraper against every configured source. This
+// endpoint is used by the "Scrape All" button on the dashboard and simply
+// returns a summary of how many tenders were added per source.
 app.get('/scrape-all', async (req, res) => {
   logger.info('Manual scrape triggered for all sources');
   const results = await scrape.runAll();
