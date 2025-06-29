@@ -21,9 +21,15 @@ const logger = require('./logger');
  */
 module.exports.run = async function (onProgress, source) {
   try {
-    // Determine the URL/base for this run. If a source is provided use it,
-    // otherwise fall back to the defaults defined in config.js.
-    const src = source || { url: config.scrapeUrl, base: config.scrapeBase };
+    // Determine the URL/base for this run. When no source is supplied we
+    // construct an object using the default Contracts Finder settings and the
+    // parser key expected by htmlParser.
+    const src =
+      source || {
+        url: config.scrapeUrl,
+        base: config.scrapeBase,
+        parser: 'contractsFinder'
+      };
 
     // Let the caller know which URL is being scraped. This is useful feedback
     // for both the UI and logs.
@@ -43,7 +49,8 @@ module.exports.run = async function (onProgress, source) {
     // Grab the raw HTML then extract tender information using our small
     // regex-based parser. This avoids the need for external HTML libraries.
     const html = await res.text();
-    const tenders = parseTenders(html);
+    // Forward the parser key so htmlParser knows which scraping strategy to use.
+    const tenders = parseTenders(html, src.parser);
 
     // Notify listeners how many tenders were discovered on the page.
     if (onProgress) {
