@@ -132,6 +132,45 @@ module.exports = {
   },
 
   /**
+   * Persist the cron schedule expression in the metadata table. Using
+   * INSERT .. ON CONFLICT allows the value to be updated without creating
+   * duplicate rows.
+   *
+   * @param {string} schedule - Cron expression to store
+   * @returns {Promise<void>} resolves when written
+   */
+  setCronSchedule: schedule => {
+    return new Promise((resolve, reject) => {
+      db.run(
+        `INSERT INTO metadata (key, value) VALUES ('cron_schedule', ?)
+         ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+        [schedule],
+        err => {
+          if (err) return reject(err);
+          resolve();
+        }
+      );
+    });
+  },
+
+  /**
+   * Retrieve the stored cron schedule expression if one has been saved.
+   *
+   * @returns {Promise<string|null>} cron expression or null when absent
+   */
+  getCronSchedule: () => {
+    return new Promise((resolve, reject) => {
+      db.get(
+        "SELECT value FROM metadata WHERE key='cron_schedule'",
+        (err, row) => {
+          if (err) return reject(err);
+          resolve(row ? row.value : null);
+        }
+      );
+    });
+  },
+
+  /**
    * Create a new user with the given username and hashed password.
    *
    * @param {string} username - Unique username for the account

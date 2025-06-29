@@ -9,6 +9,35 @@ const bcrypt = require('bcryptjs');
 
 const app = express();
 
+// Reference to the scheduled cron job so it can be restarted when the schedule
+// changes.
+let scheduledJob;
+
+/**
+ * Helper that (re)creates the cron job using the current expression stored in
+ * config.cronSchedule.
+ */
+async function scheduleJob() {
+  if (scheduledJob) scheduledJob.stop();
+  scheduledJob = cron.schedule(config.cronSchedule, async () => {
+    logger.info('Running scheduled scrape...');
+    await scrape.run();
+  });
+}
+
+// Load any persisted cron schedule from the database before starting the job.
+(async () => {
+  try {
+    const stored = await db.getCronSchedule();
+    if (stored && cron.validate(stored)) {
+      config.cronSchedule = stored;
+    }
+  } catch (err) {
+    logger.error('Failed to load cron schedule from DB:', err);
+  }
+  await scheduleJob();
+})();
+
 // Parse JSON request bodies so the UI can post new sources
 app.use(express.json());
 // Parse URL-encoded form bodies used by the login and registration forms
@@ -183,27 +212,23 @@ app.post('/admin/reset-db', requireAuth, async (req, res) => {
 
 // POST /admin/cron - Update the cron schedule at runtime. The existing job is
 // stopped and a new one is created using the supplied expression.
-app.post('/admin/cron', requireAuth, (req, res) => {
+app.post('/admin/cron', requireAuth, async (req, res) => {
   const schedule = req.body && req.body.schedule;
   if (!schedule || !cron.validate(schedule)) {
     return res.status(400).json({ error: 'Invalid schedule' });
   }
-  config.cronSchedule = schedule;
-  scheduledJob.stop();
-  scheduledJob = cron.schedule(config.cronSchedule, async () => {
-    logger.info('Running scheduled scrape...');
-    await scrape.run();
-  });
-  res.json({ success: true });
+  try {
+    await db.setCronSchedule(schedule);
+    config.cronSchedule = schedule;
+    await scheduleJob();
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('Failed to update cron schedule:', err);
+    res.status(500).json({ error: 'Failed to update schedule' });
+  }
 });
 
-// Schedule automatic scraping based on the cronSchedule in config. Storing the
-// resulting job reference lets us reschedule it later if the admin updates the
-// timing.
-let scheduledJob = cron.schedule(config.cronSchedule, async () => {
-  logger.info('Running scheduled scrape...');
-  await scrape.run();
-});
+
 
 // Start the HTTP server and log the URL so the user knows where to point
 // their browser.
