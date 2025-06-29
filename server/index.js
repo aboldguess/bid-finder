@@ -4,11 +4,36 @@ const scrape = require('./scrape');
 const cron = require('node-cron');
 const config = require('./config');
 const logger = require('./logger');
+const session = require('express-session');
+const bcrypt = require('bcryptjs');
 
 const app = express();
 
 // Parse JSON request bodies so the UI can post new sources
 app.use(express.json());
+// Parse URL-encoded form bodies used by the login and registration forms
+app.use(express.urlencoded({ extended: false }));
+// Simple session middleware storing session data in memory. In production a
+// persistent store should be used instead.
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'change_this_secret',
+    resave: false,
+    saveUninitialized: false
+  })
+);
+
+// Make the current user (if any) available to all templates
+app.use((req, res, next) => {
+  res.locals.user = req.session.user;
+  next();
+});
+
+// Middleware protecting admin routes by redirecting unauthenticated users
+const requireAuth = (req, res, next) => {
+  if (req.session.user) return next();
+  res.redirect('/login');
+};
 
 // Configure EJS for HTML templates and serve static assets from the
 // frontend directory defined in config.js
@@ -29,6 +54,52 @@ app.get('/', async (req, res) => {
 app.get('/stats', async (req, res) => {
   const lastScraped = await db.getLastScraped();
   res.render('stats', { lastScraped });
+});
+
+// Authentication -----------------------------------------------------------
+
+// Render login form
+app.get('/login', (req, res) => {
+  res.render('login');
+});
+
+// Handle login submissions
+app.post('/login', async (req, res) => {
+  const { username, password } = req.body || {};
+  const user = await db.getUserByUsername(username);
+  // Validate credentials using bcrypt hash comparison
+  if (!user || !(await bcrypt.compare(password, user.password))) {
+    return res.status(401).render('login', { error: 'Invalid credentials' });
+  }
+  // Persist minimal user info in the session
+  req.session.user = { id: user.id, username: user.username };
+  res.redirect('/admin');
+});
+
+// Render registration form
+app.get('/register', (req, res) => {
+  res.render('register');
+});
+
+// Handle account creation
+app.post('/register', async (req, res) => {
+  const { username, password } = req.body || {};
+  if (!username || !password) {
+    return res.status(400).render('register', { error: 'Missing fields' });
+  }
+  if (await db.getUserByUsername(username)) {
+    return res.status(400).render('register', { error: 'User already exists' });
+  }
+  // Hash the password so only the digest is stored
+  const hash = await bcrypt.hash(password, 10);
+  await db.createUser(username, hash);
+  req.session.user = { username };
+  res.redirect('/admin');
+});
+
+// Log the user out and destroy their session
+app.get('/logout', (req, res) => {
+  req.session.destroy(() => res.redirect('/'));
 });
 
 // POST /sources - Add a new scraping source at runtime. The request should
@@ -94,13 +165,13 @@ app.get('/scrape-stream', async (req, res) => {
 });
 
 // GET /admin - Render the admin interface used for maintenance tasks.
-app.get('/admin', (req, res) => {
+app.get('/admin', requireAuth, (req, res) => {
   res.render('admin', { sources: config.sources, cron: config.cronSchedule });
 });
 
 // POST /admin/reset-db - Drop and recreate the tenders table. This allows the
 // admin to clear out old data without restarting the server.
-app.post('/admin/reset-db', async (req, res) => {
+app.post('/admin/reset-db', requireAuth, async (req, res) => {
   try {
     await db.reset();
     res.json({ success: true });
@@ -112,7 +183,7 @@ app.post('/admin/reset-db', async (req, res) => {
 
 // POST /admin/cron - Update the cron schedule at runtime. The existing job is
 // stopped and a new one is created using the supplied expression.
-app.post('/admin/cron', (req, res) => {
+app.post('/admin/cron', requireAuth, (req, res) => {
   const schedule = req.body && req.body.schedule;
   if (!schedule || !cron.validate(schedule)) {
     return res.status(400).json({ error: 'Invalid schedule' });

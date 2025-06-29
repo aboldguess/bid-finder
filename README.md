@@ -27,6 +27,9 @@ This application scrapes new tenders from the UK government's Contracts Finder w
   results table.
 - **Add a source** using the *Add Source* form. Provide a key, label, search URL
   and base URL. The source is added immediately for the current session.
+- **Manage the application** by registering at `/register`, logging in at
+  `/login` and visiting `/admin`. Only authenticated users can access admin
+  functions.
 - **Automatic scraping** runs in the background according to the `CRON_SCHEDULE`
   environment variable (default `0 6 * * *`). Results are stored in the
   database without any manual interaction.

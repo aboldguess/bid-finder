@@ -30,6 +30,11 @@ db.serialize(() => {
   db.run(`CREATE TABLE IF NOT EXISTS metadata (
     key TEXT PRIMARY KEY,
     value TEXT
+  )`);
+  db.run(`CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE,
+    password TEXT
   )`, err => {
     if (err) {
       logger.error('Failed to create table:', err);

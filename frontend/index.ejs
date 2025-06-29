@@ -6,7 +6,12 @@
 </head>
 <body>
   <h1>New Tenders</h1>
-  <a href="/admin">Admin</a> |
+  <% if (user) { %>
+    <a href="/admin">Admin</a> |
+    <a href="/logout">Logout</a> |
+  <% } else { %>
+    <a href="/login">Login</a> |
+  <% } %>
   <!-- Link to the statistics page showing when the scraper last ran -->
   <a href="/stats">Stats</a>
   <!-- Brief instructions help new users understand the workflow -->
