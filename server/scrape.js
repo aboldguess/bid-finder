@@ -19,7 +19,16 @@ const logger = require('./logger');
  *   target. This allows the scraper to run against different tender sources.
  * @returns {Promise<number>} number of new tenders inserted into the database
  */
-module.exports.run = async function (onProgress, source) {
+/**
+ * Internal implementation used by both `run` and `runAll`. It mirrors the
+ * current run() behaviour but returns an object describing the outcome so that
+ * callers can access error details when needed.
+ *
+ * @param {function(object):void} [onProgress]
+ * @param {object} [source]
+ * @returns {Promise<{added:number, error?:Error}>}
+ */
+async function runInternal(onProgress, source) {
   try {
     // Determine the URL/base for this run. When no source is supplied we
     // construct an object using the default Contracts Finder settings and the
@@ -111,11 +120,41 @@ module.exports.run = async function (onProgress, source) {
     }
 
     // Return the number of newly inserted tenders.
-    return count;
+    return { added: count };
   } catch (err) {
     // Network or parsing errors end up here. Return 0 to indicate no new data
-    // was stored during this run.
-    logger.error('Error fetching tenders:', err);
-    return 0;
+    // was stored during this run and expose the error so callers can log it.
+    logger.error('Error fetching tenders from', source?.label || 'default', ':', err);
+    return { added: 0, error: err };
   }
+}
+
+/**
+ * Public wrapper matching the original API used throughout the codebase. This
+ * preserves backwards compatibility while allowing runAll() to obtain error
+ * information from runInternal.
+ */
+module.exports.run = async function (onProgress, source) {
+  const result = await runInternal(onProgress, source);
+  return result.added;
+};
+
+/**
+ * Scrape all configured sources one after another. The returned object maps the
+ * source key to the result of each run.
+ *
+ * @param {function(object):void} [onProgress]
+ * @returns {Promise<Object>} results keyed by source key
+ */
+module.exports.runAll = async function (onProgress) {
+  const results = {};
+  for (const [key, src] of Object.entries(config.sources)) {
+    const progress = p => onProgress && onProgress({ source: key, ...p });
+    const res = await runInternal(progress, src);
+    if (res.error) {
+      logger.error(`Scrape failed for ${key}:`, res.error);
+    }
+    results[key] = { added: res.added, error: res.error && res.error.message };
+  }
+  return results;
 };

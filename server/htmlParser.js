@@ -97,6 +97,12 @@ exports.parseTenders = function parseTenders(html, site = 'contractsFinder') {
     // EU Supply uses a different table structure so it has its own parser.
     case 'eusupply':
       return parseEuSupply(html);
+    // Sell2Wales and UKRI each use their own markup so custom parsers exist
+    // for them as well.
+    case 'sell2wales':
+      return parseSell2Wales(html);
+    case 'ukri':
+      return parseUkri(html);
     // Any unknown keys fall back to the Contracts Finder format which our
     // tests are based on.
     case 'contractsFinder':

@@ -1,6 +1,6 @@
 # Procurement Scraper GUI
 
-This application scrapes new tenders from the UK government's Contracts Finder website and the EU Supply portal (or other configurable sources) and displays them in a simple dashboard. Results are stored in a local SQLite database so you can browse them even after the scraper has finished running.
+This application scrapes new tenders from several procurement portals including the UK government's Contracts Finder website, the EU Supply portal and example sources like Sell2Wales and UKRI. Results are stored in a local SQLite database so you can browse them even after the scraper has finished running.
 
 ## Setup
 
@@ -25,6 +25,8 @@ This application scrapes new tenders from the UK government's Contracts Finder w
 - **Run the scraper** by selecting a source from the drop-down list and clicking
   **Scrape**. Progress messages stream to the page and new tenders appear in the
   results table.
+- **Scrape all sources** at once by visiting `/scrape-all`. Each source is
+  processed sequentially and the response details which succeeded or failed.
 - **Add a source** using the *Add Source* form. Provide a key, label, search URL
   and base URL. The source is added immediately for the current session.
 - **Manage the application** by registering at `/register`, logging in at
@@ -42,6 +44,8 @@ This application scrapes new tenders from the UK government's Contracts Finder w
 - `SCRAPE_URL` - URL used to fetch tender data.
 - `SCRAPE_BASE` - base URL prepended to scraped tender links.
 - `EUSUPPLY_URL` and `EUSUPPLY_BASE` - overrides for the built-in EU Supply source.
+- `SELL2WALES_URL` and `SELL2WALES_BASE` - overrides for the Sell2Wales source.
+- `UKRI_URL` and `UKRI_BASE` - overrides for the UKRI source.
 - `CRON_SCHEDULE` - cron expression controlling automatic scraping (defaults to `0 6 * * *`).
 
 ## Scheduled cron job
@@ -66,3 +70,5 @@ The dashboard includes a small form for defining additional tender sources at
 runtime. Provide a unique key, display label, search URL and base URL. Newly
 added sources appear in the drop-down menu immediately and are also stored in
 the SQLite database so they are available after restarting the server.
+The application ships with Contracts Finder, EU Supply, Sell2Wales and UKRI
+configured out of the box.
