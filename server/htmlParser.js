@@ -111,6 +111,27 @@ function parseEuSupply(html) {
 }
 
 /**
+ * Basic RSS parser used for feeds exposed by many procurement portals.
+ * Each <item> represents a tender so we extract standard RSS fields.
+ */
+function parseRss(xml) {
+  const tenders = [];
+  const itemRe = /<item>([\s\S]*?)<\/item>/gi;
+  let item;
+  while ((item = itemRe.exec(xml))) {
+    const block = item[1];
+    const title = clean(/<title>([\s\S]*?)<\/title>/i.exec(block)?.[1] || '');
+    const href = clean(/<link>([\s\S]*?)<\/link>/i.exec(block)?.[1] || '');
+    const date = clean(/<(pubDate|dc:date)>([\s\S]*?)<\/(pubDate|dc:date)>/i.exec(block)?.[2] || '');
+    const desc = clean(/<description>([\s\S]*?)<\/description>/i.exec(block)?.[1] || '');
+    if (title && href) {
+      tenders.push({ title, link: href, date, desc });
+    }
+  }
+  return tenders;
+}
+
+/**
  * Select the appropriate parser for a site. Unknown keys fall back to the
  * Contracts Finder parser since its format is the basis for our tests.
  */
@@ -125,6 +146,9 @@ exports.parseTenders = function parseTenders(html, site = 'contractsFinder') {
       return parseSell2Wales(html);
     case 'ukri':
       return parseUkri(html);
+    // Many sites expose RSS feeds which we can parse generically.
+    case 'rss':
+      return parseRss(html);
     // Any unknown keys fall back to the Contracts Finder format which our
     // tests are based on.
     case 'contractsFinder':
