@@ -58,6 +58,11 @@ the source being scraped, how many tenders were discovered and whether each one
 was added to the database or skipped as a duplicate. A final message summarises
 how many new tenders were stored.
 
+## Statistics
+
+The `/stats` page displays when the scraper last completed successfully. This
+helps you confirm that automated cron jobs are running as expected.
+
 ## Adding new sources
 
 The dashboard includes a small form for defining additional tender sources at

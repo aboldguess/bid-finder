@@ -15,7 +15,8 @@ const db = new sqlite3.Database(config.dbFile, err => {
   }
 });
 
-// Create the tenders table and close the connection once finished.
+// Create required tables and close the connection once finished. Both tables are
+// kept minimal so initialisation is fast even on constrained platforms.
 db.serialize(() => {
   db.run(`CREATE TABLE IF NOT EXISTS tenders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -23,6 +24,10 @@ db.serialize(() => {
     link TEXT UNIQUE,
     date TEXT,
     description TEXT
+  )`);
+  db.run(`CREATE TABLE IF NOT EXISTS metadata (
+    key TEXT PRIMARY KEY,
+    value TEXT
   )`, err => {
     if (err) {
       logger.error('Failed to create table:', err);

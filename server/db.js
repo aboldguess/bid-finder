@@ -23,6 +23,13 @@ db.serialize(() => {
     date TEXT,
     description TEXT
   )`);
+  // Small metadata table used to store global key/value pairs such as the
+  // timestamp of the last successful scrape. Using a key column keeps the
+  // schema flexible should more values be needed later.
+  db.run(`CREATE TABLE IF NOT EXISTS metadata (
+    key TEXT PRIMARY KEY,
+    value TEXT
+  )`);
 });
 
 module.exports = {
@@ -72,6 +79,44 @@ module.exports = {
   },
 
   /**
+   * Store the timestamp of the last successful scrape. Using INSERT .. ON
+   * CONFLICT means the row is created on first use and updated thereafter.
+   *
+   * @param {string} ts ISO timestamp string
+   * @returns {Promise<void>} resolves when the value is written
+   */
+  setLastScraped: ts => {
+    return new Promise((resolve, reject) => {
+      db.run(
+        `INSERT INTO metadata (key, value) VALUES ('last_scraped', ?)
+         ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+        [ts],
+        err => {
+          if (err) return reject(err);
+          resolve();
+        }
+      );
+    });
+  },
+
+  /**
+   * Retrieve the timestamp of the most recent successful scrape.
+   *
+   * @returns {Promise<string|null>} ISO timestamp or null if none stored
+   */
+  getLastScraped: () => {
+    return new Promise((resolve, reject) => {
+      db.get(
+        "SELECT value FROM metadata WHERE key='last_scraped'",
+        (err, row) => {
+          if (err) return reject(err);
+          resolve(row ? row.value : null);
+        }
+      );
+    });
+  },
+
+  /**
    * Drop and recreate the tenders table. This is used by the admin interface
    * to clear all stored data without restarting the application.
    * @returns {Promise<void>} resolves once the table has been recreated
@@ -79,19 +124,22 @@ module.exports = {
   reset: () => {
     return new Promise((resolve, reject) => {
       db.serialize(() => {
-        db.run('DROP TABLE IF EXISTS tenders', err => {
-          if (err) return reject(err);
-          db.run(`CREATE TABLE tenders (
+        db.run('DROP TABLE IF EXISTS tenders');
+        db.run('DROP TABLE IF EXISTS metadata');
+        db.run(`CREATE TABLE tenders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT,
             link TEXT UNIQUE,
             date TEXT,
             description TEXT
+          )`);
+        db.run(`CREATE TABLE metadata (
+            key TEXT PRIMARY KEY,
+            value TEXT
           )`, err2 => {
             if (err2) return reject(err2);
             resolve();
           });
-        });
       });
     });
   }
