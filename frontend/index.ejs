@@ -45,12 +45,14 @@
   <!-- Rolling feed of progress messages from the scraper -->
   <ul id="feed"></ul>
   <table>
-    <tr><th>Title</th><th>Date</th><th>Description</th><th>Link</th></tr>
+    <tr><th>Title</th><th>Date</th><th>Description</th><th>Source</th><th>Scraped At</th><th>Link</th></tr>
     <% tenders.forEach(t => { %>
       <tr>
         <td><%= t.title %></td>
         <td><%= t.date %></td>
         <td><%= t.description %></td>
+        <td><%= t.source %></td>
+        <td><%= t.scraped_at %></td>
         <td><a href="<%= t.link %>">View</a></td>
       </tr>
     <% }) %>

@@ -29,6 +29,8 @@ describe('scrape.run', () => {
     expect(count).to.equal(2);
     const rows = await db.getTenders();
     expect(rows).to.have.length(2);
+    expect(rows[0]).to.have.property('source');
+    expect(rows[0]).to.have.property('scraped_at');
     const ts = await db.getLastScraped();
     expect(ts).to.be.a('string');
   });
