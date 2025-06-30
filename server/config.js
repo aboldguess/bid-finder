@@ -96,6 +96,15 @@ const intendSource = {
   parser: 'rss'
 };
 
+// Default tagging rules used when none are supplied via the TAG_RULES
+// environment variable. Each tag is associated with a list of keywords that,
+// when present in a tender's title or description, cause the tag to be applied.
+const defaultTagRules = {
+  construction: ['construction', 'building', 'infrastructure'],
+  it: ['software', 'hardware', 'it', 'digital'],
+  healthcare: ['health', 'nhs', 'medical']
+};
+
 module.exports = {
   // Port the Express server listens on
   port: process.env.PORT || 3000,
@@ -131,5 +140,19 @@ module.exports = {
 
   // Cron expression determining when the scraper runs automatically
   cronSchedule: process.env.CRON_SCHEDULE || '0 6 * * *'
+  ,
+  // Keyword rules for automatic tagging. The value can be overridden by
+  // setting the TAG_RULES environment variable to a JSON string matching the
+  // shape of `defaultTagRules` above.
+  tagRules: (() => {
+    if (process.env.TAG_RULES) {
+      try {
+        return JSON.parse(process.env.TAG_RULES);
+      } catch {
+        // Fall back to defaults if parsing fails.
+      }
+    }
+    return defaultTagRules;
+  })()
 };
 

@@ -62,6 +62,7 @@ This application scrapes new tenders from several procurement portals including 
 - `PROCONTRACT_URL` and `PROCONTRACT_BASE` - overrides for ProContract.
 - `INTEND_URL` and `INTEND_BASE` - overrides for In-Tend.
 - `CRON_SCHEDULE` - cron expression controlling automatic scraping (defaults to `0 6 * * *`).
+- `TAG_RULES` - JSON mapping of tag names to keyword arrays for automatic tagging.
 
 ## Scheduled cron job
 
