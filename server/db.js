@@ -220,6 +220,45 @@ module.exports = {
   },
 
   /**
+   * Update an existing scraping source definition. The key cannot be changed
+   * as it forms the primary identifier used throughout the application.
+   *
+   * @param {string} key - Identifier of the source to update
+   * @param {string} label - New display label
+   * @param {string} url - Updated search URL
+   * @param {string} base - Updated base URL for tender links
+   * @param {string} parser - Parser name to use for this source
+   * @returns {Promise<void>} resolves once the row has been updated
+   */
+  updateSource: (key, label, url, base, parser) => {
+    return new Promise((resolve, reject) => {
+      db.run(
+        'UPDATE sources SET label = ?, url = ?, base = ?, parser = ? WHERE key = ?',
+        [label, url, base, parser, key],
+        err => {
+          if (err) return reject(err);
+          resolve();
+        }
+      );
+    });
+  },
+
+  /**
+   * Remove a scraping source completely.
+   *
+   * @param {string} key - Identifier of the source to delete
+   * @returns {Promise<void>} resolves once the row has been removed
+   */
+  deleteSource: key => {
+    return new Promise((resolve, reject) => {
+      db.run('DELETE FROM sources WHERE key = ?', [key], err => {
+        if (err) return reject(err);
+        resolve();
+      });
+    });
+  },
+
+  /**
    * Create a new user with the given username and hashed password.
    *
    * @param {string} username - Unique username for the account

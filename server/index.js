@@ -174,6 +174,49 @@ app.post('/sources', async (req, res) => {
   }
 });
 
+// PUT /sources/:key - Update an existing scraping source. This mirrors the
+// POST /sources handler but modifies an existing row instead of inserting a
+// new one.
+app.put('/sources/:key', async (req, res) => {
+  const key = req.params.key;
+  const { label, url, base, parser = 'contractsFinder' } = req.body || {};
+
+  if (!config.sources[key]) {
+    return res.status(404).json({ error: 'Source not found' });
+  }
+  if (!label || !url || !base) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  try {
+    await db.updateSource(key, label, url, base, parser);
+    config.sources[key] = { label, url, base, parser };
+    logger.info(`Updated source ${key}: ${label}`);
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('Failed to update source:', err);
+    res.status(500).json({ error: 'Failed to update source' });
+  }
+});
+
+// DELETE /sources/:key - Remove a source entirely. The in-memory configuration
+// is kept in sync so subsequent requests do not reference the deleted source.
+app.delete('/sources/:key', async (req, res) => {
+  const key = req.params.key;
+  if (!config.sources[key]) {
+    return res.status(404).json({ error: 'Source not found' });
+  }
+  try {
+    await db.deleteSource(key);
+    delete config.sources[key];
+    logger.info(`Deleted source ${key}`);
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('Failed to delete source:', err);
+    res.status(500).json({ error: 'Failed to delete source' });
+  }
+});
+
 // GET /scrape - Trigger the scraper manually via an HTTP request. The route
 // responds with the number of new tenders that were inserted.
 app.get('/scrape', async (req, res) => {
