@@ -47,33 +47,54 @@ async function runInternal(onProgress, sourceKey, source) {
       onProgress({ step: 'start', source: src });
     }
 
-    // Fetch the search page with a realistic User-Agent so the request looks
-    // like it is coming from a normal browser.
-    const res = await fetch(src.url, {
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
-      }
-    });
+    // Collect tenders from all available pages. Some sources only show a
+    // limited number of results per page so we follow any "next" links until
+    // no further pages remain. This keeps the implementation generic without
+    // hard coding page query parameters.
+    const allTenders = [];
+    let nextUrl = src.url;
+    let page = 1;
+    const headers = {
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+    };
 
-    // Grab the raw HTML then extract tender information using our small
-    // regex-based parser. This avoids the need for external HTML libraries.
-    const html = await res.text();
-    // Forward the parser key so htmlParser knows which scraping strategy to use.
-    const tenders = parseTenders(html, src.parser);
+    while (nextUrl) {
+      // Fetch each page sequentially using a browser-like User-Agent.
+      const res = await fetch(nextUrl, { headers });
+      const html = await res.text();
 
-    logger.info(`Found ${tenders.length} tenders on ${src.label}`);
+      // Extract tenders from the HTML using the configured parser and add them
+      // to the overall results list.
+      const pageTenders = parseTenders(html, src.parser);
+      logger.info(`Found ${pageTenders.length} tenders on ${src.label} page ${page}`);
+      allTenders.push(...pageTenders);
 
-    // Notify listeners how many tenders were discovered on the page.
+      // Look for a link pointing to the next page. Many sites mark this with a
+      // rel="next" attribute or anchor text containing "Next". Relative URLs are
+      // resolved against the source base URL so both absolute and relative links
+      // are handled consistently.
+      const relNext = html.match(/<link[^>]*rel=["']next["'][^>]*href=["']([^"']+)["']/i);
+      const anchorNext =
+        html.match(/<a[^>]*href=["']([^"']+)["'][^>]*>(?:Next|next|›|&gt;|&raquo;)/i);
+      const href = relNext ? relNext[1] : anchorNext ? anchorNext[1] : null;
+      nextUrl = href ? new URL(href.replace(/&amp;/g, '&'), src.base).href : null;
+      page += 1;
+    }
+
+    logger.info(`Found ${allTenders.length} tenders on ${src.label}`);
+
     if (onProgress) {
-      onProgress({ step: 'found', count: tenders.length });
+      // Report the total number of tenders discovered across all pages.
+      onProgress({ step: 'found', count: allTenders.length });
     }
 
     // Track how many tenders were inserted during this run.
     let count = 0;
 
-    // "tenders" already contains each result, so we know the total count.
-    const total = tenders.length;
+    // `allTenders` contains every result from all pages, so we know the total
+    // count before inserting anything.
+    const total = allTenders.length;
 
     // Iterate over each result and insert it into the database. The
     // insertTender function resolves with the number of rows inserted so we can
@@ -81,7 +102,7 @@ async function runInternal(onProgress, sourceKey, source) {
     // Use a single timestamp for all tenders so stats can group them by run.
     const runTs = new Date().toISOString();
 
-    for (const [i, tender] of tenders.entries()) {
+    for (const [i, tender] of allTenders.entries()) {
       const title = tender.title;
       const link = src.base + tender.link;
       const date = tender.date;
@@ -136,11 +157,11 @@ async function runInternal(onProgress, sourceKey, source) {
     // Provide additional debug output when no new tenders were stored so that
     // any issues with the parser or source can be investigated more easily.
     if (count === 0) {
-      if (tenders.length === 0) {
+      if (allTenders.length === 0) {
         logger.info(`No tenders were returned for ${src.label}`);
       } else {
         logger.info(
-          `${tenders.length} tenders found on ${src.label} but all were duplicates`
+          `${allTenders.length} tenders found on ${src.label} but all were duplicates`
         );
       }
     } else {
