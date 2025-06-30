@@ -39,7 +39,11 @@
   </div>
   <ul id="sourceList">
     <% Object.keys(sources).forEach(key => { %>
-      <li><%= key %> - <%= sources[key].label %></li>
+      <li data-key="<%= key %>">
+        <%= key %> - <%= sources[key].label %>
+        <button class="editBtn" type="button">Edit</button>
+        <button class="deleteBtn" type="button">Delete</button>
+      </li>
     <% }) %>
   </ul>
   <form id="addSourceForm">
@@ -47,10 +51,13 @@
     <input id="newLabel" placeholder="Label" required>
     <input id="newUrl" placeholder="Search URL" required>
     <input id="newBase" placeholder="Base URL" required>
-    <button type="submit">Add Source</button>
+    <button id="addBtn" type="submit">Add Source</button>
   </form>
 
 <script>
+const sourceData = <%- JSON.stringify(sources) %>;
+let editingKey = null;
+
 // Add a new tender source and reload on success.
 document.getElementById('addSourceForm').addEventListener('submit', async e => {
   e.preventDefault();
@@ -58,16 +65,46 @@ document.getElementById('addSourceForm').addEventListener('submit', async e => {
   const label = document.getElementById('newLabel').value.trim();
   const url = document.getElementById('newUrl').value.trim();
   const base = document.getElementById('newBase').value.trim();
-  const res = await fetch('/sources', {
-    method: 'POST',
+  let method = 'POST';
+  let endpoint = '/sources';
+  if (editingKey) {
+    method = 'PUT';
+    endpoint = `/sources/${encodeURIComponent(editingKey)}`;
+  }
+  const res = await fetch(endpoint, {
+    method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key, label, url, base })
   });
   if (res.ok) {
     location.reload();
   } else {
-    alert('Failed to add source');
+    alert('Failed to save source');
   }
+});
+
+// Hook up edit and delete buttons for each listed source
+document.querySelectorAll('#sourceList li').forEach(li => {
+  const key = li.dataset.key;
+  li.querySelector('.editBtn').addEventListener('click', () => {
+    const s = sourceData[key];
+    document.getElementById('newKey').value = key;
+    document.getElementById('newKey').disabled = true;
+    document.getElementById('newLabel').value = s.label;
+    document.getElementById('newUrl').value = s.url;
+    document.getElementById('newBase').value = s.base;
+    document.getElementById('addBtn').textContent = 'Update Source';
+    editingKey = key;
+  });
+  li.querySelector('.deleteBtn').addEventListener('click', async () => {
+    if (!confirm(`Delete source ${key}?`)) return;
+    const res = await fetch(`/sources/${encodeURIComponent(key)}`, { method: 'DELETE' });
+    if (res.ok) {
+      location.reload();
+    } else {
+      alert('Failed to delete source');
+    }
+  });
 });
 
 // Submit new cron schedule so the server can reschedule the scraper.

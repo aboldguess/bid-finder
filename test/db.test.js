@@ -59,4 +59,20 @@ describe('Database helpers', () => {
     expect(rows).to.have.length(1);
     expect(rows[0].key).to.equal('x');
   });
+
+  it('sources can be updated', async () => {
+    await db.insertSource('y', 'Old', 'http://o', 'http://o', 'contractsFinder');
+    await db.updateSource('y', 'New', 'http://n', 'http://n', 'rss');
+    const rows = await db.getSources();
+    const updated = rows.find(r => r.key === 'y');
+    expect(updated.label).to.equal('New');
+    expect(updated.parser).to.equal('rss');
+  });
+
+  it('sources can be deleted', async () => {
+    await db.insertSource('z', 'Delete', 'http://d', 'http://d', 'contractsFinder');
+    await db.deleteSource('z');
+    const rows = await db.getSources();
+    expect(rows.some(r => r.key === 'z')).to.equal(false);
+  });
 });

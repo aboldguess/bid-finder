@@ -32,6 +32,8 @@ This application scrapes new tenders from several procurement portals including 
   current session and saved to the database so it is available after restarting
   the server. See the "Adding new sources" section below for a detailed step by
   step guide.
+- **Edit or delete sources** from the admin page. Use the list of configured
+  sources to modify details or remove entries entirely.
 - **Manage the application** by registering at `/register`, logging in at
   `/login` and visiting `/admin`. Only authenticated users can access admin
   functions.
@@ -97,6 +99,8 @@ runtime. Follow these steps to register a new site:
    custom parsers listed in `server/htmlParser.js`.
 7. Click **Add Source** to save. The source is stored in the database and can be
    selected immediately.
+8. Existing sources are shown in a list below the form. Click **Edit** to modify
+   details or **Delete** to remove a source altogether.
 
 When filling in the form you will be asked for four pieces of information:
 - **Key** – a short unique identifier used internally (e.g. `eusupply`).
