@@ -318,6 +318,25 @@ app.post('/admin/cron', requireAuth, async (req, res) => {
 // Start the HTTP server and log the URL so the user knows where to point
 // their browser. Binding to config.host allows access from other machines when
 // the host is set to 0.0.0.0.
-app.listen(config.port, config.host, () =>
-  logger.info(`Server running on http://${config.host}:${config.port}`)
-);
+app.listen(config.port, config.host, () => {
+  // Display a helpful startup message indicating how the server can be
+  // reached. When binding to 0.0.0.0 there is no single address clients should
+  // use, so list all non-internal IPv4 interfaces as suggestions.
+  if (config.host === '0.0.0.0') {
+    const os = require('os');
+    const nets = os.networkInterfaces();
+    const addresses = [];
+    for (const name of Object.keys(nets)) {
+      for (const net of nets[name]) {
+        // Skip over internal (e.g. loopback) and non-IPv4 addresses.
+        if (net.family === 'IPv4' && !net.internal) {
+          addresses.push(`http://${net.address}:${config.port}`);
+        }
+      }
+    }
+    const urls = addresses.join(', ') || `http://localhost:${config.port}`;
+    logger.info(`Server running on ${urls}`);
+  } else {
+    logger.info(`Server running on http://${config.host}:${config.port}`);
+  }
+});
