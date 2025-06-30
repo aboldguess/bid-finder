@@ -100,13 +100,15 @@
             data.inserted ? 'added' : 'skipped'}`;
           feedEl.appendChild(li);
         } else if (data.done) {
-          // Final event - show summary and reload the page after a short delay.
+          // Final event - display a summary but keep the log visible so the
+          // user can review it without the page refreshing.
           if (data.added === 0) {
             statusEl.textContent = 'No new tenders found.';
           } else {
             statusEl.textContent = `Added ${data.added} new tenders.`;
           }
-          setTimeout(() => location.reload(), 1000);
+          // Close the SSE connection; the page is left intact so the logs
+          // remain available.
           src.close();
         }
       };
@@ -144,8 +146,7 @@
       });
 
       statusEl.textContent = `Added ${total} new tenders in total.`;
-      // Brief delay so the user can read the summary before reloading
-      setTimeout(() => location.reload(), 1000);
+      // Leave the page unchanged so the log window stays visible.
     } catch (err) {
       statusEl.textContent = 'Error running scraper.';
     }
