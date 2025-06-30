@@ -99,6 +99,10 @@ const intendSource = {
 module.exports = {
   // Port the Express server listens on
   port: process.env.PORT || 3000,
+  // Network interface to bind the HTTP server to. Using 0.0.0.0 allows access
+  // from other machines on the network. The hostname is logged purely for
+  // convenience.
+  host: process.env.HOST || '0.0.0.0',
 
   // Directory containing frontend templates and static assets
   frontendDir: process.env.FRONTEND_DIR || path.join(__dirname, '../frontend'),

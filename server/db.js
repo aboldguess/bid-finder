@@ -55,6 +55,15 @@ db.serialize(() => {
     base TEXT,
     parser TEXT
   )`);
+
+  // Track per-source scraping statistics so the admin UI can show when each
+  // source was last scraped and how many tenders were stored.
+  db.run(`CREATE TABLE IF NOT EXISTS source_stats (
+    key TEXT PRIMARY KEY,
+    last_scraped TEXT,
+    last_added INTEGER,
+    total INTEGER
+  )`);
 });
 
 module.exports = {
@@ -220,6 +229,20 @@ module.exports = {
   },
 
   /**
+   * Retrieve scraping statistics for all sources.
+   *
+   * @returns {Promise<Array>} resolves with rows from source_stats
+   */
+  getSourceStats: () => {
+    return new Promise((resolve, reject) => {
+      db.all('SELECT * FROM source_stats', (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows);
+      });
+    });
+  },
+
+  /**
    * Update an existing scraping source definition. The key cannot be changed
    * as it forms the primary identifier used throughout the application.
    *
@@ -253,8 +276,39 @@ module.exports = {
     return new Promise((resolve, reject) => {
       db.run('DELETE FROM sources WHERE key = ?', [key], err => {
         if (err) return reject(err);
-        resolve();
+        // Remove any statistics tracked for this source as well.
+        db.run('DELETE FROM source_stats WHERE key = ?', [key], err2 => {
+          if (err2) return reject(err2);
+          resolve();
+        });
       });
+    });
+  },
+
+  /**
+   * Update scraping statistics for a source after a run completes. The row is
+   * created on first use and the total count is incremented with each update.
+   *
+   * @param {string} key - Source identifier
+   * @param {string} ts - ISO timestamp when the run finished
+   * @param {number} added - Number of tenders inserted during the run
+   * @returns {Promise<void>} resolves when the stats are stored
+   */
+  updateSourceStats: (key, ts, added) => {
+    return new Promise((resolve, reject) => {
+      db.run(
+        `INSERT INTO source_stats (key, last_scraped, last_added, total)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(key) DO UPDATE SET
+           last_scraped=excluded.last_scraped,
+           last_added=excluded.last_added,
+           total=source_stats.total + excluded.last_added`,
+        [key, ts, added, added],
+        err => {
+          if (err) return reject(err);
+          resolve();
+        }
+      );
     });
   },
 
@@ -309,6 +363,7 @@ module.exports = {
         db.run('DROP TABLE IF EXISTS metadata');
         db.run('DROP TABLE IF EXISTS users');
         db.run('DROP TABLE IF EXISTS sources');
+        db.run('DROP TABLE IF EXISTS source_stats');
         db.run(`CREATE TABLE tenders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT,
@@ -333,6 +388,12 @@ module.exports = {
             url TEXT,
             base TEXT,
             parser TEXT
+          )`);
+        db.run(`CREATE TABLE source_stats (
+            key TEXT PRIMARY KEY,
+            last_scraped TEXT,
+            last_added INTEGER,
+            total INTEGER
           )`, err2 => {
             if (err2) return reject(err2);
             resolve();

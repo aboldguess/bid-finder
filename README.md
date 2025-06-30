@@ -16,11 +16,11 @@ This application scrapes new tenders from several procurement portals including 
    ```bash
    node server/index.js
    ```
-   The UI will be available at `http://localhost:<PORT>`.
+   The UI will be available at `http://<HOST>:<PORT>`.
 
 ## Usage
 
-- **Access the dashboard** by navigating to `http://localhost:<PORT>` once the
+- **Access the dashboard** by navigating to `http://<HOST>:<PORT>` once the
   server is running.
 - **Run the scraper** by selecting a source from the drop-down list and clicking
   **Scrape**. Progress messages stream to the page and new tenders appear in the
@@ -44,6 +44,7 @@ This application scrapes new tenders from several procurement portals including 
 ## Environment variables
 
 - `PORT` - port for the Express server (default `3000`).
+- `HOST` - interface the server listens on (default `0.0.0.0`).
 - `FRONTEND_DIR` - directory for templates and static files.
 - `DB_FILE` - path to the SQLite database file.
 - `SCRAPE_URL` - URL used to fetch tender data for the default Contracts Finder feed.
@@ -61,6 +62,7 @@ This application scrapes new tenders from several procurement portals including 
 ## Scheduled cron job
 
 The scraper runs automatically using `node-cron`. With the default schedule `0 6 * * *` the job executes once every day at 06:00. Adjust `CRON_SCHEDULE` to change the frequency. You can also trigger a manual scrape by visiting `/scrape` or clicking the button on the dashboard. Any changes made via the admin interface are saved in the database so the chosen schedule is retained across restarts.
+The admin page provides dropdown fields to help build the cron expression if you are unfamiliar with the syntax.
 
 ## Real-time feedback
 

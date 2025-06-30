@@ -42,6 +42,12 @@ db.serialize(() => {
     url TEXT,
     base TEXT,
     parser TEXT
+  )`);
+  db.run(`CREATE TABLE IF NOT EXISTS source_stats (
+    key TEXT PRIMARY KEY,
+    last_scraped TEXT,
+    last_added INTEGER,
+    total INTEGER
   )`, err => {
     if (err) {
       logger.error('Failed to create table:', err);

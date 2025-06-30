@@ -71,3 +71,8 @@ button:hover {
   margin: 0;
   padding-left: 1.25rem;
 }
+
+/* Hide detail rows initially and give them a subtle background */
+.detailRow {
+  background: #f5f5f5;
+}
