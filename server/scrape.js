@@ -5,6 +5,26 @@ const config = require('./config');
 const logger = require('./logger');
 
 /**
+ * Generate tags for a tender based on the configured keyword rules.
+ * Each rule maps a tag to a list of keywords. If any keyword appears in the
+ * title or description the corresponding tag is added to the result.
+ *
+ * @param {string} title - Tender title
+ * @param {string} desc - Tender description
+ * @returns {string[]} list of tags
+ */
+function generateTags(title, desc) {
+  const tags = [];
+  const text = `${title} ${desc}`.toLowerCase();
+  for (const [tag, keywords] of Object.entries(config.tagRules)) {
+    if (keywords.some(k => text.includes(k.toLowerCase()))) {
+      tags.push(tag);
+    }
+  }
+  return tags;
+}
+
+/**
  * Scrape the government's Contracts Finder site for the latest tenders.
  *
  * @returns {Promise<number>} number of new tenders inserted into the database
@@ -107,6 +127,7 @@ async function runInternal(onProgress, sourceKey, source) {
       const link = src.base + tender.link;
       const date = tender.date;
       const desc = tender.desc;
+      const tags = generateTags(title, desc);
       // Include metadata about where and when the tender was scraped so
       // the dashboard can display this context to the user.
       const srcLabel = src.label;
@@ -116,7 +137,15 @@ async function runInternal(onProgress, sourceKey, source) {
       try {
         // Attempt to store the tender. `insertTender` resolves with 1 when a
         // new record was inserted or 0 if the tender already existed.
-        inserted = await db.insertTender(title, link, date, desc, srcLabel, scrapedAt);
+        inserted = await db.insertTender(
+          title,
+          link,
+          date,
+          desc,
+          srcLabel,
+          scrapedAt,
+          tags.join(',')
+        );
 
         if (inserted) {
           count += 1;

@@ -27,7 +27,9 @@ db.serialize(() => {
     /* Source site label */
     source TEXT,
     /* Time the tender was scraped (ISO string) */
-    scraped_at TEXT
+    scraped_at TEXT,
+    /* Comma separated tags generated from the title/description */
+    tags TEXT
   )`);
   // Small metadata table used to store global key/value pairs such as the
   // timestamp of the last successful scrape. Using a key column keeps the
@@ -76,14 +78,15 @@ module.exports = {
    * @param {string} description - Short description of the tender
    * @param {string} source - Label of the source site
    * @param {string} scrapedAt - ISO timestamp when the tender was scraped
+   * @param {string} tags - Comma separated tags for the tender
    * @returns {Promise<number>} resolves with 1 when inserted or 0 if skipped
    */
-  insertTender: (title, link, date, description, source, scrapedAt) => {
+  insertTender: (title, link, date, description, source, scrapedAt, tags) => {
     return new Promise((resolve, reject) => {
       db.run(
         // Use INSERT OR IGNORE so that duplicate links are skipped silently.
-        "INSERT OR IGNORE INTO tenders (title, link, date, description, source, scraped_at) VALUES (?, ?, ?, ?, ?, ?)",
-        [title, link, date, description, source, scrapedAt],
+        "INSERT OR IGNORE INTO tenders (title, link, date, description, source, scraped_at, tags) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [title, link, date, description, source, scrapedAt, tags],
         function (err) {
           if (err) {
             // Propagate database errors to the caller.
@@ -371,7 +374,8 @@ module.exports = {
             date TEXT,
             description TEXT,
             source TEXT,
-            scraped_at TEXT
+            scraped_at TEXT,
+            tags TEXT
           )`);
         db.run(`CREATE TABLE metadata (
             key TEXT PRIMARY KEY,
