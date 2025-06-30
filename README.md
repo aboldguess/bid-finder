@@ -66,7 +66,7 @@ This application scrapes new tenders from several procurement portals including 
 ## Scheduled cron job
 
 The scraper runs automatically using `node-cron`. With the default schedule `0 6 * * *` the job executes once every day at 06:00. Adjust `CRON_SCHEDULE` to change the frequency. You can also trigger a manual scrape by visiting `/scrape` or clicking the button on the dashboard. Any changes made via the admin interface are saved in the database so the chosen schedule is retained across restarts.
-The admin page provides dropdown fields to help build the cron expression if you are unfamiliar with the syntax.
+The admin page provides dropdown fields to help build the cron expression if you are unfamiliar with the syntax. The form lists the hour before the minute for readability, but the cron expression itself always uses the order _minute hour_.
 
 ## Real-time feedback
 
