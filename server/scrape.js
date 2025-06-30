@@ -28,7 +28,7 @@ const logger = require('./logger');
  * @param {object} [source]
  * @returns {Promise<{added:number, error?:Error}>}
  */
-async function runInternal(onProgress, source) {
+async function runInternal(onProgress, sourceKey, source) {
   try {
     // Determine the URL/base for this run. When no source is supplied we
     // construct an object using the default Contracts Finder settings and the
@@ -78,6 +78,9 @@ async function runInternal(onProgress, source) {
     // Iterate over each result and insert it into the database. The
     // insertTender function resolves with the number of rows inserted so we can
     // keep track of how many new tenders were added.
+    // Use a single timestamp for all tenders so stats can group them by run.
+    const runTs = new Date().toISOString();
+
     for (const [i, tender] of tenders.entries()) {
       const title = tender.title;
       const link = src.base + tender.link;
@@ -86,7 +89,7 @@ async function runInternal(onProgress, source) {
       // Include metadata about where and when the tender was scraped so
       // the dashboard can display this context to the user.
       const srcLabel = src.label;
-      const scrapedAt = new Date().toISOString();
+      const scrapedAt = runTs;
 
       let inserted = 0;
       try {
@@ -121,7 +124,11 @@ async function runInternal(onProgress, source) {
     // Record when this scrape completed successfully so the UI can show
     // freshness information. Failures in this step should not abort the run.
     try {
-      await db.setLastScraped(new Date().toISOString());
+      // Persist overall and per-source timestamps for the admin UI.
+      await db.setLastScraped(runTs);
+      if (sourceKey) {
+        await db.updateSourceStats(sourceKey, runTs, count);
+      }
     } catch (err) {
       logger.error('Failed to update last_scraped timestamp:', err);
     }
@@ -155,8 +162,8 @@ async function runInternal(onProgress, source) {
  * preserves backwards compatibility while allowing runAll() to obtain error
  * information from runInternal.
  */
-module.exports.run = async function (onProgress, source) {
-  const result = await runInternal(onProgress, source);
+module.exports.run = async function (onProgress, source, sourceKey = 'default') {
+  const result = await runInternal(onProgress, sourceKey, source);
   return result.added;
 };
 
@@ -172,7 +179,7 @@ module.exports.runAll = async function (onProgress) {
   const results = {};
   for (const [key, src] of Object.entries(config.sources)) {
     const progress = p => onProgress && onProgress({ source: key, ...p });
-    const res = await runInternal(progress, src);
+    const res = await runInternal(progress, key, src);
     if (res.error) {
       logger.error(`Scrape failed for ${key}:`, res.error);
     }

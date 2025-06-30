@@ -223,7 +223,7 @@ app.get('/scrape', async (req, res) => {
   const sourceKey = req.query.source || 'default';
   const source = config.sources[sourceKey] || config.sources.default;
   logger.info(`Manual scrape triggered for ${sourceKey}`);
-  const newTenders = await scrape.run(null, source);
+  const newTenders = await scrape.run(null, source, sourceKey);
   res.json({ added: newTenders });
 });
 
@@ -261,7 +261,7 @@ app.get('/scrape-stream', async (req, res) => {
   // Emit an initial event letting the client know which source will be used.
   send({ start: true, source: source.label, url: source.url });
 
-  const count = await scrape.run(progress => send(progress), source);
+  const count = await scrape.run(progress => send(progress), source, sourceKey);
 
   // Emit a final message indicating completion and close the connection.
   send({ done: true, added: count });
@@ -269,8 +269,18 @@ app.get('/scrape-stream', async (req, res) => {
 });
 
 // GET /admin - Render the admin interface used for maintenance tasks.
-app.get('/admin', requireAuth, (req, res) => {
-  res.render('admin', { sources: config.sources, cron: config.cronSchedule });
+// Fetch scraping statistics and render the admin page.
+app.get('/admin', requireAuth, async (req, res) => {
+  const statsRows = await db.getSourceStats();
+  const stats = {};
+  for (const row of statsRows) {
+    stats[row.key] = row;
+  }
+  res.render('admin', {
+    sources: config.sources,
+    cron: config.cronSchedule,
+    sourceStats: stats
+  });
 });
 
 // POST /admin/reset-db - Drop and recreate the tenders table. This allows the
@@ -306,7 +316,8 @@ app.post('/admin/cron', requireAuth, async (req, res) => {
 
 
 // Start the HTTP server and log the URL so the user knows where to point
-// their browser.
-app.listen(config.port, () =>
-  logger.info(`Server running on http://localhost:${config.port}`)
+// their browser. Binding to config.host allows access from other machines when
+// the host is set to 0.0.0.0.
+app.listen(config.port, config.host, () =>
+  logger.info(`Server running on http://${config.host}:${config.port}`)
 );

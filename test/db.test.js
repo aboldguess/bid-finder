@@ -75,4 +75,13 @@ describe('Database helpers', () => {
     const rows = await db.getSources();
     expect(rows.some(r => r.key === 'z')).to.equal(false);
   });
+
+  it('source stats accumulate totals', async () => {
+    await db.updateSourceStats('s', '2024-01-01T00:00:00Z', 3);
+    await db.updateSourceStats('s', '2024-01-02T00:00:00Z', 2);
+    const rows = await db.getSourceStats();
+    const s = rows.find(r => r.key === 's');
+    expect(s.total).to.equal(5);
+    expect(s.last_added).to.equal(2);
+  });
 });
