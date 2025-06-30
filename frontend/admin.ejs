@@ -18,11 +18,11 @@
   <!-- Form allowing the cron schedule to be changed dynamically -->
   <h2>Cron Schedule</h2>
   <form id="cronForm">
-    <label>Minute
-      <select id="cronMin"></select>
-    </label>
     <label>Hour
       <select id="cronHour"></select>
+    </label>
+    <label>Minute
+      <select id="cronMin"></select>
     </label>
     <label>Day
       <select id="cronDom"></select>
@@ -109,6 +109,9 @@ document.getElementById('cronMon').value = parts[3];
 document.getElementById('cronDow').value = parts[4];
 
 const cronPreview = document.getElementById('cronPreview');
+// Build a cron expression from the dropdowns.
+// Note: cron syntax uses the order minute then hour, even
+// though the form displays hour first for readability.
 function buildCron() {
   const min = document.getElementById('cronMin').value;
   const hour = document.getElementById('cronHour').value;
