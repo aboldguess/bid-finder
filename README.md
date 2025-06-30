@@ -16,12 +16,16 @@ This application scrapes new tenders from several procurement portals including 
    ```bash
    node server/index.js
    ```
-   The UI will be available at `http://<HOST>:<PORT>`.
+   The UI will be available at `http://<HOST>:<PORT>`. When `HOST` is set to
+   `0.0.0.0` (the default) the server listens on all network interfaces. Use the
+   IP address of the machine in place of `<HOST>` when connecting from another
+   computer.
 
 ## Usage
 
 - **Access the dashboard** by navigating to `http://<HOST>:<PORT>` once the
-  server is running.
+  server is running. If the server is bound to `0.0.0.0` replace `<HOST>` with
+  the machine's actual IP address.
 - **Run the scraper** by selecting a source from the drop-down list and clicking
   **Scrape**. Progress messages stream to the page and new tenders appear in the
   results table.
