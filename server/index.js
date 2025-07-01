@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('./db');
 const scrape = require('./scrape');
+const scrapeAwarded = require('./scrapeAwarded');
 const cron = require('node-cron');
 const config = require('./config');
 const logger = require('./logger');
@@ -88,7 +89,14 @@ app.get('/', async (req, res) => {
   const tenders = await db.getTenders();
   // Pass the list of available sources to the frontend so it can populate the
   // new source selection dropdown.
-  res.render('index', { tenders, sources: config.sources });
+  res.render('available', { tenders, sources: config.sources });
+});
+
+// GET /awarded - Display contracts that have been awarded using the separate
+// awards scraper.
+app.get('/awarded', async (req, res) => {
+  const tenders = await db.getAwards();
+  res.render('awarded', { tenders, sources: config.awardSources });
 });
 
 // GET /stats - Simple page showing the timestamp of the last successful scrape
@@ -227,12 +235,28 @@ app.get('/scrape', async (req, res) => {
   res.json({ added: newTenders });
 });
 
+// Trigger the awards scraper for a specific source.
+app.get('/scrape-awarded', async (req, res) => {
+  const sourceKey = req.query.source || 'default';
+  const source = config.awardSources[sourceKey] || config.awardSources.default;
+  logger.info(`Manual awards scrape triggered for ${sourceKey}`);
+  const added = await scrapeAwarded.run(null, source, sourceKey);
+  res.json({ added });
+});
+
 // GET /scrape-all - Run the scraper against every configured source. This
 // endpoint is used by the "Scrape All" button on the dashboard and simply
 // returns a summary of how many tenders were added per source.
 app.get('/scrape-all', async (req, res) => {
   logger.info('Manual scrape triggered for all sources');
   const results = await scrape.runAll();
+  res.json(results);
+});
+
+// Scrape all award sources sequentially and return per-source stats.
+app.get('/scrape-awarded-all', async (req, res) => {
+  logger.info('Manual awards scrape triggered for all sources');
+  const results = await scrapeAwarded.runAll();
   res.json(results);
 });
 
@@ -264,6 +288,27 @@ app.get('/scrape-stream', async (req, res) => {
   const count = await scrape.run(progress => send(progress), source, sourceKey);
 
   // Emit a final message indicating completion and close the connection.
+  send({ done: true, added: count });
+  res.end();
+});
+
+// SSE streaming variant of the awards scraper.
+app.get('/scrape-awarded-stream', async (req, res) => {
+  const sourceKey = req.query.source || 'default';
+  const source = config.awardSources[sourceKey] || config.awardSources.default;
+  logger.info(`Manual SSE awards scrape triggered for ${sourceKey}`);
+
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive'
+  });
+  res.flushHeaders();
+
+  const send = data => res.write(`data: ${JSON.stringify(data)}\n\n`);
+  send({ start: true, source: source.label, url: source.url });
+
+  const count = await scrapeAwarded.run(progress => send(progress), source, sourceKey);
   send({ done: true, added: count });
   res.end();
 });
