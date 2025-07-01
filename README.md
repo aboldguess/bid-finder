@@ -29,8 +29,10 @@ This application scrapes new tenders from several procurement portals including 
 - **Run the scraper** by selecting a source from the drop-down list and clicking
   **Scrape**. Progress messages stream to the page and new tenders appear in the
   results table.
-- **Scrape all sources** at once by visiting `/scrape-all`. Each source is
-  processed sequentially and the response details which succeeded or failed.
+ - **Scrape all sources** at once by visiting `/scrape-all`. Each source is
+    processed sequentially and the response details which succeeded or failed.
+    The page automatically reloads once scraping completes so the table reflects
+    any new tenders that were stored.
 - **Add a source** using the *Add Source* form. Provide a key, label, search URL
   and base URL. Once submitted the new source is added immediately for the
   current session and saved to the database so it is available after restarting

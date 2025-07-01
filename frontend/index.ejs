@@ -147,7 +147,9 @@
       });
 
       statusEl.textContent = `Added ${total} new tenders in total.`;
-      // Leave the page unchanged so the log window stays visible.
+      // Refresh the page so the results table shows newly inserted tenders.
+      // A short delay keeps the summary visible briefly before reloading.
+      setTimeout(() => location.reload(), 1000);
     } catch (err) {
       statusEl.textContent = 'Error running scraper.';
     }
