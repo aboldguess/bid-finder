@@ -91,13 +91,27 @@ async function runInternal(onProgress, sourceKey, source) {
       allTenders.push(...pageTenders);
 
       // Look for a link pointing to the next page. Many sites mark this with a
-      // rel="next" attribute or anchor text containing "Next". Relative URLs are
-      // resolved against the source base URL so both absolute and relative links
-      // are handled consistently.
-      const relNext = html.match(/<link[^>]*rel=["']next["'][^>]*href=["']([^"']+)["']/i);
-      const anchorNext =
-        html.match(/<a[^>]*href=["']([^"']+)["'][^>]*>(?:Next|next|›|&gt;|&raquo;)/i);
-      const href = relNext ? relNext[1] : anchorNext ? anchorNext[1] : null;
+      // rel="next" attribute, add a class containing "next" or include the word
+      // "Next" in the link text. Relative URLs are resolved against the source
+      // base URL so both absolute and relative links are handled consistently.
+      const relNext = html.match(/<link[^>]*rel=["']?next["']?[^>]*href=["']([^"']+)["']/i);
+      // Try to detect links that include "next" in a rel, class or aria-label
+      // attribute so we cover common pagination patterns.
+      const attrNext = html.match(
+        /<a[^>]*(?:rel|class|aria-label)=["'][^"']*next[^"']*["'][^>]*href=["']([^"']+)["']/i
+      );
+      // Fallback to matching the visible link text when attributes are not
+      // present or use different naming.
+      const textNext = html.match(
+        /<a[^>]*href=["']([^"']+)["'][^>]*>(?:\s*Next\s*|›|&gt;|&raquo;)/i
+      );
+      const href = relNext
+        ? relNext[1]
+        : attrNext
+        ? attrNext[1]
+        : textNext
+        ? textNext[1]
+        : null;
       nextUrl = href ? new URL(href.replace(/&amp;/g, '&'), src.base).href : null;
       page += 1;
     }
