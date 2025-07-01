@@ -52,6 +52,22 @@ db.serialize(() => {
   )`, err => {
     if (err) {
       logger.error('Failed to create table:', err);
+    }
+  });
+  db.run(`CREATE TABLE IF NOT EXISTS suppliers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE,
+    source TEXT,
+    scraped_at TEXT
+  )`);
+  db.run(`CREATE TABLE IF NOT EXISTS customers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE,
+    source TEXT,
+    scraped_at TEXT
+  )`, err => {
+    if (err) {
+      logger.error('Failed to create table:', err);
     } else {
       logger.info('Database initialised');
     }

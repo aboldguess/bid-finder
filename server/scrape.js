@@ -25,6 +25,25 @@ function generateTags(title, desc) {
 }
 
 /**
+ * Attempt to extract supplier and customer organisation names from a string of
+ * text. This uses simple regular expressions looking for patterns like
+ * "Customer: Name" or "Supplier: Name". If no matches are found null values are
+ * returned. The implementation is intentionally loose so it can pick up basic
+ * mentions across different sites.
+ *
+ * @param {string} text - Tender description or similar snippet
+ * @returns {{customer:string|null, supplier:string|null}}
+ */
+function extractOrganisations(text) {
+  const cust = /(?:Customer|Organisation|Buyer):\s*([^\.\n<]+)/i.exec(text);
+  const supp = /Supplier:\s*([^\.\n<]+)/i.exec(text);
+  return {
+    customer: cust ? cust[1].trim() : null,
+    supplier: supp ? supp[1].trim() : null
+  };
+}
+
+/**
  * Scrape the government's Contracts Finder site for the latest tenders.
  *
  * @returns {Promise<number>} number of new tenders inserted into the database
@@ -128,6 +147,7 @@ async function runInternal(onProgress, sourceKey, source) {
       const date = tender.date;
       const desc = tender.desc;
       const tags = generateTags(title, desc);
+      const orgs = extractOrganisations(desc);
       // Include metadata about where and when the tender was scraped so
       // the dashboard can display this context to the user.
       const srcLabel = src.label;
@@ -149,6 +169,13 @@ async function runInternal(onProgress, sourceKey, source) {
 
         if (inserted) {
           count += 1;
+          // Store any organisation names associated with this tender.
+          if (orgs.customer) {
+            await db.insertCustomer(orgs.customer, srcLabel, scrapedAt);
+          }
+          if (orgs.supplier) {
+            await db.insertSupplier(orgs.supplier, srcLabel, scrapedAt);
+          }
         }
       } catch (err) {
         // Log database errors but continue processing the remaining tenders.

@@ -87,4 +87,22 @@ describe('Database helpers', () => {
     expect(s.total).to.equal(5);
     expect(s.last_added).to.equal(2);
   });
+
+  it('insertSupplier ignores duplicates', async () => {
+    const first = await db.insertSupplier('Supp', 'src', '2024-01-01');
+    const second = await db.insertSupplier('Supp', 'src', '2024-01-01');
+    expect(first).to.equal(1);
+    expect(second).to.equal(0);
+    const rows = await db.getSuppliers();
+    expect(rows).to.have.length(1);
+  });
+
+  it('insertCustomer ignores duplicates', async () => {
+    const first = await db.insertCustomer('Cust', 'src', '2024-01-01');
+    const second = await db.insertCustomer('Cust', 'src', '2024-01-01');
+    expect(first).to.equal(1);
+    expect(second).to.equal(0);
+    const rows = await db.getCustomers();
+    expect(rows).to.have.length(1);
+  });
 });

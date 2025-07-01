@@ -98,6 +98,18 @@ app.get('/stats', async (req, res) => {
   res.render('stats', { lastScraped });
 });
 
+// GET /suppliers - List all supplier organisations discovered so far.
+app.get('/suppliers', async (req, res) => {
+  const suppliers = await db.getSuppliers();
+  res.render('suppliers', { suppliers });
+});
+
+// GET /customers - List all customer organisations discovered so far.
+app.get('/customers', async (req, res) => {
+  const customers = await db.getCustomers();
+  res.render('customers', { customers });
+});
+
 // Authentication -----------------------------------------------------------
 
 // Render login form

@@ -66,6 +66,23 @@ db.serialize(() => {
     last_added INTEGER,
     total INTEGER
   )`);
+
+  // Suppliers and customers are stored separately so dedicated pages can list
+  // every organisation mentioned in the scraped tenders. Using UNIQUE on the
+  // name column avoids duplicates when the same organisation appears multiple
+  // times across different runs.
+  db.run(`CREATE TABLE IF NOT EXISTS suppliers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE,
+    source TEXT,
+    scraped_at TEXT
+  )`);
+  db.run(`CREATE TABLE IF NOT EXISTS customers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE,
+    source TEXT,
+    scraped_at TEXT
+  )`);
 });
 
 module.exports = {
@@ -246,6 +263,76 @@ module.exports = {
   },
 
   /**
+   * Insert a supplier name if it has not been seen before.
+   *
+   * @param {string} name - Supplier organisation name
+   * @param {string} source - Scraping source label
+   * @param {string} ts - ISO timestamp when discovered
+   * @returns {Promise<number>} resolves with 1 when inserted or 0 if duplicate
+   */
+  insertSupplier: (name, source, ts) => {
+    return new Promise((resolve, reject) => {
+      db.run(
+        'INSERT OR IGNORE INTO suppliers (name, source, scraped_at) VALUES (?, ?, ?)',
+        [name, source, ts],
+        function (err) {
+          if (err) return reject(err);
+          resolve(this.changes);
+        }
+      );
+    });
+  },
+
+  /**
+   * Insert a customer organisation if new.
+   *
+   * @param {string} name - Customer name
+   * @param {string} source - Scraping source label
+   * @param {string} ts - ISO timestamp
+   * @returns {Promise<number>} resolves with 1 when inserted or 0 if duplicate
+   */
+  insertCustomer: (name, source, ts) => {
+    return new Promise((resolve, reject) => {
+      db.run(
+        'INSERT OR IGNORE INTO customers (name, source, scraped_at) VALUES (?, ?, ?)',
+        [name, source, ts],
+        function (err) {
+          if (err) return reject(err);
+          resolve(this.changes);
+        }
+      );
+    });
+  },
+
+  /**
+   * Retrieve all suppliers ordered alphabetically.
+   *
+   * @returns {Promise<Array>} resolves with supplier rows
+   */
+  getSuppliers: () => {
+    return new Promise((resolve, reject) => {
+      db.all('SELECT * FROM suppliers ORDER BY name', (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows);
+      });
+    });
+  },
+
+  /**
+   * Retrieve all customers ordered alphabetically.
+   *
+   * @returns {Promise<Array>} resolves with customer rows
+   */
+  getCustomers: () => {
+    return new Promise((resolve, reject) => {
+      db.all('SELECT * FROM customers ORDER BY name', (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows);
+      });
+    });
+  },
+
+  /**
    * Update an existing scraping source definition. The key cannot be changed
    * as it forms the primary identifier used throughout the application.
    *
@@ -367,6 +454,8 @@ module.exports = {
         db.run('DROP TABLE IF EXISTS users');
         db.run('DROP TABLE IF EXISTS sources');
         db.run('DROP TABLE IF EXISTS source_stats');
+        db.run('DROP TABLE IF EXISTS suppliers');
+        db.run('DROP TABLE IF EXISTS customers');
         db.run(`CREATE TABLE tenders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT,
@@ -398,6 +487,18 @@ module.exports = {
             last_scraped TEXT,
             last_added INTEGER,
             total INTEGER
+          )`);
+        db.run(`CREATE TABLE suppliers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE,
+            source TEXT,
+            scraped_at TEXT
+          )`);
+        db.run(`CREATE TABLE customers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE,
+            source TEXT,
+            scraped_at TEXT
           )`, err2 => {
             if (err2) return reject(err2);
             resolve();

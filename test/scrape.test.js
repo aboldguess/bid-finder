@@ -34,5 +34,10 @@ describe('scrape.run', () => {
     expect(rows[0]).to.have.property('tags');
     const ts = await db.getLastScraped();
     expect(ts).to.be.a('string');
+
+    const suppliers = await db.getSuppliers();
+    const customers = await db.getCustomers();
+    expect(suppliers.some(s => s.name === 'VendorA')).to.equal(true);
+    expect(customers.some(c => c.name === 'OrgA')).to.equal(true);
   });
 });

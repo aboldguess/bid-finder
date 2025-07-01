@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Suppliers</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <h1>Suppliers</h1>
+  <a href="/">Back to dashboard</a>
+  <table>
+    <tr><th>Name</th><th>Source</th><th>Scraped At</th></tr>
+    <% suppliers.forEach(s => { %>
+      <tr>
+        <td><%= s.name %></td>
+        <td><%= s.source %></td>
+        <td><%= s.scraped_at %></td>
+      </tr>
+    <% }) %>
+  </table>
+</body>
+</html>
