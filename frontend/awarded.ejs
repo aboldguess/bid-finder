@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Tender Dashboard</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <h1>Awarded Contracts</h1>
+  <% if (user) { %>
+    <a href="/admin">Admin</a> |
+    <a href="/logout">Logout</a> |
+  <% } else { %>
+    <a href="/login">Login</a> |
+  <% } %>
+  <a href="/">Available Contracts</a> |
+  <!-- Link to the statistics page showing when the scraper last ran -->
+  <a href="/stats">Stats</a>
+  <!-- Brief instructions help new users understand the workflow -->
+  <div id="instructions">
+    <ul>
+      <!-- Choose which configured site the scraper will run against -->
+      <li>Select a tender source from the dropdown below.</li>
+      <!-- Manual execution immediately runs the scraper for the chosen source -->
+      <li>Click <strong>Run Scraper Now</strong> to start a manual scrape.</li>
+      <!-- Additional sources can be added at any time via the form -->
+      <li>Use the <strong>Add Source</strong> form to register a new target.</li>
+    </ul>
+  </div>
+  <!-- Source selector allows the user to choose which site to scrape -->
+  <label for="sourceSelect">Source:</label>
+  <select id="sourceSelect">
+    <% Object.keys(sources).forEach(key => { %>
+      <option value="<%= key %>"><%= sources[key].label %></option>
+    <% }) %>
+  </select>
+
+  <!-- Form allowing the user to add a new tender source dynamically -->
+  <form id="addSourceForm">
+    <h3>Add Source</h3>
+    <input id="newKey" placeholder="Key" required>
+    <input id="newLabel" placeholder="Label" required>
+    <input id="newUrl" placeholder="Search URL" required>
+    <input id="newBase" placeholder="Base URL" required>
+    <button type="submit">Add</button>
+  </form>
+
+  <!-- Buttons for manual scraping -->
+  <button id="scrapeBtn">Run Scraper Now</button>
+  <!-- New button kicks off scraping for every configured source -->
+  <button id="scrapeAllBtn">Run Scraper For All Sources</button>
+  <!-- Area to show status messages while scraping -->
+  <div id="status"></div>
+  <!-- Rolling feed of progress messages from the scraper -->
+  <ul id="feed"></ul>
+  <table>
+    <tr><th>Title</th><th>Date</th><th>Description</th><th>Source</th><th>Scraped At</th><th>Tags</th><th>Link</th></tr>
+    <% tenders.forEach(t => { %>
+      <tr>
+        <td><%= t.title %></td>
+        <td><%= t.date %></td>
+        <td><%= t.description %></td>
+        <td><%= t.source %></td>
+        <td><%= t.scraped_at %></td>
+        <td><%= t.tags %></td>
+        <td><a href="<%= t.link %>">View</a></td>
+      </tr>
+    <% }) %>
+  </table>
+  <!-- Asynchronous scraping logic -->
+  <script>
+    // When the "Run Scraper Now" button is clicked we open an EventSource
+    // connection to /scrape-stream. Progress events are pushed from the server
+    // so we can update the UI in real time.
+  document.getElementById('scrapeBtn').addEventListener('click', () => {
+      const statusEl = document.getElementById('status');
+      const feedEl = document.getElementById('feed');
+
+      // Reset any previous messages.
+      feedEl.innerHTML = '';
+      statusEl.textContent = 'Scraping...';
+
+      // Include the selected source in the request so the server knows which
+      // site to scrape.
+      const source = document.getElementById('sourceSelect').value;
+      const src = new EventSource(`/scrape-awarded-stream?source=${encodeURIComponent(source)}`);
+
+      // Handle each message from the server. Regular updates contain progress
+      // info while the final message includes `done: true`.
+      src.onmessage = e => {
+        const data = JSON.parse(e.data);
+
+        if (data.start) {
+          // Initial event tells us which source is being scraped.
+          statusEl.textContent = `Scraping from ${data.source}...`;
+        } else if (data.step === 'found') {
+          // The scraper has parsed the page and knows how many awards exist.
+          statusEl.textContent = `Found ${data.count} awards.`;
+        } else if (data.step === 'tender') {
+          // Update the rolling feed with each tender processed.
+          const li = document.createElement('li');
+          li.textContent = `(${data.index}/${data.total}) ${data.title} - ${
+            data.inserted ? 'added' : 'skipped'}`;
+          feedEl.appendChild(li);
+        } else if (data.done) {
+          // Final event - display a summary but keep the log visible so the
+          // user can review it without the page refreshing.
+          if (data.added === 0) {
+            statusEl.textContent = 'No new awards found.';
+          } else {
+            statusEl.textContent = `Added ${data.added} new awards.`;
+          }
+          // Close the SSE connection; the page is left intact so the logs
+          // remain available.
+          src.close();
+        }
+      };
+
+    src.onerror = () => {
+      statusEl.textContent = 'Error running scraper.';
+      src.close();
+    };
+  });
+
+  // Trigger scraping across all configured sources. This sends a simple
+  // fetch request to the /scrape-all endpoint and displays a summary once
+  // complete.
+  document.getElementById('scrapeAllBtn').addEventListener('click', async () => {
+    const statusEl = document.getElementById('status');
+    const feedEl = document.getElementById('feed');
+
+    // Clear previous output and show a starting message
+    feedEl.innerHTML = '';
+    statusEl.textContent = 'Scraping all sources...';
+
+    try {
+      const res = await fetch('/scrape-awarded-all');
+      if (!res.ok) throw new Error('Request failed');
+      const data = await res.json();
+
+      let total = 0;
+      // Display one line per source summarising how many awards were added
+      Object.keys(data).forEach(key => {
+        const { added, error } = data[key];
+        total += added;
+        const li = document.createElement('li');
+        li.textContent = `${key}: ${error ? 'error' : `${added} added`}`;
+        feedEl.appendChild(li);
+      });
+
+      statusEl.textContent = `Added ${total} new awards in total.`;
+      // Leave the page unchanged so the log window stays visible.
+    } catch (err) {
+      statusEl.textContent = 'Error running scraper.';
+    }
+  });
+
+  // Allow users to submit the Add Source form to register a new scraping
+  // location without restarting the server.
+  document.getElementById('addSourceForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const key = document.getElementById('newKey').value.trim();
+    const label = document.getElementById('newLabel').value.trim();
+    const url = document.getElementById('newUrl').value.trim();
+    const base = document.getElementById('newBase').value.trim();
+
+    const res = await fetch('/sources', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key, label, url, base })
+    });
+
+    if (res.ok) {
+      // Reload so the new source appears in the dropdown
+      location.reload();
+    } else {
+      alert('Failed to add source');
+    }
+  });
+  </script>
+</body>
+</html>

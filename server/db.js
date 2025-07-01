@@ -66,6 +66,20 @@ db.serialize(() => {
     last_added INTEGER,
     total INTEGER
   )`);
+
+  // Separate table to track awarded contracts scraped from public sources.
+  // The structure mirrors the `tenders` table so existing logic can be reused
+  // with minimal changes.
+  db.run(`CREATE TABLE IF NOT EXISTS awards (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT,
+    link TEXT UNIQUE,
+    date TEXT,
+    description TEXT,
+    source TEXT,
+    scraped_at TEXT,
+    tags TEXT
+  )`);
 });
 
 module.exports = {
@@ -113,6 +127,35 @@ module.exports = {
         } else {
           resolve(rows);
         }
+      });
+    });
+  },
+
+  /**
+   * Insert an awarded contract if it does not already exist. The parameters
+   * mirror insertTender so the scraper logic can be reused for awarded data.
+   */
+  insertAward: (title, link, date, description, source, scrapedAt, tags) => {
+    return new Promise((resolve, reject) => {
+      db.run(
+        "INSERT OR IGNORE INTO awards (title, link, date, description, source, scraped_at, tags) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [title, link, date, description, source, scrapedAt, tags],
+        function (err) {
+          if (err) return reject(err);
+          resolve(this.changes);
+        }
+      );
+    });
+  },
+
+  /**
+   * Retrieve all stored awarded contracts ordered by published date.
+   */
+  getAwards: () => {
+    return new Promise((resolve, reject) => {
+      db.all("SELECT * FROM awards ORDER BY date DESC", [], (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows);
       });
     });
   },
@@ -367,6 +410,7 @@ module.exports = {
         db.run('DROP TABLE IF EXISTS users');
         db.run('DROP TABLE IF EXISTS sources');
         db.run('DROP TABLE IF EXISTS source_stats');
+        db.run('DROP TABLE IF EXISTS awards');
         db.run(`CREATE TABLE tenders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT,
@@ -398,6 +442,16 @@ module.exports = {
             last_scraped TEXT,
             last_added INTEGER,
             total INTEGER
+          )`);
+        db.run(`CREATE TABLE awards (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT,
+            link TEXT UNIQUE,
+            date TEXT,
+            description TEXT,
+            source TEXT,
+            scraped_at TEXT,
+            tags TEXT
           )`, err2 => {
             if (err2) return reject(err2);
             resolve();

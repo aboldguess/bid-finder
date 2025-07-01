@@ -96,6 +96,98 @@ const intendSource = {
   parser: 'rss'
 };
 
+// Sources providing information on awarded contracts. These mirror the
+// structure of the tender sources above but point to award notices instead of
+// current opportunities. URLs are illustrative and may need adjusting for real
+// deployments.
+const defaultAwardSource = {
+  label: 'Contracts Finder Awards',
+  url:
+    process.env.AWARD_URL ||
+    'https://www.contractsfinder.service.gov.uk/RSSFeed.aspx?type=Projects&Status=Awarded',
+  base:
+    process.env.AWARD_BASE ||
+    'https://www.contractsfinder.service.gov.uk',
+  parser: 'rss'
+};
+
+const euSupplyAwardSource = {
+  label: 'EU Supply Awards',
+  url:
+    process.env.EUSUPPLY_AWARD_URL ||
+    'https://uk.eu-supply.com/ctm/award/publiccontracts?B=UK',
+  base: process.env.EUSUPPLY_AWARD_BASE || 'https://uk.eu-supply.com',
+  parser: 'rss'
+};
+
+const sell2walesAwardSource = {
+  label: 'Sell2Wales Awards',
+  url:
+    process.env.SELL2WALES_AWARD_URL ||
+    'https://www.sell2wales.gov.wales/rss/award',
+  base: process.env.SELL2WALES_AWARD_BASE || 'https://www.sell2wales.gov.wales',
+  parser: 'rss'
+};
+
+const ukriAwardSource = {
+  label: 'UKRI Awards',
+  url: process.env.UKRI_AWARD_URL || 'https://www.ukri.org/awards/feed/',
+  base: process.env.UKRI_AWARD_BASE || 'https://www.ukri.org',
+  parser: 'rss'
+};
+
+const pcsAwardSource = {
+  label: 'Scotland Awards',
+  url:
+    process.env.PCS_AWARD_URL ||
+    'https://www.publiccontractsscotland.gov.uk/rss/award.xml',
+  base:
+    process.env.PCS_AWARD_BASE || 'https://www.publiccontractsscotland.gov.uk',
+  parser: 'rss'
+};
+
+const etendersniAwardSource = {
+  label: 'eTenders NI Awards',
+  url:
+    process.env.ETENDERSNI_AWARD_URL ||
+    'https://etendersni.gov.uk/epps/cft/listAward?ext_t=RSS',
+  base: process.env.ETENDERSNI_AWARD_BASE || 'https://etendersni.gov.uk',
+  parser: 'rss'
+};
+
+const etendersieAwardSource = {
+  label: 'eTenders IE Awards',
+  url:
+    process.env.ETENDERSIE_AWARD_URL ||
+    'https://www.etenders.gov.ie/feeds/award',
+  base: process.env.ETENDERSIE_AWARD_BASE || 'https://www.etenders.gov.ie',
+  parser: 'rss'
+};
+
+const procontractAwardSource = {
+  label: 'ProContract Awards',
+  url:
+    process.env.PROCONTRACT_AWARD_URL ||
+    'https://procontract.due-north.com/rss/award.xml',
+  base: process.env.PROCONTRACT_AWARD_BASE || 'https://procontract.due-north.com',
+  parser: 'rss'
+};
+
+const intendAwardSource = {
+  label: 'In-Tend Awards',
+  url:
+    process.env.INTEND_AWARD_URL || 'https://in-tendhost.co.uk/awards/feed/',
+  base: process.env.INTEND_AWARD_BASE || 'https://in-tendhost.co.uk',
+  parser: 'rss'
+};
+
+const tedAwardSource = {
+  label: 'TED Europa',
+  url: process.env.TED_AWARD_URL || 'https://ted.europa.eu/udl?uri=TED/rss/awards',
+  base: process.env.TED_AWARD_BASE || 'https://ted.europa.eu',
+  parser: 'rss'
+};
+
 // Default tagging rules used when none are supplied via the TAG_RULES
 // environment variable. Each tag is associated with a list of keywords that,
 // when present in a tender's title or description, cause the tag to be applied.
@@ -131,6 +223,21 @@ module.exports = {
     etendersie: etendersIEsource,
     procontract: procontractSource,
     intend: intendSource
+  },
+
+  // Awarded contract sources used by the dedicated awards scraper. At least ten
+  // are provided out of the box.
+  awardSources: {
+    default: defaultAwardSource,
+    eusupply: euSupplyAwardSource,
+    sell2wales: sell2walesAwardSource,
+    ukri: ukriAwardSource,
+    pcs: pcsAwardSource,
+    etendersni: etendersniAwardSource,
+    etendersie: etendersieAwardSource,
+    procontract: procontractAwardSource,
+    intend: intendAwardSource,
+    ted: tedAwardSource
   },
 
   // Legacy fields maintained for backwards compatibility. These map to the
