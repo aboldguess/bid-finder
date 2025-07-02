@@ -106,6 +106,17 @@ app.get('/stats', async (req, res) => {
   res.render('stats', { lastScraped });
 });
 
+// Lists of organisations scraped from tender sources
+app.get('/customers', async (req, res) => {
+  const organisations = await db.getOrganisationsByType('customer');
+  res.render('customers', { organisations });
+});
+
+app.get('/suppliers', async (req, res) => {
+  const organisations = await db.getOrganisationsByType('supplier');
+  res.render('suppliers', { organisations });
+});
+
 // Authentication -----------------------------------------------------------
 
 // Render login form

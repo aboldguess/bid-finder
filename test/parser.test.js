@@ -6,12 +6,16 @@ describe('htmlParser', () => {
     const html = `
       <div class="search-result">
         <h2>Contract A</h2>
+        <span class="org">OrgA</span>
+        <span class="supplier">SupA</span>
         <a href="/cA">View</a>
         <span class="date">2024-01-01</span>
         <p>Desc A</p>
       </div>
       <div class="search-result">
         <a href="/cB">Contract B</a>
+        <span class="org">OrgB</span>
+        <span class="supplier">SupB</span>
         <time>2024-02-01</time>
         <p>Desc B</p>
       </div>`;
@@ -19,6 +23,8 @@ describe('htmlParser', () => {
     expect(tenders).to.have.length(2);
     expect(tenders[0].title).to.equal('Contract A');
     expect(tenders[1].title).to.equal('Contract B');
+    expect(tenders[0].organisation).to.equal('OrgA');
+    expect(tenders[0].supplier).to.equal('SupA');
   });
 
   it('parses Sell2Wales table rows', () => {

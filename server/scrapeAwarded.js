@@ -128,6 +128,7 @@ async function runInternal(onProgress, sourceKey, source) {
       const link = src.base + tender.link;
       const date = tender.date;
       const desc = tender.desc;
+      const supplier = tender.supplier;
       const tags = generateTags(title, desc);
       // Include metadata about where and when the tender was scraped so
       // the dashboard can display this context to the user.
@@ -150,6 +151,13 @@ async function runInternal(onProgress, sourceKey, source) {
 
         if (inserted) {
           count += 1;
+          if (supplier) {
+            try {
+              await db.insertOrganisation(supplier, 'supplier');
+            } catch (err) {
+              logger.error('Error inserting organisation:', err);
+            }
+          }
         }
       } catch (err) {
         // Log database errors but continue processing the remaining tenders.

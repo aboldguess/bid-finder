@@ -26,8 +26,15 @@ function parseContractsFinder(html) {
       /<span[^>]*class="[^"]*date[^"]*"[^>]*>(.*?)<\/span>/i.exec(block);
     const date = dateMatch ? clean(dateMatch[1]) : '';
     const desc = clean(/<p[^>]*>(.*?)<\/p>/i.exec(block)?.[1] || '');
+    // Look for an organisation or supplier name within the block
+    const orgMatch =
+      /<span[^>]*class="[^"]*org[^"]*"[^>]*>(.*?)<\/span>/i.exec(block);
+    const supplierMatch =
+      /<span[^>]*class="[^"]*supplier[^"]*"[^>]*>(.*?)<\/span>/i.exec(block);
+    const organisation = orgMatch ? clean(orgMatch[1]) : '';
+    const supplier = supplierMatch ? clean(supplierMatch[1]) : '';
     if (href && title) {
-      tenders.push({ title, link: href, date, desc });
+      tenders.push({ title, link: href, date, desc, organisation, supplier });
     }
   }
   return tenders;
@@ -57,8 +64,10 @@ function parseSell2Wales(html) {
         /<p[^>]*>([\s\S]*?)<\/p>/i.exec(block)?.[1] ||
         ''
     );
+    const organisation = '';
+    const supplier = '';
     if (title && href) {
-      tenders.push({ title, link: href, date, desc });
+      tenders.push({ title, link: href, date, desc, organisation, supplier });
     }
   }
   return tenders;
@@ -82,8 +91,10 @@ function parseUkri(html) {
     const href = link[1];
     const date = clean(/<time[^>]*>(.*?)<\/time>/i.exec(block)?.[1] || '');
     const desc = clean(/<p[^>]*>([\s\S]*?)<\/p>/i.exec(block)?.[1] || '');
+    const organisation = '';
+    const supplier = '';
     if (!/contact\s+us/i.test(title)) {
-      tenders.push({ title, link: href, date, desc });
+      tenders.push({ title, link: href, date, desc, organisation, supplier });
     }
   }
   return tenders;
@@ -105,7 +116,9 @@ function parseEuSupply(html) {
     const href = link[1];
     const date = /(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2})/.exec(block)?.[1] || '';
     const desc = /<td[^>]*class="description"[^>]*>(.*?)<\/td>/.exec(block)?.[1].trim() || '';
-    tenders.push({ title, link: href, date, desc });
+    const organisation = '';
+    const supplier = '';
+    tenders.push({ title, link: href, date, desc, organisation, supplier });
   }
   return tenders;
 }
@@ -124,8 +137,10 @@ function parseRss(xml) {
     const href = clean(/<link>([\s\S]*?)<\/link>/i.exec(block)?.[1] || '');
     const date = clean(/<(pubDate|dc:date)>([\s\S]*?)<\/(pubDate|dc:date)>/i.exec(block)?.[2] || '');
     const desc = clean(/<description>([\s\S]*?)<\/description>/i.exec(block)?.[1] || '');
+    const organisation = '';
+    const supplier = '';
     if (title && href) {
-      tenders.push({ title, link: href, date, desc });
+      tenders.push({ title, link: href, date, desc, organisation, supplier });
     }
   }
   return tenders;
