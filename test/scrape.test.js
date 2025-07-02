@@ -34,5 +34,9 @@ describe('scrape.run', () => {
     expect(rows[0]).to.have.property('tags');
     const ts = await db.getLastScraped();
     expect(ts).to.be.a('string');
+    const cust = await db.getOrganisationsByType('customer');
+    const supp = await db.getOrganisationsByType('supplier');
+    expect(cust).to.have.length(2);
+    expect(supp).to.have.length(2);
   });
 });

@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Suppliers</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <h1>Suppliers</h1>
+  <a href="/">Available Contracts</a> |
+  <a href="/awarded">Awarded Contracts</a> |
+  <a href="/customers">Customers</a> |
+  <a href="/stats">Stats</a>
+  <table>
+    <tr><th>Name</th></tr>
+    <% organisations.forEach(o => { %>
+      <tr><td><%= o.name %></td></tr>
+    <% }) %>
+  </table>
+</body>
+</html>

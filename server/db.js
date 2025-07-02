@@ -80,6 +80,15 @@ db.serialize(() => {
     scraped_at TEXT,
     tags TEXT
   )`);
+
+  // Organisations referenced in tenders or awards. The type column
+  // indicates whether the organisation is a customer or supplier.
+  db.run(`CREATE TABLE IF NOT EXISTS organisations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    type TEXT,
+    UNIQUE(name, type)
+  )`);
 });
 
 module.exports = {
@@ -289,6 +298,46 @@ module.exports = {
   },
 
   /**
+   * Insert an organisation if it does not already exist. The type should be
+   * either 'customer' or 'supplier'.
+   *
+   * @param {string} name - Organisation name
+   * @param {string} type - Type of organisation
+   * @returns {Promise<number>} resolves with 1 when inserted or 0 if skipped
+   */
+  insertOrganisation: (name, type) => {
+    return new Promise((resolve, reject) => {
+      db.run(
+        'INSERT OR IGNORE INTO organisations (name, type) VALUES (?, ?)',
+        [name, type],
+        function (err) {
+          if (err) return reject(err);
+          resolve(this.changes);
+        }
+      );
+    });
+  },
+
+  /**
+   * Retrieve all organisations of the given type ordered alphabetically.
+   *
+   * @param {string} type - Organisation type
+   * @returns {Promise<Array>} resolves with organisation rows
+   */
+  getOrganisationsByType: type => {
+    return new Promise((resolve, reject) => {
+      db.all(
+        'SELECT name FROM organisations WHERE type = ? ORDER BY name',
+        [type],
+        (err, rows) => {
+          if (err) return reject(err);
+          resolve(rows);
+        }
+      );
+    });
+  },
+
+  /**
    * Update an existing scraping source definition. The key cannot be changed
    * as it forms the primary identifier used throughout the application.
    *
@@ -411,6 +460,7 @@ module.exports = {
         db.run('DROP TABLE IF EXISTS sources');
         db.run('DROP TABLE IF EXISTS source_stats');
         db.run('DROP TABLE IF EXISTS awards');
+        db.run('DROP TABLE IF EXISTS organisations');
         db.run(`CREATE TABLE tenders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT,
@@ -452,6 +502,12 @@ module.exports = {
             source TEXT,
             scraped_at TEXT,
             tags TEXT
+          )`);
+        db.run(`CREATE TABLE organisations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            type TEXT,
+            UNIQUE(name, type)
           )`, err2 => {
             if (err2) return reject(err2);
             resolve();
