@@ -108,7 +108,8 @@ See the `/help` page for example configurations.
 6. Optionally specify a **parser** name. Use `rss` for RSS feeds or one of the
    custom parsers listed in `server/htmlParser.js`.
 7. Click **Add Source** to save. The source is stored in the database and can be
-   selected immediately.
+   selected immediately. A small JSON file (`sources.json`) is also written so
+   custom sources survive server restarts even if the database is cleared.
 8. Existing sources are shown in a list below the form. Click **Edit** to modify
    details or **Delete** to remove a source altogether.
 
@@ -125,4 +126,6 @@ procurement portals pre-configured so you can start scraping immediately.
 
 Award notices are scraped separately using the same mechanism. Use the **Award
 Sources** form on the Scraper page to register feeds that list awarded
-contracts. Example award sources are shown on the `/help` page.
+contracts. Example award sources are shown on the `/help` page. Like tender
+sources, award feeds are also saved to `sources.json` to ensure they are
+restored after a restart.

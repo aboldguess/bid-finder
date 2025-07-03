@@ -9,6 +9,8 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const fetch = require('node-fetch');
 const { parseTenders } = require('./htmlParser');
+// Helper for persisting custom source definitions outside the database.
+const sourceStore = require('./sourceStore');
 
 const app = express();
 // Store per-source status strings for display on the scraper screen. Keys
@@ -63,6 +65,10 @@ async function scheduleJob() {
         parser: row.parser
       };
     }
+
+    // Load any definitions stored in the JSON file so manual additions
+    // survive even if the database is lost for some reason.
+    sourceStore.load();
   } catch (err) {
     logger.error('Failed to load settings from DB:', err);
   }
@@ -319,6 +325,8 @@ app.post('/sources', async (req, res) => {
     // by the rest of the application.
     await db.insertSource(key, label, url, base, parser);
     config.sources[key] = { label, url, base, parser };
+    // Persist the updated configuration so custom sources survive restarts.
+    sourceStore.save();
     logger.info(`Added new source ${key}: ${label}`);
     res.json({ success: true });
   } catch (err) {
@@ -344,6 +352,8 @@ app.put('/sources/:key', async (req, res) => {
   try {
     await db.updateSource(key, label, url, base, parser);
     config.sources[key] = { label, url, base, parser };
+    // Persist changes so they are reloaded on the next start.
+    sourceStore.save();
     logger.info(`Updated source ${key}: ${label}`);
     res.json({ success: true });
   } catch (err) {
@@ -362,6 +372,8 @@ app.delete('/sources/:key', async (req, res) => {
   try {
     await db.deleteSource(key);
     delete config.sources[key];
+    // Save the remaining sources for persistence.
+    sourceStore.save();
     logger.info(`Deleted source ${key}`);
     res.json({ success: true });
   } catch (err) {
@@ -386,6 +398,8 @@ app.post('/award-sources', async (req, res) => {
   try {
     await db.insertAwardSource(key, label, url, base, parser);
     config.awardSources[key] = { label, url, base, parser };
+    // Ensure award source changes survive server restarts.
+    sourceStore.save();
     logger.info(`Added new award source ${key}: ${label}`);
     res.json({ success: true });
   } catch (err) {
@@ -409,6 +423,8 @@ app.put('/award-sources/:key', async (req, res) => {
   try {
     await db.updateAwardSource(key, label, url, base, parser);
     config.awardSources[key] = { label, url, base, parser };
+    // Persist the updated award sources list.
+    sourceStore.save();
     logger.info(`Updated award source ${key}: ${label}`);
     res.json({ success: true });
   } catch (err) {
@@ -426,6 +442,8 @@ app.delete('/award-sources/:key', async (req, res) => {
   try {
     await db.deleteAwardSource(key);
     delete config.awardSources[key];
+    // Keep JSON file in sync after deletion.
+    sourceStore.save();
     logger.info(`Deleted award source ${key}`);
     res.json({ success: true });
   } catch (err) {
