@@ -22,6 +22,7 @@ db.serialize(() => {
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT,
     link TEXT UNIQUE,
+    ocid TEXT UNIQUE,
     date TEXT,
     description TEXT,
     /* Source site label */
@@ -130,12 +131,21 @@ module.exports = {
    * @param {string} tags - Comma separated tags for the tender
    * @returns {Promise<number>} resolves with 1 when inserted or 0 if skipped
    */
-  insertTender: (title, link, date, description, source, scrapedAt, tags) => {
+  insertTender: (
+    title,
+    link,
+    date,
+    description,
+    source,
+    scrapedAt,
+    tags,
+    ocid = null
+  ) => {
     return new Promise((resolve, reject) => {
       db.run(
-        // Use INSERT OR IGNORE so that duplicate links are skipped silently.
-        "INSERT OR IGNORE INTO tenders (title, link, date, description, source, scraped_at, tags) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        [title, link, date, description, source, scrapedAt, tags],
+        // Use INSERT OR IGNORE so that duplicate links or OCIDs are skipped silently.
+        "INSERT OR IGNORE INTO tenders (title, link, ocid, date, description, source, scraped_at, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [title, link, ocid, date, description, source, scrapedAt, tags],
         function (err) {
           if (err) {
             // Propagate database errors to the caller.
@@ -559,6 +569,7 @@ module.exports = {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT,
             link TEXT UNIQUE,
+            ocid TEXT UNIQUE,
             date TEXT,
             description TEXT,
             source TEXT,

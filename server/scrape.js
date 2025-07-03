@@ -168,6 +168,7 @@ async function runInternal(onProgress, sourceKey, source) {
       const date = tender.date;
       const desc = tender.desc;
       const organisation = tender.organisation;
+      const ocid = tender.ocid || null;
       const tags = generateTags(title, desc);
       // Include metadata about where and when the tender was scraped so
       // the dashboard can display this context to the user.
@@ -185,7 +186,8 @@ async function runInternal(onProgress, sourceKey, source) {
           desc,
           srcLabel,
           scrapedAt,
-          tags.join(',')
+          tags.join(','),
+          ocid
         );
 
         if (inserted) {

@@ -33,8 +33,21 @@ function parseContractsFinder(html) {
       /<span[^>]*class="[^"]*supplier[^"]*"[^>]*>(.*?)<\/span>/i.exec(block);
     const organisation = orgMatch ? clean(orgMatch[1]) : '';
     const supplier = supplierMatch ? clean(supplierMatch[1]) : '';
+    // Attempt to find an Open Contracting ID (OCID) within the block. Many
+    // sources embed this either as a data attribute or plain text string.
+    const ocidMatch =
+      block.match(/data-ocid="([^"]+)"/i) || block.match(/(ocds-[a-z0-9-]+)/i);
+    const ocid = ocidMatch ? ocidMatch[1] || ocidMatch[0] : '';
     if (href && title) {
-      tenders.push({ title, link: href, date, desc, organisation, supplier });
+      tenders.push({
+        title,
+        link: href,
+        date,
+        desc,
+        organisation,
+        supplier,
+        ocid
+      });
     }
   }
   return tenders;
@@ -66,8 +79,11 @@ function parseSell2Wales(html) {
     );
     const organisation = '';
     const supplier = '';
+    const ocidMatch =
+      block.match(/data-ocid="([^"]+)"/i) || block.match(/(ocds-[a-z0-9-]+)/i);
+    const ocid = ocidMatch ? ocidMatch[1] || ocidMatch[0] : '';
     if (title && href) {
-      tenders.push({ title, link: href, date, desc, organisation, supplier });
+      tenders.push({ title, link: href, date, desc, organisation, supplier, ocid });
     }
   }
   return tenders;
@@ -93,8 +109,11 @@ function parseUkri(html) {
     const desc = clean(/<p[^>]*>([\s\S]*?)<\/p>/i.exec(block)?.[1] || '');
     const organisation = '';
     const supplier = '';
+    const ocidMatch =
+      block.match(/data-ocid="([^"]+)"/i) || block.match(/(ocds-[a-z0-9-]+)/i);
+    const ocid = ocidMatch ? ocidMatch[1] || ocidMatch[0] : '';
     if (!/contact\s+us/i.test(title)) {
-      tenders.push({ title, link: href, date, desc, organisation, supplier });
+      tenders.push({ title, link: href, date, desc, organisation, supplier, ocid });
     }
   }
   return tenders;
@@ -118,7 +137,10 @@ function parseEuSupply(html) {
     const desc = /<td[^>]*class="description"[^>]*>(.*?)<\/td>/.exec(block)?.[1].trim() || '';
     const organisation = '';
     const supplier = '';
-    tenders.push({ title, link: href, date, desc, organisation, supplier });
+    const ocidMatch =
+      block.match(/data-ocid="([^"]+)"/i) || block.match(/(ocds-[a-z0-9-]+)/i);
+    const ocid = ocidMatch ? ocidMatch[1] || ocidMatch[0] : '';
+    tenders.push({ title, link: href, date, desc, organisation, supplier, ocid });
   }
   return tenders;
 }
@@ -139,8 +161,11 @@ function parseRss(xml) {
     const desc = clean(/<description>([\s\S]*?)<\/description>/i.exec(block)?.[1] || '');
     const organisation = '';
     const supplier = '';
+    const ocidMatch =
+      block.match(/<ocid>([^<]+)<\/ocid>/i) || block.match(/(ocds-[a-z0-9-]+)/i);
+    const ocid = ocidMatch ? ocidMatch[1] || ocidMatch[0] : '';
     if (title && href) {
-      tenders.push({ title, link: href, date, desc, organisation, supplier });
+      tenders.push({ title, link: href, date, desc, organisation, supplier, ocid });
     }
   }
   return tenders;

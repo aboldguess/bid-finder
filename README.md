@@ -76,6 +76,10 @@ the source being scraped, how many tenders were discovered and whether each one
 was added to the database or skipped as a duplicate. A final message summarises
 how many new tenders were stored.
 
+Each tender is deduplicated using its link and, when available, the procurement
+identifier (OCID) extracted from the listing. This prevents multiple entries for
+the same opportunity even if the URL changes between runs.
+
 ## Statistics
 
 The `/stats` page displays when the scraper last completed successfully. This
