@@ -94,8 +94,16 @@ app.use((req, res, next) => {
 });
 
 // Middleware protecting admin routes by redirecting unauthenticated users
+// Simple authentication middleware used by admin routes and destructive tools.
+// If the request was made via fetch (Accept header includes application/json)
+// we return a 401 JSON response so the client-side code can detect that the
+// action failed due to missing credentials. Browser navigations are instead
+// redirected to the login page as before.
 const requireAuth = (req, res, next) => {
   if (req.session.user) return next();
+  if (req.headers.accept && req.headers.accept.includes('application/json')) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
   res.redirect('/login');
 };
 

@@ -274,10 +274,19 @@ document.getElementById('cronForm').addEventListener('submit', async e => {
   const schedule = buildCron();
   const res = await fetch('/admin/cron', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json'
+    },
     body: JSON.stringify({ schedule })
   });
-  if (res.ok) {
+  if (res.status === 401) {
+    alert('Please log in first');
+    window.location = '/login';
+    return;
+  }
+  const data = await res.json().catch(() => null);
+  if (res.ok && data && data.success) {
     alert('Schedule updated');
   } else {
     alert('Failed to update schedule');
@@ -288,8 +297,17 @@ document.getElementById('cronForm').addEventListener('submit', async e => {
 document.getElementById('resetForm').addEventListener('submit', async e => {
   e.preventDefault();
   if (!confirm('This will delete all tenders. Continue?')) return;
-  const res = await fetch('/admin/reset-db', { method: 'POST' });
-  if (res.ok) {
+  const res = await fetch('/admin/reset-db', {
+    method: 'POST',
+    headers: { Accept: 'application/json' }
+  });
+  if (res.status === 401) {
+    alert('Please log in first');
+    window.location = '/login';
+    return;
+  }
+  const data = await res.json().catch(() => null);
+  if (res.ok && data && data.success) {
     alert('Database reset');
   } else {
     alert('Failed to reset database');
