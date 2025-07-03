@@ -6,10 +6,7 @@
 </head>
 <body>
   <h1>Suppliers</h1>
-  <a href="/opportunities">Opportunities</a> |
-  <a href="/awarded">Awarded Contracts</a> |
-  <a href="/scraper">Scraper</a> |
-  <a href="/stats">Stats</a>
+  <%- include('partials/nav', { page: 'crm', user: user }) %>
   <table>
     <tr><th>Name</th></tr>
     <% organisations.forEach(o => { %>

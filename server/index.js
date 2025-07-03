@@ -93,23 +93,44 @@ app.set('view engine', 'ejs');
 app.set('views', config.frontendDir);
 app.use(express.static(config.frontendDir));
 
-// GET / - Redirect to the opportunities page for consistency with the new
-// navigation layout.
+// GET / - Redirect to the dashboard page which summarises scraping activity.
 app.get('/', (req, res) => {
-  res.redirect('/opportunities');
+  res.redirect('/dashboard');
+});
+
+// Render the dashboard showing log output and overall source status.
+app.get('/dashboard', async (req, res) => {
+  const statsRows = await db.getSourceStats();
+  const stats = {};
+  for (const row of statsRows) {
+    stats[row.key] = row;
+  }
+  res.render('dashboard', {
+    sources: config.sources,
+    sourceStatus,
+    page: 'dashboard'
+  });
 });
 
 // GET /opportunities - Render the table of currently available tenders.
 app.get('/opportunities', async (req, res) => {
   const tenders = await db.getTenders();
-  res.render('opportunities', { tenders, sources: config.sources });
+  res.render('opportunities', {
+    tenders,
+    sources: config.sources,
+    page: 'opportunities'
+  });
 });
 
 // GET /awarded - Display contracts that have been awarded using the separate
 // awards scraper.
 app.get('/awarded', async (req, res) => {
   const tenders = await db.getAwards();
-  res.render('awarded', { tenders, sources: config.awardSources });
+  res.render('awarded', {
+    tenders,
+    sources: config.awardSources,
+    page: 'awarded'
+  });
 });
 
 // GET /scraper - Display all configured sources along with stats and actions
@@ -123,7 +144,8 @@ app.get('/scraper', async (req, res) => {
   res.render('scraper', {
     sources: config.sources,
     sourceStats: stats,
-    sourceStatus
+    sourceStatus,
+    page: 'scraper'
   });
 });
 
@@ -144,33 +166,34 @@ app.get('/stats', async (req, res) => {
     lastScraped,
     // Provide the list of sources so labels can be shown alongside stats.
     sources: config.sources,
-    sourceStats: stats
+    sourceStats: stats,
+    page: 'stats'
   });
 });
 
 // Lists of organisations scraped from tender sources
 app.get('/customers', async (req, res) => {
   const organisations = await db.getOrganisationsByType('customer');
-  res.render('customers', { organisations });
+  res.render('customers', { organisations, page: 'crm' });
 });
 
 app.get('/suppliers', async (req, res) => {
   const organisations = await db.getOrganisationsByType('supplier');
-  res.render('suppliers', { organisations });
+  res.render('suppliers', { organisations, page: 'crm' });
 });
 
 // CRM page combining customers and suppliers for easier browsing.
 app.get('/crm', async (req, res) => {
   const customers = await db.getOrganisationsByType('customer');
   const suppliers = await db.getOrganisationsByType('supplier');
-  res.render('crm', { customers, suppliers });
+  res.render('crm', { customers, suppliers, page: 'crm' });
 });
 
 // Authentication -----------------------------------------------------------
 
 // Render login form
 app.get('/login', (req, res) => {
-  res.render('login');
+  res.render('login', { page: 'login' });
 });
 
 // Handle login submissions
@@ -179,7 +202,9 @@ app.post('/login', async (req, res) => {
   const user = await db.getUserByUsername(username);
   // Validate credentials using bcrypt hash comparison
   if (!user || !(await bcrypt.compare(password, user.password))) {
-    return res.status(401).render('login', { error: 'Invalid credentials' });
+    return res
+      .status(401)
+      .render('login', { error: 'Invalid credentials', page: 'login' });
   }
   // Persist minimal user info in the session
   req.session.user = { id: user.id, username: user.username };
@@ -188,17 +213,21 @@ app.post('/login', async (req, res) => {
 
 // Render registration form
 app.get('/register', (req, res) => {
-  res.render('register');
+  res.render('register', { page: 'login' });
 });
 
 // Handle account creation
 app.post('/register', async (req, res) => {
   const { username, password } = req.body || {};
   if (!username || !password) {
-    return res.status(400).render('register', { error: 'Missing fields' });
+    return res
+      .status(400)
+      .render('register', { error: 'Missing fields', page: 'login' });
   }
   if (await db.getUserByUsername(username)) {
-    return res.status(400).render('register', { error: 'User already exists' });
+    return res
+      .status(400)
+      .render('register', { error: 'User already exists', page: 'login' });
   }
   // Hash the password so only the digest is stored
   const hash = await bcrypt.hash(password, 10);
@@ -339,6 +368,21 @@ app.get('/scrape-awarded-all', async (req, res) => {
   res.json(results);
 });
 
+// SSE endpoint that streams progress while scraping every source sequentially.
+app.get('/scrape-all-stream', async (req, res) => {
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive'
+  });
+  res.flushHeaders();
+
+  const send = data => res.write(`data: ${JSON.stringify(data)}\n\n`);
+  const results = await scrape.runAll(p => send(p));
+  send({ done: true, results });
+  res.end();
+});
+
 // GET /scrape-stream - Same as /scrape but streams progress updates using
 // Server-Sent Events so the frontend can display real-time feedback.
 app.get('/scrape-stream', async (req, res) => {
@@ -401,6 +445,22 @@ app.get('/scrape-awarded-stream', async (req, res) => {
   res.end();
 });
 
+// Stream log entries to the dashboard so progress can be monitored live.
+app.get('/logs', (req, res) => {
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive'
+  });
+  res.flushHeaders();
+
+  const send = data => res.write(`data: ${JSON.stringify(data)}\n\n`);
+  const listener = log => send(log);
+  logger.emitter.on('log', listener);
+
+  req.on('close', () => logger.emitter.off('log', listener));
+});
+
 // GET /admin - Render the admin interface used for maintenance tasks.
 // Fetch scraping statistics and render the admin page.
 app.get('/admin', requireAuth, async (req, res) => {
@@ -412,7 +472,8 @@ app.get('/admin', requireAuth, async (req, res) => {
   res.render('admin', {
     sources: config.sources,
     cron: config.cronSchedule,
-    sourceStats: stats
+    sourceStats: stats,
+    page: 'admin'
   });
 });
 

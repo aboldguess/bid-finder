@@ -6,10 +6,7 @@
 </head>
 <body>
   <h1>Scraper</h1>
-  <a href="/opportunities">Opportunities</a> |
-  <a href="/awarded">Awarded Contracts</a> |
-  <a href="/crm">CRM</a> |
-  <a href="/stats">Stats</a>
+  <%- include('partials/nav', { page: 'scraper', user: user }) %>
   <table id="sourceTable">
     <tr>
       <th>Key</th>

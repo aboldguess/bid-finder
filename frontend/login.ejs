@@ -6,6 +6,7 @@
 </head>
 <body>
   <h1>Login</h1>
+  <%- include('partials/nav', { page: 'login', user: user }) %>
   <% if (typeof error !== 'undefined') { %>
     <p style="color:red"><%= error %></p>
   <% } %>
