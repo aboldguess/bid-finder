@@ -65,14 +65,28 @@
       <th>Link</th>
     </tr>
     <% tenders.forEach(t => { %>
-      <tr>
+      <tr class="tenderRow" data-id="<%= t.id %>">
         <td><%= t.title %></td>
         <td><%= t.date %></td>
         <td><%= t.description %></td>
         <td><%= t.source %></td>
         <td><%= t.scraped_at %></td>
         <td><%= t.tags %></td>
-        <td><a href="<%= t.link %>">View</a></td>
+        <!-- Open award links in a new tab to keep the list available -->
+        <td><a href="<%= t.link %>" target="_blank">View</a></td>
+      </tr>
+      <tr class="detailRow" data-id="<%= t.id %>" style="display:none">
+        <td colspan="7">
+          <table>
+            <tr><th>Title</th><td><%= t.title %></td></tr>
+            <tr><th>Date</th><td><%= t.date %></td></tr>
+            <tr><th>Description</th><td><%= t.description %></td></tr>
+            <tr><th>Source</th><td><%= t.source %></td></tr>
+            <tr><th>Scraped At</th><td><%= t.scraped_at %></td></tr>
+            <tr><th>Tags</th><td><%= t.tags %></td></tr>
+            <tr><th>Link</th><td><a href="<%= t.link %>" target="_blank"><%= t.link %></a></td></tr>
+          </table>
+        </td>
       </tr>
     <% }) %>
   </table>
@@ -186,6 +200,18 @@
     } else {
       alert('Failed to add source');
     }
+  });
+
+  // Toggle the visibility of the hidden detail row when a tender row is
+  // clicked. Clicking a link should still open it in a new tab so those
+  // events are ignored.
+  document.querySelectorAll('table .tenderRow').forEach(row => {
+    const id = row.dataset.id;
+    row.addEventListener('click', e => {
+      if (e.target.closest('a')) return;
+      const detail = document.querySelector(`.detailRow[data-id="${id}"]`);
+      detail.style.display = detail.style.display === 'none' ? '' : 'none';
+    });
   });
   </script>
   <!-- Enhance tables with search, filter and sort capabilities -->
