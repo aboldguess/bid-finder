@@ -87,4 +87,25 @@ describe('Database helpers', () => {
     expect(s.total).to.equal(5);
     expect(s.last_added).to.equal(2);
   });
+
+  it('award details can be stored and retrieved', async () => {
+    const res = await db.insertAward(
+      'a',
+      'linka',
+      '2024-06-01',
+      'desc',
+      'src',
+      '2024-06-02T00:00:00Z',
+      't'
+    );
+    await db.insertAwardDetails(res.id, {
+      buyer: 'Buyer',
+      value: '100',
+      location: 'X'
+    });
+    const row = await db.getAwardDetails(res.id);
+    expect(row.buyer).to.equal('Buyer');
+    expect(row.value).to.equal('100');
+    expect(row.location).to.equal('X');
+  });
 });

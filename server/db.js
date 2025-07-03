@@ -81,6 +81,32 @@ db.serialize(() => {
     tags TEXT
   )`);
 
+  // Additional information scraped from individual award pages. Each row
+  // references the main award via award_id so that not all sources are
+  // required to provide these optional fields.
+  db.run(`CREATE TABLE IF NOT EXISTS award_details (
+    award_id INTEGER PRIMARY KEY,
+    buyer TEXT,
+    status TEXT,
+    industry TEXT,
+    location TEXT,
+    value TEXT,
+    procurement_reference TEXT,
+    closing_date TEXT,
+    closing_time TEXT,
+    start_date TEXT,
+    end_date TEXT,
+    contract_type TEXT,
+    procedure_type TEXT,
+    procedure_desc TEXT,
+    suitable_for_sme INTEGER,
+    suitable_for_vcse INTEGER,
+    how_to_apply TEXT,
+    buyer_address TEXT,
+    buyer_email TEXT,
+    FOREIGN KEY(award_id) REFERENCES awards(id)
+  )`);
+
   // Organisations referenced in tenders or awards. The type column
   // indicates whether the organisation is a customer or supplier.
   db.run(`CREATE TABLE IF NOT EXISTS organisations (
@@ -151,7 +177,9 @@ module.exports = {
         [title, link, date, description, source, scrapedAt, tags],
         function (err) {
           if (err) return reject(err);
-          resolve(this.changes);
+          // Resolve with an object so callers can access the inserted row id
+          // when a new award is stored.
+          resolve({ changes: this.changes, id: this.lastID });
         }
       );
     });
@@ -166,6 +194,71 @@ module.exports = {
         if (err) return reject(err);
         resolve(rows);
       });
+    });
+  },
+
+  /**
+   * Insert additional details for an award. The details object may contain
+   * any of the optional fields extracted from the award page.
+   *
+   * @param {number} awardId - ID of the award row this data relates to
+   * @param {object} details - Key/value pairs of extra information
+   * @returns {Promise<void>} resolves when stored
+   */
+  insertAwardDetails: (awardId, details) => {
+    return new Promise((resolve, reject) => {
+      db.run(
+        `INSERT OR REPLACE INTO award_details (
+          award_id, buyer, status, industry, location, value,
+          procurement_reference, closing_date, closing_time,
+          start_date, end_date, contract_type, procedure_type,
+          procedure_desc, suitable_for_sme, suitable_for_vcse,
+          how_to_apply, buyer_address, buyer_email
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          awardId,
+          details.buyer || '',
+          details.status || '',
+          details.industry || '',
+          details.location || '',
+          details.value || '',
+          details.procurement_reference || '',
+          details.closing_date || '',
+          details.closing_time || '',
+          details.start_date || '',
+          details.end_date || '',
+          details.contract_type || '',
+          details.procedure_type || '',
+          details.procedure_desc || '',
+          details.suitable_for_sme ? 1 : 0,
+          details.suitable_for_vcse ? 1 : 0,
+          details.how_to_apply || '',
+          details.buyer_address || '',
+          details.buyer_email || ''
+        ],
+        err => {
+          if (err) return reject(err);
+          resolve();
+        }
+      );
+    });
+  },
+
+  /**
+   * Retrieve stored details for a specific award.
+   * @param {number} awardId - Award identifier
+   * @returns {Promise<object|null>} resolves with the row or null
+   */
+  getAwardDetails: awardId => {
+    return new Promise((resolve, reject) => {
+      db.get(
+        'SELECT * FROM award_details WHERE award_id = ?',
+        [awardId],
+        (err, row) => {
+          if (err) return reject(err);
+          resolve(row || null);
+        }
+      );
     });
   },
 
@@ -460,6 +553,7 @@ module.exports = {
         db.run('DROP TABLE IF EXISTS sources');
         db.run('DROP TABLE IF EXISTS source_stats');
         db.run('DROP TABLE IF EXISTS awards');
+        db.run('DROP TABLE IF EXISTS award_details');
         db.run('DROP TABLE IF EXISTS organisations');
         db.run(`CREATE TABLE tenders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -502,6 +596,28 @@ module.exports = {
             source TEXT,
             scraped_at TEXT,
             tags TEXT
+          )`);
+        db.run(`CREATE TABLE award_details (
+            award_id INTEGER PRIMARY KEY,
+            buyer TEXT,
+            status TEXT,
+            industry TEXT,
+            location TEXT,
+            value TEXT,
+            procurement_reference TEXT,
+            closing_date TEXT,
+            closing_time TEXT,
+            start_date TEXT,
+            end_date TEXT,
+            contract_type TEXT,
+            procedure_type TEXT,
+            procedure_desc TEXT,
+            suitable_for_sme INTEGER,
+            suitable_for_vcse INTEGER,
+            how_to_apply TEXT,
+            buyer_address TEXT,
+            buyer_email TEXT,
+            FOREIGN KEY(award_id) REFERENCES awards(id)
           )`);
         db.run(`CREATE TABLE organisations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

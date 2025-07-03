@@ -28,6 +28,38 @@ db.serialize(() => {
     scraped_at TEXT,
     tags TEXT
   )`);
+  db.run(`CREATE TABLE IF NOT EXISTS awards (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT,
+    link TEXT UNIQUE,
+    date TEXT,
+    description TEXT,
+    source TEXT,
+    scraped_at TEXT,
+    tags TEXT
+  )`);
+  db.run(`CREATE TABLE IF NOT EXISTS award_details (
+    award_id INTEGER PRIMARY KEY,
+    buyer TEXT,
+    status TEXT,
+    industry TEXT,
+    location TEXT,
+    value TEXT,
+    procurement_reference TEXT,
+    closing_date TEXT,
+    closing_time TEXT,
+    start_date TEXT,
+    end_date TEXT,
+    contract_type TEXT,
+    procedure_type TEXT,
+    procedure_desc TEXT,
+    suitable_for_sme INTEGER,
+    suitable_for_vcse INTEGER,
+    how_to_apply TEXT,
+    buyer_address TEXT,
+    buyer_email TEXT,
+    FOREIGN KEY(award_id) REFERENCES awards(id)
+  )`);
   db.run(`CREATE TABLE IF NOT EXISTS metadata (
     key TEXT PRIMARY KEY,
     value TEXT
