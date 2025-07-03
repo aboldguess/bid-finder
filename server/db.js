@@ -32,6 +32,27 @@ db.serialize(() => {
     /* Comma separated tags generated from the title/description */
     tags TEXT
   )`);
+  // Older installations may lack the OCID column. Check the table schema and
+  // add the column if required so inserts do not fail.
+  db.all('PRAGMA table_info(tenders)', (err, cols) => {
+    if (err) return logger.error('Failed to read schema:', err);
+    const hasOcid = cols.some(c => c.name === 'ocid');
+    const ensureIndex = () =>
+      db.run(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_tenders_ocid ON tenders(ocid)'
+      );
+    if (!hasOcid) {
+      db.run('ALTER TABLE tenders ADD COLUMN ocid TEXT', alterErr => {
+        if (alterErr) {
+          return logger.error('Failed to add ocid column:', alterErr);
+        }
+        ensureIndex();
+        logger.info('Added missing ocid column to tenders table');
+      });
+    } else {
+      ensureIndex();
+    }
+  });
   // Small metadata table used to store global key/value pairs such as the
   // timestamp of the last successful scrape. Using a key column keeps the
   // schema flexible should more values be needed later.
