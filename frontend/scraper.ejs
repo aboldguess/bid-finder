@@ -11,15 +11,22 @@
     Manage tender and award sources here. Hover over each input for guidance or
     visit the <a href="/help">help page</a> for full instructions.
   </div>
-  <h2>Database Tools</h2>
-  <form id="deleteAllForm">
-    <button type="submit">Delete All Records</button>
-  </form>
-  <form id="deleteBeforeForm">
-    <input type="date" id="deleteDate">
-    <button type="submit">Delete Records Before Date</button>
-  </form>
-  <table id="sourceTable">
+  <!-- Collapsible section listing administrative database actions -->
+  <details id="dbTools">
+    <summary><h2>Database Tools</h2></summary>
+    <form id="deleteAllForm">
+      <button type="submit">Delete All Records</button>
+    </form>
+    <form id="deleteBeforeForm">
+      <input type="date" id="deleteDate">
+      <button type="submit">Delete Records Before Date</button>
+    </form>
+  </details> <!-- end database tools section -->
+
+  <!-- Source list for tenders -->
+  <details id="opportunitySources">
+    <summary><h2>Opportunity Sources</h2></summary>
+    <table id="sourceTable">
     <tr>
       <th>Key</th>
       <th>Label</th>
@@ -72,7 +79,10 @@
     <button id="addBtn" type="submit">Add Source</button>
   </form>
 
-  <h2>Award Sources</h2>
+  </details> <!-- end opportunity sources section -->
+  <!-- Award source management mirrors the tender source UI -->
+  <details id="awardSources">
+    <summary><h2>Award Sources</h2></summary>
   <table id="awardSourceTable">
     <tr>
       <th>Key</th>
@@ -103,6 +113,7 @@
             Base: <span class="base"><%= awardSources[key].base %></span><br>
             Parser: <span class="parser"><%= awardSources[key].parser %></span><br>
             <button class="editBtn">Edit</button>
+            <button class="deleteBtn">Delete</button>
           </div>
           <div class="editForm" style="display:none">
             <input class="editLabel" value="<%= awardSources[key].label %>">
@@ -123,6 +134,8 @@
     <input id="newAwardBase" placeholder="Base URL" title="Website root" required>
     <button id="addAwardBtn" type="submit">Add Award Source</button>
   </form>
+
+  </details> <!-- end award sources section -->
 
 <script>
 const sourceData = <%- JSON.stringify(sources) %>;
