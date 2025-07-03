@@ -57,14 +57,19 @@ async function runInternal(onProgress, sourceKey, source) {
       source || {
         url: config.scrapeUrl,
         base: config.scrapeBase,
-        parser: 'contractsFinder'
+        parser: 'contractsFinder',
+        label: 'Contracts Finder'
       };
 
-    // Log the start of the scrape and let any progress listener know which
+    // Track how long the scrape takes so progress messages can include the
+    // elapsed time. This helps reassure the user that work is ongoing.
+    const startTime = Date.now();
+
+    // Log the start of the scrape and notify any progress listener which
     // source is being processed.
     logger.info(`Starting scrape for ${src.label} (${src.url})`);
     if (onProgress) {
-      onProgress({ step: 'start', source: src });
+      onProgress({ step: 'start', source: src, elapsed: 0 });
     }
 
     // Collect tenders from all available pages. Some sources only show a
@@ -80,6 +85,18 @@ async function runInternal(onProgress, sourceKey, source) {
     };
 
     while (nextUrl) {
+      // Notify listeners which page is about to be fetched along with the
+      // number of seconds elapsed since the run started. This provides visible
+      // feedback that progress is being made even when a single page takes a
+      // while to load.
+      if (onProgress) {
+        onProgress({
+          step: 'page',
+          page,
+          elapsed: Math.round((Date.now() - startTime) / 1000)
+        });
+      }
+
       // Fetch each page sequentially using a browser-like User-Agent.
       const res = await fetch(nextUrl, { headers });
       const html = await res.text();
@@ -119,8 +136,13 @@ async function runInternal(onProgress, sourceKey, source) {
     logger.info(`Found ${allTenders.length} tenders on ${src.label}`);
 
     if (onProgress) {
-      // Report the total number of tenders discovered across all pages.
-      onProgress({ step: 'found', count: allTenders.length });
+      // Report the total number of tenders discovered across all pages along
+      // with how long the scrape has been running.
+      onProgress({
+        step: 'found',
+        count: allTenders.length,
+        elapsed: Math.round((Date.now() - startTime) / 1000)
+      });
     }
 
     // Track how many tenders were inserted during this run.
@@ -192,7 +214,8 @@ async function runInternal(onProgress, sourceKey, source) {
           title,
           index: i + 1,
           total,
-          inserted: Boolean(inserted)
+          inserted: Boolean(inserted),
+          elapsed: Math.round((Date.now() - startTime) / 1000)
         });
       }
     }

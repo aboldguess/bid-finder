@@ -278,6 +278,9 @@ app.get('/scrape-stream', async (req, res) => {
   const source = config.sources[sourceKey] || config.sources.default;
   logger.info(`Manual SSE scrape triggered for ${sourceKey}`);
 
+  // Record the start time so the total duration can be reported at the end.
+  const start = Date.now();
+
   // Setup headers required for Server-Sent Events. `flushHeaders()` forces the
   // headers to be sent immediately so the connection remains open while we
   // stream data.
@@ -293,13 +296,14 @@ app.get('/scrape-stream', async (req, res) => {
 
   // Run the scraper and stream progress for each tender found. The selected
   // source is forwarded to the scraper so different sites can be targeted.
-  // Emit an initial event letting the client know which source will be used.
-  send({ start: true, source: source.label, url: source.url });
-
   const count = await scrape.run(progress => send(progress), source, sourceKey);
 
   // Emit a final message indicating completion and close the connection.
-  send({ done: true, added: count });
+  send({
+    done: true,
+    added: count,
+    duration: Math.round((Date.now() - start) / 1000)
+  });
   res.end();
 });
 
@@ -309,6 +313,8 @@ app.get('/scrape-awarded-stream', async (req, res) => {
   const source = config.awardSources[sourceKey] || config.awardSources.default;
   logger.info(`Manual SSE awards scrape triggered for ${sourceKey}`);
 
+  const start = Date.now();
+
   res.set({
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -317,10 +323,13 @@ app.get('/scrape-awarded-stream', async (req, res) => {
   res.flushHeaders();
 
   const send = data => res.write(`data: ${JSON.stringify(data)}\n\n`);
-  send({ start: true, source: source.label, url: source.url });
 
   const count = await scrapeAwarded.run(progress => send(progress), source, sourceKey);
-  send({ done: true, added: count });
+  send({
+    done: true,
+    added: count,
+    duration: Math.round((Date.now() - start) / 1000)
+  });
   res.end();
 });
 
