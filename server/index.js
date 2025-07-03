@@ -166,6 +166,7 @@ app.get('/scraper', async (req, res) => {
   }
   res.render('scraper', {
     sources: config.sources,
+    awardSources: config.awardSources,
     sourceStats: stats,
     sourceStatus,
     page: 'scraper'
@@ -191,6 +192,15 @@ app.get('/stats', async (req, res) => {
     sources: config.sources,
     sourceStats: stats,
     page: 'stats'
+  });
+});
+
+// GET /help - Render instructions on how to add new tender and award sources.
+app.get('/help', (req, res) => {
+  res.render('help', {
+    sources: config.sources,
+    awardSources: config.awardSources,
+    page: 'help'
   });
 });
 
@@ -407,6 +417,23 @@ app.delete('/award-sources/:key', async (req, res) => {
 app.get('/test-source', async (req, res) => {
   const key = req.query.key;
   const src = config.sources[key];
+  if (!src) return res.status(404).json({ error: 'Source not found' });
+  try {
+    const r = await fetch(src.url);
+    const html = await r.text();
+    const tenders = parseTenders(html, src.parser);
+    sourceStatus[key] = 'ok';
+    res.json({ status: 'ok', count: tenders.length });
+  } catch (err) {
+    sourceStatus[key] = 'error';
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+});
+
+// GET /test-award-source - Check an award feed returns parsable results.
+app.get('/test-award-source', async (req, res) => {
+  const key = req.query.key;
+  const src = config.awardSources[key];
   if (!src) return res.status(404).json({ error: 'Source not found' });
   try {
     const r = await fetch(src.url);

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Help</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <h1>Help</h1>
+  <%- include('partials/nav', { page: 'help', user: user }) %>
+  <div id="instructions">
+    <h2>Adding New Sources</h2>
+    <p>Use the forms on the <a href="/scraper">Scraper page</a> to register additional tender sources or award sources. Each entry requires four fields:</p>
+    <ul>
+      <li><strong>Key</strong> &ndash; short identifier such as <code>eusupply</code></li>
+      <li><strong>Label</strong> &ndash; human readable name displayed in lists</li>
+      <li><strong>Search URL</strong> &ndash; RSS feed or results page containing opportunities</li>
+      <li><strong>Base URL</strong> &ndash; website root prepended to relative links</li>
+    </ul>
+    <p>Award sources follow the same structure but point at feeds of awarded contracts.</p>
+  </div>
+  <h2>Example Award Sources</h2>
+  <table>
+    <tr><th>Key</th><th>Label</th><th>Search URL</th></tr>
+    <% Object.keys(awardSources).forEach(k => { %>
+      <tr>
+        <td><%= k %></td>
+        <td><%= awardSources[k].label %></td>
+        <td><%= awardSources[k].url %></td>
+      </tr>
+    <% }) %>
+  </table>
+  <script src="/table-tools.js"></script>
+</body>
+</html>
