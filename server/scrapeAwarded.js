@@ -125,7 +125,10 @@ async function runInternal(onProgress, sourceKey, source) {
 
     for (const [i, tender] of allTenders.entries()) {
       const title = tender.title;
-      const link = src.base + tender.link;
+      // Normalise tender links using the base URL so relative and
+      // absolute URLs are handled consistently. This prevents malformed
+      // links in the stored data.
+      const link = new URL(tender.link, src.base).href;
       const date = tender.date;
       const desc = tender.desc;
       const supplier = tender.supplier;
