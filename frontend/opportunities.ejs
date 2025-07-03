@@ -43,10 +43,20 @@
         </td>
       </tr>
     <% }) %>
-    <% if (tenders.length === 0) { %>
+  <% if (tenders.length === 0) { %>
       <tr><td colspan="7">No opportunities found. Try running the scraper.</td></tr>
-    <% } %>
+  <% } %>
   </table>
+  <div class="server-pagination">
+    <% const totalPages = Math.max(1, Math.ceil(total / 100)); %>
+    <% if (currentPage > 0) { %>
+      <a href="/opportunities?page=<%= currentPage - 1 %>">Prev</a>
+    <% } %>
+    Page <%= currentPage + 1 %> of <%= totalPages %>
+    <% if (currentPage < totalPages - 1) { %>
+      <a href="/opportunities?page=<%= currentPage + 1 %>">Next</a>
+    <% } %>
+  </div>
   <script>
   // Toggle the detail row when a tender row is clicked so users can view extra
   // information without leaving the page.

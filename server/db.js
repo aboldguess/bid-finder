@@ -194,6 +194,11 @@ module.exports = {
 
   /**
    * Retrieve all stored tenders ordered by published date descending.
+   *
+   * This helper is retained for backwards compatibility in places that
+   * expect all rows at once (primarily tests). New code should prefer
+   * {@link getTendersPage} so large result sets can be fetched in chunks.
+   *
    * @returns {Promise<Array>} resolves with an array of tender rows
    */
   getTenders: () => {
@@ -205,6 +210,29 @@ module.exports = {
           resolve(rows);
         }
       });
+    });
+  },
+
+  /**
+   * Retrieve a single page of tenders ordered by published date.
+   *
+   * @param {number} limit  Maximum number of rows to return
+   * @param {number} offset Number of rows to skip from the start of the table
+   * @returns {Promise<Array>} resolves with the requested tender rows
+   */
+  getTendersPage: (limit, offset) => {
+    return new Promise((resolve, reject) => {
+      db.all(
+        "SELECT * FROM tenders ORDER BY date DESC LIMIT ? OFFSET ?",
+        [limit, offset],
+        (err, rows) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(rows);
+          }
+        }
+      );
     });
   },
 
