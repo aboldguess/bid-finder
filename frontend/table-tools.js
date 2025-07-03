@@ -9,40 +9,102 @@
  */
 function enhanceTable(table) {
   const headers = Array.from(table.querySelectorAll('th'));
-  const rows = Array.from(table.querySelectorAll('tr')).slice(1); // exclude header
+  const rows = Array.from(table.querySelectorAll('tr')).slice(1); // exclude header row
 
-  // Track the current filter text for each column
-  const filters = new Array(headers.length).fill('');
+  // Each filters[i] is a function that returns true if a given row should be visible
+  const filters = new Array(headers.length).fill(() => true);
 
   let sortColumn = -1;
   let sortDir = 1; // 1 = ascending, -1 = descending
 
+  const types = [];
   headers.forEach((th, idx) => {
-    // Create a small input box under the header text for searching
-    const input = document.createElement('input');
-    input.placeholder = 'Search...';
-    input.dataset.index = idx;
-    input.style.width = '90%';
-    input.addEventListener('input', applyFilters);
+    const type = th.dataset.type || 'text';
+    types[idx] = type;
+
+    // Insert an element to show sort direction
+    const icon = document.createElement('span');
+    icon.className = 'sort-icon';
+    th.appendChild(icon);
 
     th.appendChild(document.createElement('br'));
-    th.appendChild(input);
+
+    if (type === 'date') {
+      // From date input
+      const from = document.createElement('input');
+      from.type = 'date';
+      from.dataset.index = idx;
+      from.addEventListener('change', applyFilters);
+      // To date input
+      const to = document.createElement('input');
+      to.type = 'date';
+      to.dataset.index = idx;
+      to.dataset.to = '1';
+      to.addEventListener('change', applyFilters);
+      th.appendChild(from);
+      th.appendChild(to);
+
+      filters[idx] = row => {
+        const text = row.children[idx].textContent.trim();
+        const cellDate = text ? new Date(text) : null;
+        if (!cellDate) return false;
+        const fromVal = from.value ? new Date(from.value) : null;
+        const toVal = to.value ? new Date(to.value) : null;
+        if (fromVal && cellDate < fromVal) return false;
+        if (toVal && cellDate > toVal) return false;
+        return true;
+      };
+    } else if (type === 'source') {
+      const select = document.createElement('select');
+      select.dataset.index = idx;
+      const blank = document.createElement('option');
+      blank.value = '';
+      blank.textContent = 'All';
+      select.appendChild(blank);
+      // Build option list from unique values in the column
+      const unique = new Set(rows.map(r => r.children[idx].textContent.trim()));
+      unique.forEach(val => {
+        const opt = document.createElement('option');
+        opt.value = val;
+        opt.textContent = val;
+        select.appendChild(opt);
+      });
+      select.addEventListener('change', applyFilters);
+      th.appendChild(select);
+      filters[idx] = row => {
+        const val = select.value;
+        if (!val) return true;
+        return row.children[idx].textContent.trim() === val;
+      };
+    } else {
+      // Default free text input
+      const input = document.createElement('input');
+      input.placeholder = 'Search...';
+      input.dataset.index = idx;
+      input.style.width = '90%';
+      input.addEventListener('input', applyFilters);
+      th.appendChild(input);
+      filters[idx] = row => {
+        const val = input.value.toLowerCase();
+        if (!val) return true;
+        const cell = row.children[idx];
+        return cell && cell.textContent.toLowerCase().includes(val);
+      };
+    }
 
     th.style.cursor = 'pointer';
     th.addEventListener('click', () => sortByColumn(idx));
   });
 
+  // Apply initial filters to hide rows that don't match default controls
+  applyFilters();
+
   /**
    * Filters rows so only those matching all column search terms remain visible.
    */
   function applyFilters() {
-    filters[this.dataset.index] = this.value.toLowerCase();
-
     rows.forEach(row => {
-      const cells = row.querySelectorAll('td');
-      const visible = filters.every((text, i) => {
-        return !text || (cells[i] && cells[i].textContent.toLowerCase().includes(text));
-      });
+      const visible = filters.every(fn => fn(row));
       row.style.display = visible ? '' : 'none';
     });
   }
@@ -56,13 +118,29 @@ function enhanceTable(table) {
     sortDir = sortColumn === idx ? -sortDir : 1;
     sortColumn = idx;
 
+    const type = types[idx];
+
     rows.sort((a, b) => {
       const aText = a.children[idx].textContent.trim();
       const bText = b.children[idx].textContent.trim();
+      if (type === 'date') {
+        return (new Date(aText) - new Date(bText)) * sortDir;
+      }
       return aText.localeCompare(bText, undefined, { numeric: true }) * sortDir;
     });
 
     rows.forEach(r => table.appendChild(r));
+
+    // Update sort icons
+    headers.forEach((h, i) => {
+      const icon = h.querySelector('.sort-icon');
+      if (!icon) return;
+      if (i === sortColumn) {
+        icon.textContent = sortDir === 1 ? '▲' : '▼';
+      } else {
+        icon.textContent = '';
+      }
+    });
   }
 }
 
