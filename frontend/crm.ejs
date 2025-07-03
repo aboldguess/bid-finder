@@ -14,6 +14,9 @@
     <% customers.forEach(c => { %>
       <tr><td><%= c.name %></td></tr>
     <% }) %>
+    <% if (customers.length === 0) { %>
+      <tr><td>No customers found.</td></tr>
+    <% } %>
   </table>
 
   <h2>Suppliers</h2>
@@ -22,6 +25,9 @@
     <% suppliers.forEach(s => { %>
       <tr><td><%= s.name %></td></tr>
     <% }) %>
+    <% if (suppliers.length === 0) { %>
+      <tr><td>No suppliers found.</td></tr>
+    <% } %>
   </table>
 
   <h2>People</h2>

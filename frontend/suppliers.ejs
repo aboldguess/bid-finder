@@ -12,6 +12,9 @@
     <% organisations.forEach(o => { %>
       <tr><td><%= o.name %></td></tr>
     <% }) %>
+    <% if (organisations.length === 0) { %>
+      <tr><td>No suppliers found.</td></tr>
+    <% } %>
   </table>
   <script src="/table-tools.js"></script>
 </body>

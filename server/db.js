@@ -441,6 +441,53 @@ module.exports = {
   },
 
   /**
+   * Count how many tenders have been stored.
+   *
+   * @returns {Promise<number>} total number of tender rows
+   */
+  getTenderCount: () => {
+    return new Promise((resolve, reject) => {
+      db.get('SELECT COUNT(*) AS c FROM tenders', (err, row) => {
+        if (err) return reject(err);
+        resolve(row.c);
+      });
+    });
+  },
+
+  /**
+   * Count stored awarded contracts.
+   *
+   * @returns {Promise<number>} total number of award rows
+   */
+  getAwardCount: () => {
+    return new Promise((resolve, reject) => {
+      db.get('SELECT COUNT(*) AS c FROM awards', (err, row) => {
+        if (err) return reject(err);
+        resolve(row.c);
+      });
+    });
+  },
+
+  /**
+   * Count organisations of a particular type such as 'customer' or 'supplier'.
+   *
+   * @param {string} type - Organisation type to count
+   * @returns {Promise<number>} number of organisations
+   */
+  getOrganisationCount: type => {
+    return new Promise((resolve, reject) => {
+      db.get(
+        'SELECT COUNT(*) AS c FROM organisations WHERE type = ?',
+        [type],
+        (err, row) => {
+          if (err) return reject(err);
+          resolve(row.c);
+        }
+      );
+    });
+  },
+
+  /**
    * Update an existing scraping source definition. The key cannot be changed
    * as it forms the primary identifier used throughout the application.
    *
