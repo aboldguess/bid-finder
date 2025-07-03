@@ -1,5 +1,6 @@
 const fetch = require('node-fetch');
 const { parseTenders } = require('./htmlParser');
+const { parseAwardDetails } = require('./detailParser');
 const db = require('./db');
 const config = require('./config');
 const logger = require('./logger');
@@ -133,12 +134,23 @@ async function runInternal(onProgress, sourceKey, source) {
       const desc = tender.desc;
       const supplier = tender.supplier;
       const tags = generateTags(title, desc);
+
+      // Fetch the tender detail page to collect additional fields. Any
+      // failures here are logged but do not abort the main scraping loop.
+      let details = {};
+      try {
+        const resDetail = await fetch(link, { headers });
+        const detailHtml = await resDetail.text();
+        details = parseAwardDetails(detailHtml);
+      } catch (err) {
+        logger.error('Failed to fetch award details:', err);
+      }
       // Include metadata about where and when the tender was scraped so
       // the dashboard can display this context to the user.
       const srcLabel = src.label;
       const scrapedAt = runTs;
 
-      let inserted = 0;
+      let inserted = { changes: 0, id: undefined };
       try {
         // Attempt to store the awarded contract. `insertAward` resolves with 1
         // when a new record was inserted or 0 if it already existed.
@@ -152,11 +164,24 @@ async function runInternal(onProgress, sourceKey, source) {
           tags.join(',')
         );
 
-        if (inserted) {
+        if (inserted.changes) {
           count += 1;
-          if (supplier) {
+          // Store any additional fields scraped from the details page.
+          try {
+            await db.insertAwardDetails(inserted.id, details);
+          } catch (err) {
+            logger.error('Error inserting award details:', err);
+          }
+          if (details.buyer) {
             try {
-              await db.insertOrganisation(supplier, 'supplier');
+              await db.insertOrganisation(details.buyer, 'customer');
+            } catch (err) {
+              logger.error('Error inserting organisation:', err);
+            }
+          }
+          if (supplier || details.supplier) {
+            try {
+              await db.insertOrganisation(supplier || details.supplier, 'supplier');
             } catch (err) {
               logger.error('Error inserting organisation:', err);
             }
@@ -170,7 +195,7 @@ async function runInternal(onProgress, sourceKey, source) {
       // Log progress for debugging purposes and notify listeners so the UI can
       // update in real time.
       logger.info(
-        `[${i + 1}/${total}] ${title} - ${inserted ? 'inserted' : 'duplicate'}`
+        `[${i + 1}/${total}] ${title} - ${inserted.changes ? 'inserted' : 'duplicate'}`
       );
       if (onProgress) {
         onProgress({
@@ -178,7 +203,7 @@ async function runInternal(onProgress, sourceKey, source) {
           title,
           index: i + 1,
           total,
-          inserted: Boolean(inserted)
+          inserted: Boolean(inserted.changes)
         });
       }
     }
