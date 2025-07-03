@@ -320,8 +320,17 @@ document.querySelectorAll('#awardSourceTable .awardSourceRow').forEach(row => {
 document.getElementById('deleteAllForm').addEventListener('submit', async e => {
   e.preventDefault();
   if (!confirm('Delete all tender records?')) return;
-  const res = await fetch('/admin/delete-all', { method: 'POST' });
-  if (res.ok) {
+  const res = await fetch('/admin/delete-all', {
+    method: 'POST',
+    headers: { Accept: 'application/json' }
+  });
+  if (res.status === 401) {
+    alert('Please log in first');
+    window.location = '/login';
+    return;
+  }
+  const data = await res.json().catch(() => null);
+  if (res.ok && data && data.success) {
     alert('All tenders removed');
   } else {
     alert('Failed to delete records');
@@ -336,10 +345,19 @@ document.getElementById('deleteBeforeForm').addEventListener('submit', async e =
   if (!confirm(`Delete tenders before ${date}?`)) return;
   const res = await fetch('/admin/delete-before', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json'
+    },
     body: JSON.stringify({ date })
   });
-  if (res.ok) {
+  if (res.status === 401) {
+    alert('Please log in first');
+    window.location = '/login';
+    return;
+  }
+  const data = await res.json().catch(() => null);
+  if (res.ok && data && data.success) {
     alert('Old tenders removed');
   } else {
     alert('Failed to delete records');
