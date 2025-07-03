@@ -9,7 +9,20 @@
  */
 function enhanceTable(table) {
   const headers = Array.from(table.querySelectorAll('th'));
-  const rows = Array.from(table.querySelectorAll('tr')).slice(1); // exclude header row
+
+  // Build a list of data rows and store references to accompanying detail rows
+  // (if present). These pairs are used for filtering, sorting and pagination so
+  // detail rows remain attached to their parent record.
+  const pairs = [];
+  const allRows = Array.from(table.querySelectorAll('tr')).slice(1); // skip header
+  for (let i = 0; i < allRows.length; i++) {
+    const main = allRows[i];
+    if (main.classList.contains('detailRow')) continue;
+    const next = allRows[i + 1];
+    const detail = next && next.classList.contains('detailRow') ? next : null;
+    if (detail) i++;
+    pairs.push({ main, detail });
+  }
 
   // Each filters[i] is a function that returns true if a given row should be visible
   const filters = new Array(headers.length).fill(() => true);
@@ -61,8 +74,11 @@ function enhanceTable(table) {
       blank.value = '';
       blank.textContent = 'All';
       select.appendChild(blank);
-      // Build option list from unique values in the column
-      const unique = new Set(rows.map(r => r.children[idx].textContent.trim()));
+      // Build option list from unique values in the column. Only consider the
+      // main row of each pair so detail rows don't pollute the options.
+      const unique = new Set(
+        pairs.map(p => p.main.children[idx].textContent.trim())
+      );
       unique.forEach(val => {
         const opt = document.createElement('option');
         opt.value = val;
@@ -96,17 +112,45 @@ function enhanceTable(table) {
     th.addEventListener('click', () => sortByColumn(idx));
   });
 
-  // Apply initial filters to hide rows that don't match default controls
+  // Pagination state: how many rows per page and the current page index.
+  const pageSize = 20;
+  let currentPage = 0;
+  let filteredCount = pairs.length;
+
+  // Navigation controls inserted after the table.
+  const pager = document.createElement('div');
+  pager.className = 'pagination';
+  const prevBtn = document.createElement('button');
+  prevBtn.textContent = 'Prev';
+  const info = document.createElement('span');
+  const nextBtn = document.createElement('button');
+  nextBtn.textContent = 'Next';
+  pager.append(prevBtn, info, nextBtn);
+  table.parentNode.insertBefore(pager, table.nextSibling);
+
+  prevBtn.addEventListener('click', () => {
+    if (currentPage > 0) showPage(currentPage - 1);
+  });
+  nextBtn.addEventListener('click', () => {
+    if (currentPage < Math.ceil(filteredCount / pageSize) - 1) {
+      showPage(currentPage + 1);
+    }
+  });
+
+  // Apply initial filters and show the first page.
   applyFilters();
 
   /**
    * Filters rows so only those matching all column search terms remain visible.
    */
   function applyFilters() {
-    rows.forEach(row => {
-      const visible = filters.every(fn => fn(row));
-      row.style.display = visible ? '' : 'none';
+    filteredCount = 0;
+    pairs.forEach(p => {
+      const visible = filters.every(fn => fn(p.main));
+      p.main.dataset.visible = visible ? '1' : '0';
+      if (visible) filteredCount++;
     });
+    showPage(0);
   }
 
   /**
@@ -120,16 +164,20 @@ function enhanceTable(table) {
 
     const type = types[idx];
 
-    rows.sort((a, b) => {
-      const aText = a.children[idx].textContent.trim();
-      const bText = b.children[idx].textContent.trim();
+    pairs.sort((a, b) => {
+      const aText = a.main.children[idx].textContent.trim();
+      const bText = b.main.children[idx].textContent.trim();
       if (type === 'date') {
         return (new Date(aText) - new Date(bText)) * sortDir;
       }
       return aText.localeCompare(bText, undefined, { numeric: true }) * sortDir;
     });
 
-    rows.forEach(r => table.appendChild(r));
+    // Re-append sorted rows to the table keeping each detail row with its main row
+    pairs.forEach(p => {
+      table.appendChild(p.main);
+      if (p.detail) table.appendChild(p.detail);
+    });
 
     // Update sort icons
     headers.forEach((h, i) => {
@@ -141,6 +189,37 @@ function enhanceTable(table) {
         icon.textContent = '';
       }
     });
+    // After sorting redisplay the current page so ordering takes effect
+    showPage(currentPage);
+  }
+
+  /**
+   * Display a specific page of results based on the current filter set.
+   * @param {number} page Page index starting from 0
+   */
+  function showPage(page) {
+    currentPage = page;
+    const start = page * pageSize;
+    let index = 0;
+    pairs.forEach(p => {
+      const show = p.main.dataset.visible === '1';
+      if (!show) {
+        p.main.style.display = 'none';
+        if (p.detail) p.detail.style.display = 'none';
+        return;
+      }
+      if (index >= start && index < start + pageSize) {
+        p.main.style.display = '';
+      } else {
+        p.main.style.display = 'none';
+        if (p.detail) p.detail.style.display = 'none';
+      }
+      index++;
+    });
+    const totalPages = Math.max(1, Math.ceil(filteredCount / pageSize));
+    info.textContent = `Page ${currentPage + 1} of ${totalPages}`;
+    prevBtn.disabled = currentPage === 0;
+    nextBtn.disabled = currentPage >= totalPages - 1;
   }
 }
 
