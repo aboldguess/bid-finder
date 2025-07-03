@@ -51,6 +51,18 @@ async function scheduleJob() {
         parser: row.parser
       };
     }
+
+    // Load any stored award source definitions so the awards scraper can use
+    // custom entries defined via the admin UI.
+    const awardRows = await db.getAwardSources();
+    for (const row of awardRows) {
+      config.awardSources[row.key] = {
+        label: row.label,
+        url: row.url,
+        base: row.base,
+        parser: row.parser
+      };
+    }
   } catch (err) {
     logger.error('Failed to load settings from DB:', err);
   }
@@ -325,6 +337,70 @@ app.delete('/sources/:key', async (req, res) => {
   }
 });
 
+// -------- Award Source Management -----------------------------------------
+
+// POST /award-sources - Add a new award scraping source.
+app.post('/award-sources', async (req, res) => {
+  const { key, label, url, base, parser = 'contractsFinder' } = req.body || {};
+
+  if (!key || !label || !url || !base) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+  if (config.awardSources[key]) {
+    return res.status(400).json({ error: 'Source key already exists' });
+  }
+
+  try {
+    await db.insertAwardSource(key, label, url, base, parser);
+    config.awardSources[key] = { label, url, base, parser };
+    logger.info(`Added new award source ${key}: ${label}`);
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('Failed to save award source:', err);
+    res.status(500).json({ error: 'Failed to save source' });
+  }
+});
+
+// PUT /award-sources/:key - Update an existing award source.
+app.put('/award-sources/:key', async (req, res) => {
+  const key = req.params.key;
+  const { label, url, base, parser = 'contractsFinder' } = req.body || {};
+
+  if (!config.awardSources[key]) {
+    return res.status(404).json({ error: 'Source not found' });
+  }
+  if (!label || !url || !base) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  try {
+    await db.updateAwardSource(key, label, url, base, parser);
+    config.awardSources[key] = { label, url, base, parser };
+    logger.info(`Updated award source ${key}: ${label}`);
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('Failed to update award source:', err);
+    res.status(500).json({ error: 'Failed to update source' });
+  }
+});
+
+// DELETE /award-sources/:key - Remove an award source completely.
+app.delete('/award-sources/:key', async (req, res) => {
+  const key = req.params.key;
+  if (!config.awardSources[key]) {
+    return res.status(404).json({ error: 'Source not found' });
+  }
+  try {
+    await db.deleteAwardSource(key);
+    delete config.awardSources[key];
+    logger.info(`Deleted award source ${key}`);
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('Failed to delete award source:', err);
+    res.status(500).json({ error: 'Failed to delete source' });
+  }
+});
+
 // GET /test-source - Fetch the first page of a source to check availability.
 // The response simply reports whether the request succeeded and how many
 // tenders were parsed from that single page.
@@ -482,6 +558,7 @@ app.get('/admin', requireAuth, async (req, res) => {
   }
   res.render('admin', {
     sources: config.sources,
+    awardSources: config.awardSources,
     cron: config.cronSchedule,
     sourceStats: stats,
     page: 'admin'

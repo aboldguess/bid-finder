@@ -79,10 +79,45 @@
     <button id="addBtn" type="submit">Add Source</button>
   </form>
 
+  <!-- Award source management mirrors the tender source UI -->
+  <h2>Award Sources</h2>
+  <div id="awardSourceHelp">
+    <p>Define sources for awarded contracts.</p>
+  </div>
+  <table id="awardSourceTable">
+    <tr><th>Key</th><th>Label</th><th>URL</th><th>Base</th></tr>
+    <% Object.keys(awardSources).forEach(key => { %>
+      <tr class="awardSourceRow" data-key="<%= key %>">
+        <td><%= key %></td>
+        <td><%= awardSources[key].label %></td>
+        <td><%= awardSources[key].url %></td>
+        <td><%= awardSources[key].base %></td>
+      </tr>
+      <tr class="awardDetailRow" data-key="<%= key %>" style="display:none">
+        <td colspan="4">
+          Last scraped: <%= sourceStats[key] ? sourceStats[key].last_scraped || 'Never' : 'Never' %><br>
+          Contracts last scrape: <%= sourceStats[key] ? sourceStats[key].last_added : 0 %><br>
+          Total contracts: <%= sourceStats[key] ? sourceStats[key].total : 0 %><br>
+          <button class="editBtn" type="button">Edit</button>
+          <button class="deleteBtn" type="button">Delete</button>
+        </td>
+      </tr>
+    <% }) %>
+  </table>
+  <form id="addAwardSourceForm">
+    <input id="newAwardKey" placeholder="Key" required>
+    <input id="newAwardLabel" placeholder="Label" required>
+    <input id="newAwardUrl" placeholder="Search URL" required>
+    <input id="newAwardBase" placeholder="Base URL" required>
+    <button id="addAwardBtn" type="submit">Add Award Source</button>
+  </form>
+
 <script>
 const sourceData = <%- JSON.stringify(sources) %>;
 const statsData = <%- JSON.stringify(sourceStats) %>;
 let editingKey = null;
+const awardSourceData = <%- JSON.stringify(awardSources) %>;
+let editingAwardKey = null;
 
 // Populate the cron schedule dropdowns with numeric options
 function fill(select, max) {
@@ -170,6 +205,60 @@ document.querySelectorAll('#sourceTable .sourceRow').forEach(row => {
   detail.querySelector('.deleteBtn').addEventListener('click', async () => {
     if (!confirm(`Delete source ${key}?`)) return;
     const res = await fetch(`/sources/${encodeURIComponent(key)}`, { method: 'DELETE' });
+    if (res.ok) {
+      location.reload();
+    } else {
+      alert('Failed to delete source');
+    }
+  });
+});
+
+// Add a new award source using the dedicated API.
+document.getElementById('addAwardSourceForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const key = document.getElementById('newAwardKey').value.trim();
+  const label = document.getElementById('newAwardLabel').value.trim();
+  const url = document.getElementById('newAwardUrl').value.trim();
+  const base = document.getElementById('newAwardBase').value.trim();
+  let method = 'POST';
+  let endpoint = '/award-sources';
+  if (editingAwardKey) {
+    method = 'PUT';
+    endpoint = `/award-sources/${encodeURIComponent(editingAwardKey)}`;
+  }
+  const res = await fetch(endpoint, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key, label, url, base })
+  });
+  if (res.ok) {
+    location.reload();
+  } else {
+    alert('Failed to save source');
+  }
+});
+
+// Edit/delete handlers for award sources
+document.querySelectorAll('#awardSourceTable .awardSourceRow').forEach(row => {
+  const key = row.dataset.key;
+  row.addEventListener('click', () => {
+    const detail = document.querySelector(`.awardDetailRow[data-key="${key}"]`);
+    detail.style.display = detail.style.display === 'none' ? '' : 'none';
+  });
+  const detail = document.querySelector(`.awardDetailRow[data-key="${key}"]`);
+  detail.querySelector('.editBtn').addEventListener('click', () => {
+    const s = awardSourceData[key];
+    document.getElementById('newAwardKey').value = key;
+    document.getElementById('newAwardKey').disabled = true;
+    document.getElementById('newAwardLabel').value = s.label;
+    document.getElementById('newAwardUrl').value = s.url;
+    document.getElementById('newAwardBase').value = s.base;
+    document.getElementById('addAwardBtn').textContent = 'Update Award Source';
+    editingAwardKey = key;
+  });
+  detail.querySelector('.deleteBtn').addEventListener('click', async () => {
+    if (!confirm(`Delete source ${key}?`)) return;
+    const res = await fetch(`/award-sources/${encodeURIComponent(key)}`, { method: 'DELETE' });
     if (res.ok) {
       location.reload();
     } else {

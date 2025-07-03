@@ -116,6 +116,24 @@ describe('Database helpers', () => {
     expect(s.last_added).to.equal(2);
   });
 
+  it('award sources can be persisted', async () => {
+    await db.insertAwardSource('aw', 'Award', 'http://a', 'http://a', 'rss');
+    const rows = await db.getAwardSources();
+    expect(rows).to.have.length(1);
+    expect(rows[0].key).to.equal('aw');
+  });
+
+  it('award sources can be updated and deleted', async () => {
+    await db.insertAwardSource('del', 'D', 'http://d', 'http://d', 'rss');
+    await db.updateAwardSource('del', 'DD', 'http://dd', 'http://dd', 'rss');
+    let rows = await db.getAwardSources();
+    let item = rows.find(r => r.key === 'del');
+    expect(item.label).to.equal('DD');
+    await db.deleteAwardSource('del');
+    rows = await db.getAwardSources();
+    expect(rows.some(r => r.key === 'del')).to.equal(false);
+  });
+
   it('award details can be stored and retrieved', async () => {
     const res = await db.insertAward(
       'a',

@@ -59,6 +59,17 @@ db.serialize(() => {
     parser TEXT
   )`);
 
+  // Mirror of the sources table used for awarded contract scraping. Keeping a
+  // separate table allows award sources to be managed independently of the
+  // regular tender sources.
+  db.run(`CREATE TABLE IF NOT EXISTS award_sources (
+    key TEXT PRIMARY KEY,
+    label TEXT,
+    url TEXT,
+    base TEXT,
+    parser TEXT
+  )`);
+
   // Track per-source scraping statistics so the admin UI can show when each
   // source was last scraped and how many tenders were stored.
   db.run(`CREATE TABLE IF NOT EXISTS source_stats (
@@ -561,6 +572,60 @@ module.exports = {
   },
 
   /**
+   * Insert a new award source definition.
+   * Mirrors insertSource but targets the award_sources table.
+   */
+  insertAwardSource: (key, label, url, base, parser) => {
+    return new Promise((resolve, reject) => {
+      db.run(
+        'INSERT OR IGNORE INTO award_sources (key, label, url, base, parser) VALUES (?, ?, ?, ?, ?)',
+        [key, label, url, base, parser],
+        err => {
+          if (err) return reject(err);
+          resolve();
+        }
+      );
+    });
+  },
+
+  /** Retrieve all stored award sources. */
+  getAwardSources: () => {
+    return new Promise((resolve, reject) => {
+      db.all('SELECT * FROM award_sources', (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows);
+      });
+    });
+  },
+
+  /** Update an existing award source definition. */
+  updateAwardSource: (key, label, url, base, parser) => {
+    return new Promise((resolve, reject) => {
+      db.run(
+        'UPDATE award_sources SET label = ?, url = ?, base = ?, parser = ? WHERE key = ?',
+        [label, url, base, parser, key],
+        err => {
+          if (err) return reject(err);
+          resolve();
+        }
+      );
+    });
+  },
+
+  /** Delete an award source completely. */
+  deleteAwardSource: key => {
+    return new Promise((resolve, reject) => {
+      db.run('DELETE FROM award_sources WHERE key = ?', [key], err => {
+        if (err) return reject(err);
+        db.run('DELETE FROM source_stats WHERE key = ?', [key], err2 => {
+          if (err2) return reject(err2);
+          resolve();
+        });
+      });
+    });
+  },
+
+  /**
    * Update scraping statistics for a source after a run completes. The row is
    * created on first use and the total count is incremented with each update.
    *
@@ -639,6 +704,7 @@ module.exports = {
         db.run('DROP TABLE IF EXISTS users');
         db.run('DROP TABLE IF EXISTS sources');
         db.run('DROP TABLE IF EXISTS source_stats');
+        db.run('DROP TABLE IF EXISTS award_sources');
         db.run('DROP TABLE IF EXISTS awards');
         db.run('DROP TABLE IF EXISTS award_details');
         db.run('DROP TABLE IF EXISTS organisations');
@@ -663,6 +729,13 @@ module.exports = {
             password TEXT
           )`);
         db.run(`CREATE TABLE sources (
+            key TEXT PRIMARY KEY,
+            label TEXT,
+            url TEXT,
+            base TEXT,
+            parser TEXT
+          )`);
+        db.run(`CREATE TABLE award_sources (
             key TEXT PRIMARY KEY,
             label TEXT,
             url TEXT,
