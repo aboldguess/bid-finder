@@ -78,6 +78,22 @@ button:hover {
   background: #f5f5f5;
 }
 
+/* Indicate that rows can be clicked to reveal more information */
+.tenderRow {
+  cursor: pointer;
+}
+
+/* Simple layout for the nested table shown inside detail rows */
+.detailRow table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.detailRow th,
+.detailRow td {
+  border: none;
+  padding: 0.25rem 0.5rem;
+}
+
 /* Small arrow shown next to sortable headers */
 .sort-icon {
   margin-left: 0.25rem;
