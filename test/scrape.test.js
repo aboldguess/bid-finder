@@ -32,6 +32,7 @@ describe('scrape.run', () => {
     expect(rows[0]).to.have.property('source');
     expect(rows[0]).to.have.property('scraped_at');
     expect(rows[0]).to.have.property('tags');
+    expect(rows[0]).to.have.property('ocid');
     const ts = await db.getLastScraped();
     expect(ts).to.be.a('string');
     const cust = await db.getOrganisationsByType('customer');

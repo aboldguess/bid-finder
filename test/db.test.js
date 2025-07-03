@@ -16,7 +16,8 @@ describe('Database helpers', () => {
       'desc',
       'source',
       '2024-01-02T00:00:00Z',
-      'tag1'
+      'tag1',
+      'ocds-x'
     );
     const second = await db.insertTender(
       't1',
@@ -25,7 +26,33 @@ describe('Database helpers', () => {
       'desc',
       'source',
       '2024-01-02T00:00:00Z',
-      'tag1'
+      'tag1',
+      'ocds-x'
+    );
+    expect(first).to.equal(1);
+    expect(second).to.equal(0);
+  });
+
+  it('insertTender dedupes on OCID', async () => {
+    const first = await db.insertTender(
+      'tO',
+      'linkO1',
+      '2024-01-01',
+      'd',
+      's',
+      '2024-01-02T00:00:00Z',
+      '',
+      'ocds-dedupe'
+    );
+    const second = await db.insertTender(
+      'tO2',
+      'linkO2',
+      '2024-01-02',
+      'd',
+      's',
+      '2024-01-03T00:00:00Z',
+      '',
+      'ocds-dedupe'
     );
     expect(first).to.equal(1);
     expect(second).to.equal(0);
@@ -33,8 +60,8 @@ describe('Database helpers', () => {
 
   it('getTenders retrieves rows ordered by date', async () => {
     // Insert two tenders with different dates
-    await db.insertTender('t2', 'link2', '2024-02-01', 'd', 's', '2024-02-02T00:00:00Z', 'tag');
-    await db.insertTender('t3', 'link3', '2024-03-01', 'd', 's', '2024-03-02T00:00:00Z', 'tag');
+    await db.insertTender('t2', 'link2', '2024-02-01', 'd', 's', '2024-02-02T00:00:00Z', 'tag', 'ocds-2');
+    await db.insertTender('t3', 'link3', '2024-03-01', 'd', 's', '2024-03-02T00:00:00Z', 'tag', 'ocds-3');
     const rows = await db.getTenders();
     expect(rows).to.have.length(3);
     // Ensure ordering by descending date
@@ -44,6 +71,7 @@ describe('Database helpers', () => {
     expect(rows[0].source).to.be.a('string');
     expect(rows[0].scraped_at).to.be.a('string');
     expect(rows[0]).to.have.property('tags');
+    expect(rows[0]).to.have.property('ocid');
   });
 
   it('cron schedule can be stored and retrieved', async () => {

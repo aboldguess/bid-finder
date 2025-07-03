@@ -22,6 +22,7 @@ db.serialize(() => {
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT,
     link TEXT UNIQUE,
+    ocid TEXT UNIQUE,
     date TEXT,
     description TEXT,
     source TEXT,
