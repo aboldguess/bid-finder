@@ -112,8 +112,11 @@ function enhanceTable(table) {
     th.addEventListener('click', () => sortByColumn(idx));
   });
 
-  // Pagination state: how many rows per page and the current page index.
-  const pageSize = 20;
+  // Pagination state: how many rows to show per page and the current page.
+  // Larger tables can slow down the browser when rendered in full, so we
+  // cap the number of visible rows at 100. Adjust pageSize here to change the
+  // default across all tables.
+  const pageSize = 100;
   let currentPage = 0;
   let filteredCount = pairs.length;
 
