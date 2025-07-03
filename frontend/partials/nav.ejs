@@ -1,0 +1,14 @@
+<ul class="tabs">
+  <li class="<%= page === 'dashboard' ? 'active' : '' %>"><a href="/dashboard">Dashboard</a></li>
+  <li class="<%= page === 'opportunities' ? 'active' : '' %>"><a href="/opportunities">Opportunities</a></li>
+  <li class="<%= page === 'awarded' ? 'active' : '' %>"><a href="/awarded">Awarded</a></li>
+  <li class="<%= page === 'scraper' ? 'active' : '' %>"><a href="/scraper">Scraper</a></li>
+  <li class="<%= page === 'crm' ? 'active' : '' %>"><a href="/crm">CRM</a></li>
+  <li class="<%= page === 'stats' ? 'active' : '' %>"><a href="/stats">Stats</a></li>
+  <% if (user) { %>
+    <li class="right"><a href="/admin">Admin</a></li>
+    <li class="right"><a href="/logout">Logout</a></li>
+  <% } else { %>
+    <li class="right"><a href="/login">Login</a></li>
+  <% } %>
+</ul>

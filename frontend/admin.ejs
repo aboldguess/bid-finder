@@ -6,8 +6,7 @@
 </head>
 <body>
   <h1>Admin</h1>
-  <a href="/opportunities">Back to dashboard</a> |
-  <a href="/logout">Logout</a>
+  <%- include('partials/nav', { page: 'admin', user: user }) %>
 
   <!-- Form to trigger a full database reset -->
   <h2>Database</h2>

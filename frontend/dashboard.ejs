@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Dashboard</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <h1>Dashboard</h1>
+  <%- include('partials/nav', { page: 'dashboard', user: user }) %>
+  <button id="scrapeAll">Scrape All Now</button>
+  <div id="feed"></div>
+  <h2>Source Status</h2>
+  <ul>
+    <% Object.keys(sources).forEach(key => { %>
+      <li id="status-<%= key %>">
+        <span class="status-light <%= sourceStatus[key] === 'ok' ? 'ok' : sourceStatus[key] === 'error' ? 'error' : '' %>"></span>
+        <%= sources[key].label %>
+      </li>
+    <% }) %>
+  </ul>
+<script>
+// Display log messages from the server in real time
+const feed = document.getElementById('feed');
+const logStream = new EventSource('/logs');
+logStream.onmessage = e => {
+  const data = JSON.parse(e.data);
+  const div = document.createElement('div');
+  div.textContent = `[${data.level}] ${data.message}`;
+  feed.appendChild(div);
+  feed.scrollTop = feed.scrollHeight;
+};
+
+// Trigger a scrape of all sources using SSE progress reporting
+function runScrape(){
+  const es = new EventSource('/scrape-all-stream');
+  es.onmessage = evt => {
+    const data = JSON.parse(evt.data);
+    if(data.done){
+      es.close();
+    } else if(data.source){
+      const li = document.getElementById('status-'+data.source);
+      if(li){
+        const light = li.querySelector('.status-light');
+        if(data.error){
+          light.classList.add('error');
+        } else {
+          light.classList.add('ok');
+        }
+      }
+    }
+  };
+}
+
+document.getElementById('scrapeAll').addEventListener('click', runScrape);
+</script>
+</body>
+</html>

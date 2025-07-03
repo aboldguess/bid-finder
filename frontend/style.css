@@ -99,3 +99,15 @@ button:hover {
   margin-left: 0.25rem;
   font-size: 0.8em;
 }
+
+/* Tabbed navigation bar */
+.tabs { list-style:none; margin:0 0 1rem 0; padding:0; display:flex; border-bottom:1px solid #ccc; }
+.tabs li { margin:0; }
+.tabs li.right { margin-left:auto; }
+.tabs a { display:block; padding:0.5rem 1rem; text-decoration:none; border:1px solid #ccc; border-bottom:none; background:#eee; }
+.tabs li.active a { background:#fff; font-weight:bold; }
+
+/* Status indicator circles used on the dashboard */
+.status-light { width:12px; height:12px; border-radius:50%; background:#ccc; display:inline-block; margin-right:0.5rem; }
+.status-light.ok { background:#0a0; }
+.status-light.error { background:#d00; }

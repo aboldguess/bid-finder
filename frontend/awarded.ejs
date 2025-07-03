@@ -6,16 +6,7 @@
 </head>
 <body>
   <h1>Awarded Contracts</h1>
-  <% if (user) { %>
-    <a href="/admin">Admin</a> |
-    <a href="/logout">Logout</a> |
-  <% } else { %>
-    <a href="/login">Login</a> |
-  <% } %>
-  <a href="/opportunities">Opportunities</a> |
-  <a href="/scraper">Scraper</a> |
-  <a href="/crm">CRM</a> |
-  <a href="/stats">Stats</a>
+  <%- include('partials/nav', { page: 'awarded', user: user }) %>
   <table>
     <tr>
       <th>Title</th>

@@ -6,6 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const util = require('util');
+const EventEmitter = require('events');
 
 // Ensure the logs directory exists before attempting to write to it. The path
 // is resolved relative to the project root so it works regardless of where the
@@ -19,6 +20,10 @@ if (!fs.existsSync(logDir)) {
 const logPath = path.join(logDir, 'app.log');
 const logStream = fs.createWriteStream(logPath, { flags: 'a' });
 
+// Expose an event emitter so the HTTP layer can stream log lines via SSE.
+const emitter = new EventEmitter();
+emitter.setMaxListeners(0);
+
 function write(level, ...args) {
   const timestamp = new Date().toISOString();
   const message = util.format(...args);
@@ -29,6 +34,7 @@ function write(level, ...args) {
     console.error(line.trim());
   }
   logStream.write(line);
+  emitter.emit('log', { timestamp, level, message });
 }
 
 module.exports = {
@@ -42,5 +48,8 @@ module.exports = {
    * Log an error message to stderr and the persistent log file.
    * @param {...any} args - Message parts to log
    */
-  error: (...args) => write('ERROR', ...args)
+  error: (...args) => write('ERROR', ...args),
+
+  // EventEmitter emitting each log line for Server-Sent Events
+  emitter
 };
