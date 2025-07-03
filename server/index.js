@@ -137,9 +137,24 @@ app.get('/dashboard', async (req, res) => {
 
 // GET /opportunities - Render the table of currently available tenders.
 app.get('/opportunities', async (req, res) => {
-  const tenders = await db.getTenders();
+  // Determine which page was requested, defaulting to the first page
+  // when no query parameter is supplied. The value is clamped to avoid
+  // negative offsets or absurdly large pages.
+  const currentPage = Math.max(0, parseInt(req.query.page || '0', 10));
+
+  // Fetch the total count so the template can show navigation controls.
+  const total = await db.getTenderCount();
+
+  // Retrieve a single page of tenders. Limiting the number of rows keeps
+  // memory usage stable even when the table grows to thousands of entries.
+  const limit = 100;
+  const offset = currentPage * limit;
+  const tenders = await db.getTendersPage(limit, offset);
+
   res.render('opportunities', {
     tenders,
+    currentPage,
+    total,
     sources: config.sources,
     page: 'opportunities'
   });

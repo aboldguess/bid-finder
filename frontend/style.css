@@ -120,3 +120,12 @@ button:hover {
 .pagination button {
   margin: 0 0.25rem;
 }
+
+/* Pagination used for server-side pages mirrors the table controls */
+.server-pagination {
+  margin-top: 0.5rem;
+  text-align: center;
+}
+.server-pagination a {
+  margin: 0 0.25rem;
+}
