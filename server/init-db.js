@@ -77,6 +77,14 @@ db.serialize(() => {
     base TEXT,
     parser TEXT
   )`);
+  // Awarded contract sources managed separately from regular tender sources
+  db.run(`CREATE TABLE IF NOT EXISTS award_sources (
+    key TEXT PRIMARY KEY,
+    label TEXT,
+    url TEXT,
+    base TEXT,
+    parser TEXT
+  )`);
   db.run(`CREATE TABLE IF NOT EXISTS source_stats (
     key TEXT PRIMARY KEY,
     last_scraped TEXT,
