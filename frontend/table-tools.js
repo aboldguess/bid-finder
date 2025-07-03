@@ -8,13 +8,19 @@
  * @param {HTMLTableElement} table Target table element.
  */
 function enhanceTable(table) {
-  const headers = Array.from(table.querySelectorAll('th'));
+  // Only consider header cells from the first row so nested tables are ignored
+  const headerRow = table.rows[0];
+  if (!headerRow) return;
+  const headers = Array.from(headerRow.cells);
 
   // Build a list of data rows and store references to accompanying detail rows
   // (if present). These pairs are used for filtering, sorting and pagination so
   // detail rows remain attached to their parent record.
   const pairs = [];
-  const allRows = Array.from(table.querySelectorAll('tr')).slice(1); // skip header
+  // Grab only direct child rows after the header. querySelectorAll('tr') would
+  // also return rows from nested tables which corrupts the layout when
+  // filtered or sorted.
+  const allRows = Array.from(table.rows).slice(1); // skip header
   for (let i = 0; i < allRows.length; i++) {
     const main = allRows[i];
     if (main.classList.contains('detailRow')) continue;
