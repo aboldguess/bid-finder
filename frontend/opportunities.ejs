@@ -17,6 +17,9 @@
       <th>Tags</th>
       <th>Link</th>
     </tr>
+    <% if (tenders.length === 0) { %>
+      <tr><td colspan="7">No opportunities found. Run the scraper to load data.</td></tr>
+    <% } %>
     <% tenders.forEach(t => { %>
       <!-- Each result row can be clicked to reveal a hidden detail row -->
       <tr class="tenderRow" data-id="<%= t.id %>">

@@ -111,3 +111,7 @@ button:hover {
 .status-light { width:12px; height:12px; border-radius:50%; background:#ccc; display:inline-block; margin-right:0.5rem; }
 .status-light.ok { background:#0a0; }
 .status-light.error { background:#d00; }
+
+/* Summary list on the dashboard */
+#summary ul { list-style:none; padding-left:0; margin:0 0 1rem 0; }
+#summary li { display:inline-block; margin-right:1rem; }

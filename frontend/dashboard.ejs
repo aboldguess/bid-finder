@@ -7,6 +7,14 @@
 <body>
   <h1>Dashboard</h1>
   <%- include('partials/nav', { page: 'dashboard', user: user }) %>
+  <div id="summary">
+    <ul>
+      <li>Opportunities: <%= counts.tenders %></li>
+      <li>Awarded contracts: <%= counts.awards %></li>
+      <li>Funding bodies: <%= counts.customers %></li>
+      <li>Suppliers: <%= counts.suppliers %></li>
+    </ul>
+  </div>
   <button id="scrapeAll">Scrape All Now</button>
   <div id="feed"></div>
   <h2>Source Status</h2>

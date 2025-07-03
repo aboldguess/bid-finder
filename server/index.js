@@ -105,9 +105,22 @@ app.get('/dashboard', async (req, res) => {
   for (const row of statsRows) {
     stats[row.key] = row;
   }
+  // Fetch basic counts so the dashboard can summarise how much data exists.
+  const [tenderCount, awardCount, customerCount, supplierCount] = await Promise.all([
+    db.getTenderCount(),
+    db.getAwardCount(),
+    db.getOrganisationCount('customer'),
+    db.getOrganisationCount('supplier')
+  ]);
   res.render('dashboard', {
     sources: config.sources,
     sourceStatus,
+    counts: {
+      tenders: tenderCount,
+      awards: awardCount,
+      customers: customerCount,
+      suppliers: supplierCount
+    },
     page: 'dashboard'
   });
 });

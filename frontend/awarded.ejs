@@ -17,6 +17,9 @@
       <th>Tags</th>
       <th>Link</th>
     </tr>
+    <% if (tenders.length === 0) { %>
+      <tr><td colspan="7">No awarded contracts found. Run the awards scraper.</td></tr>
+    <% } %>
     <% tenders.forEach(t => { %>
       <tr class="tenderRow" data-id="<%= t.id %>">
         <td><%= t.title %></td>

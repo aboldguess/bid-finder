@@ -177,6 +177,21 @@ module.exports = {
   },
 
   /**
+   * Count how many tenders are stored in the database. This is used by the
+   * dashboard to summarise how much data has been scraped so far.
+   *
+   * @returns {Promise<number>} resolves with the number of tender rows
+   */
+  getTenderCount: () => {
+    return new Promise((resolve, reject) => {
+      db.get('SELECT COUNT(*) AS c FROM tenders', (err, row) => {
+        if (err) return reject(err);
+        resolve(row.c);
+      });
+    });
+  },
+
+  /**
    * Insert an awarded contract if it does not already exist. The parameters
    * mirror insertTender so the scraper logic can be reused for awarded data.
    */
@@ -203,6 +218,21 @@ module.exports = {
       db.all("SELECT * FROM awards ORDER BY date DESC", [], (err, rows) => {
         if (err) return reject(err);
         resolve(rows);
+      });
+    });
+  },
+
+  /**
+   * Count the number of awarded contracts stored. Displayed on the dashboard
+   * so users can see if the award scraper has captured any data yet.
+   *
+   * @returns {Promise<number>} resolves with the number of award rows
+   */
+  getAwardCount: () => {
+    return new Promise((resolve, reject) => {
+      db.get('SELECT COUNT(*) AS c FROM awards', (err, row) => {
+        if (err) return reject(err);
+        resolve(row.c);
       });
     });
   },
@@ -435,6 +465,26 @@ module.exports = {
         (err, rows) => {
           if (err) return reject(err);
           resolve(rows);
+        }
+      );
+    });
+  },
+
+  /**
+   * Count organisations of a given type. Useful for displaying CRM statistics
+   * on the dashboard.
+   *
+   * @param {string} type - Organisation type to count
+   * @returns {Promise<number>} resolves with the number of matching rows
+   */
+  getOrganisationCount: type => {
+    return new Promise((resolve, reject) => {
+      db.get(
+        'SELECT COUNT(*) AS c FROM organisations WHERE type = ?',
+        [type],
+        (err, row) => {
+          if (err) return reject(err);
+          resolve(row.c);
         }
       );
     });

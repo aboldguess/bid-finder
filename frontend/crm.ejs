@@ -11,6 +11,9 @@
   <h2>Funding Bodies</h2>
   <table>
     <tr><th>Name</th></tr>
+    <% if (customers.length === 0) { %>
+      <tr><td>No funding bodies found.</td></tr>
+    <% } %>
     <% customers.forEach(c => { %>
       <tr><td><%= c.name %></td></tr>
     <% }) %>
@@ -19,6 +22,9 @@
   <h2>Suppliers</h2>
   <table>
     <tr><th>Name</th></tr>
+    <% if (suppliers.length === 0) { %>
+      <tr><td>No suppliers found.</td></tr>
+    <% } %>
     <% suppliers.forEach(s => { %>
       <tr><td><%= s.name %></td></tr>
     <% }) %>
