@@ -150,7 +150,8 @@
       });
 
       statusEl.textContent = `Added ${total} new awards in total.`;
-      // Leave the page unchanged so the log window stays visible.
+      // Reload so the awards table shows the latest results.
+      location.reload();
     } catch (err) {
       statusEl.textContent = 'Error running scraper.';
     }

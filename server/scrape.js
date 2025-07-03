@@ -138,7 +138,11 @@ async function runInternal(onProgress, sourceKey, source) {
 
     for (const [i, tender] of allTenders.entries()) {
       const title = tender.title;
-      const link = src.base + tender.link;
+      // Combine the base URL with the scraped link, handling both
+      // absolute and relative hrefs using the URL constructor. This
+      // avoids malformed URLs when the feed already provides an
+      // absolute link.
+      const link = new URL(tender.link, src.base).href;
       const date = tender.date;
       const desc = tender.desc;
       const organisation = tender.organisation;
