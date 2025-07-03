@@ -5,15 +5,15 @@
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <h1>Awarded Contracts</h1>
+  <h1>Opportunities</h1>
   <% if (user) { %>
     <a href="/admin">Admin</a> |
     <a href="/logout">Logout</a> |
   <% } else { %>
     <a href="/login">Login</a> |
   <% } %>
-  <a href="/opportunities">Opportunities</a> |
   <a href="/scraper">Scraper</a> |
+  <a href="/awarded">Awarded Contracts</a> |
   <a href="/crm">CRM</a> |
   <a href="/stats">Stats</a>
   <table>
@@ -27,6 +27,7 @@
       <th>Link</th>
     </tr>
     <% tenders.forEach(t => { %>
+      <!-- Each result row can be clicked to reveal a hidden detail row -->
       <tr class="tenderRow" data-id="<%= t.id %>">
         <td><%= t.title %></td>
         <td><%= t.date %></td>
@@ -34,7 +35,7 @@
         <td><%= t.source %></td>
         <td><%= t.scraped_at %></td>
         <td><%= t.tags %></td>
-        <!-- Open award links in a new tab to keep the list available -->
+        <!-- Open tender links in a new tab so the dashboard stays visible -->
         <td><a href="<%= t.link %>" target="_blank">View</a></td>
       </tr>
       <tr class="detailRow" data-id="<%= t.id %>" style="display:none">
@@ -53,7 +54,8 @@
     <% }) %>
   </table>
   <script>
-  // Enable clicking a row to reveal the nested detail table.
+  // Toggle the detail row when a tender row is clicked so users can view extra
+  // information without leaving the page.
   document.querySelectorAll('table .tenderRow').forEach(row => {
     const id = row.dataset.id;
     row.addEventListener('click', e => {

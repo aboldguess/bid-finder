@@ -7,8 +7,13 @@ const config = require('./config');
 const logger = require('./logger');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
+const fetch = require('node-fetch');
+const { parseTenders } = require('./htmlParser');
 
 const app = express();
+// Store per-source status strings for display on the scraper screen. Keys
+// correspond to source identifiers with values like "ok" or an error message.
+const sourceStatus = {};
 
 // Reference to the scheduled cron job so it can be restarted when the schedule
 // changes.
@@ -88,12 +93,16 @@ app.set('view engine', 'ejs');
 app.set('views', config.frontendDir);
 app.use(express.static(config.frontendDir));
 
-// GET / - Render the dashboard listing all tenders stored in the database.
-app.get('/', async (req, res) => {
+// GET / - Redirect to the opportunities page for consistency with the new
+// navigation layout.
+app.get('/', (req, res) => {
+  res.redirect('/opportunities');
+});
+
+// GET /opportunities - Render the table of currently available tenders.
+app.get('/opportunities', async (req, res) => {
   const tenders = await db.getTenders();
-  // Pass the list of available sources to the frontend so it can populate the
-  // new source selection dropdown.
-  res.render('available', { tenders, sources: config.sources });
+  res.render('opportunities', { tenders, sources: config.sources });
 });
 
 // GET /awarded - Display contracts that have been awarded using the separate
@@ -101,6 +110,21 @@ app.get('/', async (req, res) => {
 app.get('/awarded', async (req, res) => {
   const tenders = await db.getAwards();
   res.render('awarded', { tenders, sources: config.awardSources });
+});
+
+// GET /scraper - Display all configured sources along with stats and actions
+// for testing or scraping them individually.
+app.get('/scraper', async (req, res) => {
+  const statsRows = await db.getSourceStats();
+  const stats = {};
+  for (const row of statsRows) {
+    stats[row.key] = row;
+  }
+  res.render('scraper', {
+    sources: config.sources,
+    sourceStats: stats,
+    sourceStatus
+  });
 });
 
 // GET /stats - Simple page showing the timestamp of the last successful scrape
@@ -133,6 +157,13 @@ app.get('/customers', async (req, res) => {
 app.get('/suppliers', async (req, res) => {
   const organisations = await db.getOrganisationsByType('supplier');
   res.render('suppliers', { organisations });
+});
+
+// CRM page combining customers and suppliers for easier browsing.
+app.get('/crm', async (req, res) => {
+  const customers = await db.getOrganisationsByType('customer');
+  const suppliers = await db.getOrganisationsByType('supplier');
+  res.render('crm', { customers, suppliers });
 });
 
 // Authentication -----------------------------------------------------------
@@ -251,6 +282,25 @@ app.delete('/sources/:key', async (req, res) => {
   } catch (err) {
     logger.error('Failed to delete source:', err);
     res.status(500).json({ error: 'Failed to delete source' });
+  }
+});
+
+// GET /test-source - Fetch the first page of a source to check availability.
+// The response simply reports whether the request succeeded and how many
+// tenders were parsed from that single page.
+app.get('/test-source', async (req, res) => {
+  const key = req.query.key;
+  const src = config.sources[key];
+  if (!src) return res.status(404).json({ error: 'Source not found' });
+  try {
+    const r = await fetch(src.url);
+    const html = await r.text();
+    const tenders = parseTenders(html, src.parser);
+    sourceStatus[key] = 'ok';
+    res.json({ status: 'ok', count: tenders.length });
+  } catch (err) {
+    sourceStatus[key] = 'error';
+    res.status(500).json({ status: 'error', message: err.message });
   }
 });
 

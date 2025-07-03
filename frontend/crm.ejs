@@ -1,21 +1,35 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Suppliers</title>
+  <title>CRM</title>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <h1>Suppliers</h1>
+  <h1>CRM</h1>
   <a href="/opportunities">Opportunities</a> |
   <a href="/awarded">Awarded Contracts</a> |
   <a href="/scraper">Scraper</a> |
   <a href="/stats">Stats</a>
+
+  <h2>Funding Bodies</h2>
   <table>
     <tr><th>Name</th></tr>
-    <% organisations.forEach(o => { %>
-      <tr><td><%= o.name %></td></tr>
+    <% customers.forEach(c => { %>
+      <tr><td><%= c.name %></td></tr>
     <% }) %>
   </table>
+
+  <h2>Suppliers</h2>
+  <table>
+    <tr><th>Name</th></tr>
+    <% suppliers.forEach(s => { %>
+      <tr><td><%= s.name %></td></tr>
+    <% }) %>
+  </table>
+
+  <h2>People</h2>
+  <p>No people data available.</p>
+
   <script src="/table-tools.js"></script>
 </body>
 </html>

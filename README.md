@@ -23,19 +23,14 @@ This application scrapes new tenders from several procurement portals including 
 
 ## Usage
 
-- **Access the dashboard** by navigating to `http://<HOST>:<PORT>` once the
-  server is running. If the server is bound to `0.0.0.0` replace `<HOST>` with
-  the machine's actual IP address.
-- **Run the scraper** by selecting a source from the drop-down list and clicking
-  **Scrape**. Progress messages stream to the page and new tenders appear in the
-  results table.
+- **Access the dashboard** by navigating to `http://<HOST>:<PORT>/opportunities`
+  once the server is running. If the server is bound to `0.0.0.0` replace `<HOST>`
+  with the machine's actual IP address.
+- **Manage sources** via the `/scraper` page where each source can be tested or
+  scraped individually. Statistics such as last scraped time and number of
+  contracts found are shown alongside edit options.
 - **Scrape all sources** at once by visiting `/scrape-all`. Each source is
   processed sequentially and the response details which succeeded or failed.
-- **Add a source** using the *Add Source* form. Provide a key, label, search URL
-  and base URL. Once submitted the new source is added immediately for the
-  current session and saved to the database so it is available after restarting
-  the server. See the "Adding new sources" section below for a detailed step by
-  step guide.
 - **Edit or delete sources** from the admin page. Use the list of configured
   sources to modify details or remove entries entirely.
 - **Manage the application** by registering at `/register`, logging in at
