@@ -42,6 +42,9 @@
         </td>
       </tr>
     <% }) %>
+    <% if (tenders.length === 0) { %>
+      <tr><td colspan="7">No awarded contracts found. Scrape an award source to populate this list.</td></tr>
+    <% } %>
   </table>
   <script>
   // Enable clicking a row to reveal the nested detail table.

@@ -136,4 +136,18 @@ describe('Database helpers', () => {
     expect(row.value).to.equal('100');
     expect(row.location).to.equal('X');
   });
+
+  it('count helpers return the number of stored rows', async () => {
+    const tenderCount = await db.getTenderCount();
+    const awardCount = await db.getAwardCount();
+    const custCount = await db.getOrganisationCount('customer');
+    const suppCount = await db.getOrganisationCount('supplier');
+    expect(tenderCount).to.be.a('number');
+    expect(awardCount).to.be.a('number');
+    expect(custCount).to.be.a('number');
+    expect(suppCount).to.be.a('number');
+    // There should be at least one tender and award from previous tests
+    expect(tenderCount).to.be.greaterThan(0);
+    expect(awardCount).to.be.greaterThan(0);
+  });
 });

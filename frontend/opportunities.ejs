@@ -43,6 +43,9 @@
         </td>
       </tr>
     <% }) %>
+    <% if (tenders.length === 0) { %>
+      <tr><td colspan="7">No opportunities found. Try running the scraper.</td></tr>
+    <% } %>
   </table>
   <script>
   // Toggle the detail row when a tender row is clicked so users can view extra

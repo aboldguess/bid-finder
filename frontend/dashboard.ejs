@@ -9,6 +9,14 @@
   <%- include('partials/nav', { page: 'dashboard', user: user }) %>
   <button id="scrapeAll">Scrape All Now</button>
   <div id="feed"></div>
+  <!-- Quick overview showing how much data has been scraped so far -->
+  <h2>Summary</h2>
+  <ul>
+    <li>Open tenders: <%= counts.tenders %></li>
+    <li>Awarded contracts: <%= counts.awards %></li>
+    <li>Customers: <%= counts.customers %></li>
+    <li>Suppliers: <%= counts.suppliers %></li>
+  </ul>
   <h2>Source Status</h2>
   <ul>
     <% Object.keys(sources).forEach(key => { %>
