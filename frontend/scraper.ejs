@@ -7,6 +7,14 @@
 <body>
   <h1>Scraper</h1>
   <%- include('partials/nav', { page: 'scraper', user: user }) %>
+  <h2>Database Tools</h2>
+  <form id="deleteAllForm">
+    <button type="submit">Delete All Records</button>
+  </form>
+  <form id="deleteBeforeForm">
+    <input type="date" id="deleteDate">
+    <button type="submit">Delete Records Before Date</button>
+  </form>
   <table id="sourceTable">
     <tr>
       <th>Key</th>
@@ -109,6 +117,36 @@ document.querySelectorAll('.detailRow').forEach(row => {
       alert('Failed to update source');
     }
   });
+});
+
+// Handle deletion of all tenders via admin endpoint.
+document.getElementById('deleteAllForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!confirm('Delete all tender records?')) return;
+  const res = await fetch('/admin/delete-all', { method: 'POST' });
+  if (res.ok) {
+    alert('All tenders removed');
+  } else {
+    alert('Failed to delete records');
+  }
+});
+
+// Delete tenders older than the user supplied date.
+document.getElementById('deleteBeforeForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const date = document.getElementById('deleteDate').value;
+  if (!date) return alert('Select a date first');
+  if (!confirm(`Delete tenders before ${date}?`)) return;
+  const res = await fetch('/admin/delete-before', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ date })
+  });
+  if (res.ok) {
+    alert('Old tenders removed');
+  } else {
+    alert('Failed to delete records');
+  }
 });
 </script>
 <script src="/table-tools.js"></script>
