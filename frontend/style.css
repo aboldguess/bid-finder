@@ -111,3 +111,12 @@ button:hover {
 .status-light { width:12px; height:12px; border-radius:50%; background:#ccc; display:inline-block; margin-right:0.5rem; }
 .status-light.ok { background:#0a0; }
 .status-light.error { background:#d00; }
+
+/* Pagination controls placed below tables */
+.pagination {
+  margin-top: 0.5rem;
+  text-align: center;
+}
+.pagination button {
+  margin: 0 0.25rem;
+}
