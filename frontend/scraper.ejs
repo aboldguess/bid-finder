@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Scraper</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <h1>Scraper</h1>
+  <a href="/opportunities">Opportunities</a> |
+  <a href="/awarded">Awarded Contracts</a> |
+  <a href="/crm">CRM</a> |
+  <a href="/stats">Stats</a>
+  <table id="sourceTable">
+    <tr>
+      <th>Key</th>
+      <th>Label</th>
+      <th>Status</th>
+      <th>Last Scraped</th>
+      <th>Contracts Last Run</th>
+      <th>Total</th>
+      <th>Actions</th>
+    </tr>
+    <% Object.keys(sources).forEach(key => { %>
+      <tr class="sourceRow" data-key="<%= key %>">
+        <td><%= key %></td>
+        <td><%= sources[key].label %></td>
+        <td class="status"><%= sourceStatus[key] || 'unknown' %></td>
+        <td><%= sourceStats[key] ? sourceStats[key].last_scraped || 'Never' : 'Never' %></td>
+        <td><%= sourceStats[key] ? sourceStats[key].last_added : 0 %></td>
+        <td><%= sourceStats[key] ? sourceStats[key].total : 0 %></td>
+        <td>
+          <button class="testBtn">Test Now</button>
+          <button class="scrapeBtn">Scrape Now</button>
+        </td>
+      </tr>
+      <tr class="detailRow" data-key="<%= key %>" style="display:none">
+        <td colspan="7">
+          <div class="details">
+            URL: <span class="url"><%= sources[key].url %></span><br>
+            Base: <span class="base"><%= sources[key].base %></span><br>
+            Parser: <span class="parser"><%= sources[key].parser %></span><br>
+            <button class="editBtn">Edit</button>
+          </div>
+          <div class="editForm" style="display:none">
+            <input class="editLabel" value="<%= sources[key].label %>">
+            <input class="editUrl" value="<%= sources[key].url %>">
+            <input class="editBase" value="<%= sources[key].base %>">
+            <input class="editParser" value="<%= sources[key].parser %>">
+            <button class="saveBtn">Save</button>
+            <button class="cancelBtn">Cancel</button>
+          </div>
+        </td>
+      </tr>
+    <% }) %>
+  </table>
+
+<script>
+// Expand row to show configuration details.
+document.querySelectorAll('.sourceRow').forEach(row => {
+  const key = row.dataset.key;
+  row.addEventListener('click', e => {
+    if (e.target.closest('button')) return;
+    const detail = document.querySelector(`.detailRow[data-key="${key}"]`);
+    detail.style.display = detail.style.display === 'none' ? '' : 'none';
+  });
+  row.querySelector('.testBtn').addEventListener('click', async e => {
+    e.stopPropagation();
+    row.querySelector('.status').textContent = 'testing...';
+    const res = await fetch('/test-source?key='+encodeURIComponent(key));
+    const data = await res.json();
+    row.querySelector('.status').textContent = data.status;
+  });
+  row.querySelector('.scrapeBtn').addEventListener('click', async e => {
+    e.stopPropagation();
+    row.querySelector('.status').textContent = 'scraping...';
+    const res = await fetch('/scrape?source='+encodeURIComponent(key));
+    const data = await res.json();
+    row.querySelector('.status').textContent = 'added '+data.added;
+  });
+});
+
+// Editing existing source values inline.
+document.querySelectorAll('.detailRow').forEach(row => {
+  const key = row.dataset.key;
+  const editBtn = row.querySelector('.editBtn');
+  const editForm = row.querySelector('.editForm');
+  const details = row.querySelector('.details');
+  editBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    editForm.style.display = '';
+    details.style.display = 'none';
+  });
+  row.querySelector('.cancelBtn').addEventListener('click', e => {
+    e.stopPropagation();
+    editForm.style.display = 'none';
+    details.style.display = '';
+  });
+  row.querySelector('.saveBtn').addEventListener('click', async e => {
+    e.stopPropagation();
+    const label = editForm.querySelector('.editLabel').value.trim();
+    const url = editForm.querySelector('.editUrl').value.trim();
+    const base = editForm.querySelector('.editBase').value.trim();
+    const parser = editForm.querySelector('.editParser').value.trim();
+    const res = await fetch('/sources/'+encodeURIComponent(key), {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({label,url,base,parser})
+    });
+    if(res.ok){
+      location.reload();
+    } else {
+      alert('Failed to update source');
+    }
+  });
+});
+</script>
+<script src="/table-tools.js"></script>
+</body>
+</html>
