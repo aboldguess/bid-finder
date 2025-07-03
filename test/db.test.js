@@ -150,4 +150,20 @@ describe('Database helpers', () => {
     expect(tenderCount).to.be.greaterThan(0);
     expect(awardCount).to.be.greaterThan(0);
   });
+
+  it('deleteAllTenders removes everything', async () => {
+    await db.deleteAllTenders();
+    const count = await db.getTenderCount();
+    expect(count).to.equal(0);
+  });
+
+  it('deleteTendersBefore removes only old rows', async () => {
+    await db.insertTender('new', 'n1', '2024-05-01', 'd', 's', '2024-05-02T00:00:00Z', 't', 'ocds-n');
+    await db.insertTender('old', 'o1', '2023-01-01', 'd', 's', '2023-01-02T00:00:00Z', 't', 'ocds-o');
+    await db.deleteTendersBefore('2024-01-01');
+    const rows = await db.getTenders();
+    const titles = rows.map(r => r.title);
+    expect(titles).to.include('new');
+    expect(titles).to.not.include('old');
+  });
 });

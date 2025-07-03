@@ -488,6 +488,36 @@ module.exports = {
   },
 
   /**
+   * Delete all tenders from the database. Used by admin tools to clear
+   * stored data without dropping and recreating the entire schema.
+   *
+   * @returns {Promise<void>} resolves when all rows are removed
+   */
+  deleteAllTenders: () => {
+    return new Promise((resolve, reject) => {
+      db.run('DELETE FROM tenders', err => {
+        if (err) return reject(err);
+        resolve();
+      });
+    });
+  },
+
+  /**
+   * Delete tenders older than a specific published date.
+   *
+   * @param {string} date - ISO date string, rows with a date prior to this are removed
+   * @returns {Promise<void>} resolves when deletion completes
+   */
+  deleteTendersBefore: date => {
+    return new Promise((resolve, reject) => {
+      db.run('DELETE FROM tenders WHERE date < ?', [date], err => {
+        if (err) return reject(err);
+        resolve();
+      });
+    });
+  },
+
+  /**
    * Update an existing scraping source definition. The key cannot be changed
    * as it forms the primary identifier used throughout the application.
    *

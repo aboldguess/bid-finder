@@ -500,6 +500,31 @@ app.post('/admin/reset-db', requireAuth, async (req, res) => {
   }
 });
 
+// Remove every tender from the database. Authentication is required so only
+// authorised users can perform destructive actions.
+app.post('/admin/delete-all', requireAuth, async (req, res) => {
+  try {
+    await db.deleteAllTenders();
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('Failed to delete all tenders:', err);
+    res.status(500).json({ error: 'Failed to delete data' });
+  }
+});
+
+// Delete tenders older than the supplied date.
+app.post('/admin/delete-before', requireAuth, async (req, res) => {
+  const date = req.body && req.body.date;
+  if (!date) return res.status(400).json({ error: 'Missing date' });
+  try {
+    await db.deleteTendersBefore(date);
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('Failed to delete old tenders:', err);
+    res.status(500).json({ error: 'Failed to delete data' });
+  }
+});
+
 // POST /admin/cron - Update the cron schedule at runtime. The existing job is
 // stopped and a new one is created using the supplied expression.
 app.post('/admin/cron', requireAuth, async (req, res) => {
