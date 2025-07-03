@@ -94,6 +94,7 @@ log will explain whether none were found or all were detected as duplicates.
 
 The dashboard includes a small form for defining additional tender sources at
 runtime. Follow these steps to register a new site:
+See the `/help` page for example configurations.
 
 1. Navigate to `/admin` and locate the **Add Source** form.
 2. Enter a short **key** (letters and numbers only). This is used internally to
@@ -119,3 +120,9 @@ When filling in the form you will be asked for four pieces of information:
 
 The application ships with Contracts Finder, EU Supply and a selection of other
 procurement portals pre-configured so you can start scraping immediately.
+
+### Awarded contract sources
+
+Award notices are scraped separately using the same mechanism. Use the **Award
+Sources** form on the Scraper page to register feeds that list awarded
+contracts. Example award sources are shown on the `/help` page.

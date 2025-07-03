@@ -7,6 +7,10 @@
 <body>
   <h1>Scraper</h1>
   <%- include('partials/nav', { page: 'scraper', user: user }) %>
+  <div id="instructions">
+    Manage tender and award sources here. Hover over each input for guidance or
+    visit the <a href="/help">help page</a> for full instructions.
+  </div>
   <h2>Database Tools</h2>
   <form id="deleteAllForm">
     <button type="submit">Delete All Records</button>
@@ -45,6 +49,8 @@
             Base: <span class="base"><%= sources[key].base %></span><br>
             Parser: <span class="parser"><%= sources[key].parser %></span><br>
             <button class="editBtn">Edit</button>
+            <button class="deleteBtn">Delete</button>
+            <button class="deleteBtn">Delete</button>
           </div>
           <div class="editForm" style="display:none">
             <input class="editLabel" value="<%= sources[key].label %>">
@@ -58,8 +64,71 @@
       </tr>
     <% }) %>
   </table>
+  <form id="addSourceForm">
+    <input id="newKey" placeholder="Key" title="Short identifier" required>
+    <input id="newLabel" placeholder="Label" title="Display name" required>
+    <input id="newUrl" placeholder="Search URL" title="Feed or search page" required>
+    <input id="newBase" placeholder="Base URL" title="Website root" required>
+    <button id="addBtn" type="submit">Add Source</button>
+  </form>
+
+  <h2>Award Sources</h2>
+  <table id="awardSourceTable">
+    <tr>
+      <th>Key</th>
+      <th>Label</th>
+      <th>Status</th>
+      <th>Last Scraped</th>
+      <th>Contracts Last Run</th>
+      <th>Total</th>
+      <th>Actions</th>
+    </tr>
+    <% Object.keys(awardSources).forEach(key => { %>
+      <tr class="awardSourceRow" data-key="<%= key %>">
+        <td><%= key %></td>
+        <td><%= awardSources[key].label %></td>
+        <td class="status"><%= sourceStatus[key] || 'unknown' %></td>
+        <td><%= sourceStats[key] ? sourceStats[key].last_scraped || 'Never' : 'Never' %></td>
+        <td><%= sourceStats[key] ? sourceStats[key].last_added : 0 %></td>
+        <td><%= sourceStats[key] ? sourceStats[key].total : 0 %></td>
+        <td>
+          <button class="testAwardBtn">Test Now</button>
+          <button class="scrapeAwardBtn">Scrape Now</button>
+        </td>
+      </tr>
+      <tr class="awardDetailRow" data-key="<%= key %>" style="display:none">
+        <td colspan="7">
+          <div class="details">
+            URL: <span class="url"><%= awardSources[key].url %></span><br>
+            Base: <span class="base"><%= awardSources[key].base %></span><br>
+            Parser: <span class="parser"><%= awardSources[key].parser %></span><br>
+            <button class="editBtn">Edit</button>
+          </div>
+          <div class="editForm" style="display:none">
+            <input class="editLabel" value="<%= awardSources[key].label %>">
+            <input class="editUrl" value="<%= awardSources[key].url %>">
+            <input class="editBase" value="<%= awardSources[key].base %>">
+            <input class="editParser" value="<%= awardSources[key].parser %>">
+            <button class="saveBtn">Save</button>
+            <button class="cancelBtn">Cancel</button>
+          </div>
+        </td>
+      </tr>
+    <% }) %>
+  </table>
+  <form id="addAwardSourceForm">
+    <input id="newAwardKey" placeholder="Key" title="Short identifier" required>
+    <input id="newAwardLabel" placeholder="Label" title="Display name" required>
+    <input id="newAwardUrl" placeholder="Search URL" title="Award feed" required>
+    <input id="newAwardBase" placeholder="Base URL" title="Website root" required>
+    <button id="addAwardBtn" type="submit">Add Award Source</button>
+  </form>
 
 <script>
+const sourceData = <%- JSON.stringify(sources) %>;
+const awardSourceData = <%- JSON.stringify(awardSources) %>;
+let editingKey = null;
+let editingAwardKey = null;
 // Expand row to show configuration details.
 document.querySelectorAll('.sourceRow').forEach(row => {
   const key = row.dataset.key;
@@ -116,6 +185,134 @@ document.querySelectorAll('.detailRow').forEach(row => {
     } else {
       alert('Failed to update source');
     }
+  });
+});
+
+// Add or update a tender source.
+document.getElementById('addSourceForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const key = document.getElementById('newKey').value.trim();
+  const label = document.getElementById('newLabel').value.trim();
+  const url = document.getElementById('newUrl').value.trim();
+  const base = document.getElementById('newBase').value.trim();
+  let method = 'POST';
+  let endpoint = '/sources';
+  if (editingKey) {
+    method = 'PUT';
+    endpoint = `/sources/${encodeURIComponent(editingKey)}`;
+  }
+  const res = await fetch(endpoint, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key, label, url, base })
+  });
+  if (res.ok) {
+    location.reload();
+  } else {
+    alert('Failed to save source');
+  }
+});
+
+// Edit/delete handlers for tender sources
+document.querySelectorAll('#sourceTable .sourceRow').forEach(row => {
+  const key = row.dataset.key;
+  const detail = document.querySelector(`.detailRow[data-key="${key}"]`);
+  detail.querySelector('.editBtn').addEventListener('click', e => {
+    e.stopPropagation();
+    const s = sourceData[key];
+    document.getElementById('newKey').value = key;
+    document.getElementById('newKey').disabled = true;
+    document.getElementById('newLabel').value = s.label;
+    document.getElementById('newUrl').value = s.url;
+    document.getElementById('newBase').value = s.base;
+    document.getElementById('addBtn').textContent = 'Update Source';
+    editingKey = key;
+  });
+  detail.querySelector('.cancelBtn').addEventListener('click', e => {
+    e.stopPropagation();
+    editingKey = null;
+    document.getElementById('newKey').disabled = false;
+    document.getElementById('addBtn').textContent = 'Add Source';
+  });
+  detail.querySelector('.deleteBtn').addEventListener('click', async ev => {
+    ev.stopPropagation();
+    if (!confirm(`Delete source ${key}?`)) return;
+    const res = await fetch(`/sources/${encodeURIComponent(key)}`, { method: 'DELETE' });
+    if (res.ok) location.reload();
+    else alert('Failed to delete source');
+  });
+});
+
+// Add or update an award source.
+document.getElementById('addAwardSourceForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const key = document.getElementById('newAwardKey').value.trim();
+  const label = document.getElementById('newAwardLabel').value.trim();
+  const url = document.getElementById('newAwardUrl').value.trim();
+  const base = document.getElementById('newAwardBase').value.trim();
+  let method = 'POST';
+  let endpoint = '/award-sources';
+  if (editingAwardKey) {
+    method = 'PUT';
+    endpoint = `/award-sources/${encodeURIComponent(editingAwardKey)}`;
+  }
+  const res = await fetch(endpoint, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key, label, url, base })
+  });
+  if (res.ok) {
+    location.reload();
+  } else {
+    alert('Failed to save source');
+  }
+});
+
+// Edit/delete handlers for award sources
+document.querySelectorAll('#awardSourceTable .awardSourceRow').forEach(row => {
+  const key = row.dataset.key;
+  const detail = document.querySelector(`.awardDetailRow[data-key="${key}"]`);
+  row.addEventListener('click', e => {
+    if (e.target.closest('button')) return;
+    detail.style.display = detail.style.display === 'none' ? '' : 'none';
+  });
+  row.querySelector('.testAwardBtn').addEventListener('click', async e => {
+    e.stopPropagation();
+    row.querySelector('.status').textContent = 'testing...';
+    const res = await fetch('/test-award-source?key='+encodeURIComponent(key));
+    const data = await res.json();
+    row.querySelector('.status').textContent = data.status;
+  });
+  row.querySelector('.scrapeAwardBtn').addEventListener('click', async e => {
+    e.stopPropagation();
+    row.querySelector('.status').textContent = 'scraping...';
+    const res = await fetch('/scrape-awarded?source='+encodeURIComponent(key));
+    const data = await res.json();
+    row.querySelector('.status').textContent = 'added '+data.added;
+  });
+  detail.querySelector('.editBtn').addEventListener('click', e => {
+    e.stopPropagation();
+    const s = awardSourceData[key];
+    document.getElementById('newAwardKey').value = key;
+    document.getElementById('newAwardKey').disabled = true;
+    document.getElementById('newAwardLabel').value = s.label;
+    document.getElementById('newAwardUrl').value = s.url;
+    document.getElementById('newAwardBase').value = s.base;
+    document.getElementById('addAwardBtn').textContent = 'Update Award Source';
+    editingAwardKey = key;
+  });
+  detail.querySelector('.cancelBtn').addEventListener('click', e => {
+    e.stopPropagation();
+    editingAwardKey = null;
+    document.getElementById('newAwardKey').disabled = false;
+    document.getElementById('addAwardBtn').textContent = 'Add Award Source';
+  });
+  detail.querySelector('.deleteBtn').addEventListener('click', async ev => {
+    ev.stopPropagation();
+    if (!confirm(`Delete source ${key}?`)) return;
+    const res = await fetch(`/award-sources/${encodeURIComponent(key)}`, { method: 'DELETE' });
+    if (res.ok) location.reload();
+    else alert('Failed to delete source');
   });
 });
 
