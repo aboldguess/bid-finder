@@ -39,8 +39,8 @@ This application scrapes new tenders from several procurement portals including 
 - **Edit or delete sources** from the admin page. Use the list of configured
   sources to modify details or remove entries entirely.
 - **Manage the application** by registering at `/register`, logging in at
-  `/login` and visiting `/admin`. Only authenticated users can access admin
-  functions.
+  `/login` and visiting `/admin`. Once logged in your session persists for 30 days so you remain authenticated after closing the browser. Only
+  authenticated users can access admin functions.
 - **Automatic scraping** runs in the background according to the `CRON_SCHEDULE`
   environment variable (default `0 6 * * *`). Results are stored in the
   database without any manual interaction.

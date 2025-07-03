@@ -62,7 +62,11 @@ app.use(
   session({
     secret: process.env.SESSION_SECRET || 'change_this_secret',
     resave: false,
-    saveUninitialized: false
+    saveUninitialized: false,
+    // Persist the session cookie for 30 days so users remain logged in
+    // even after closing the browser. The in-memory store still means
+    // sessions are lost if the server restarts.
+    cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 }
   })
 );
 
