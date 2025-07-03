@@ -82,8 +82,11 @@ the same opportunity even if the URL changes between runs.
 
 ## Statistics
 
-The `/stats` page displays when the scraper last completed successfully. This
-helps you confirm that automated cron jobs are running as expected.
+The `/stats` page lists detailed information about each configured source. It
+shows when every site was last scraped, how many tenders were inserted during
+the most recent run and the running total stored in the database. This helps
+identify sources that consistently produce zero results so potential issues can
+be debugged quickly.
 
 ## Logs
 

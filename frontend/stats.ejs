@@ -11,5 +11,23 @@
     <!-- Display the stored timestamp or a placeholder when no scrape has been run yet -->
     Last scraped: <%= lastScraped ? lastScraped : 'Never' %>
   </p>
+  <!-- Detailed table showing statistics for every configured source. This helps
+       diagnose problems when certain sites consistently produce zero tenders. -->
+  <table>
+    <tr>
+      <th>Source</th>
+      <th>Last Scraped</th>
+      <th>Tenders Last Scrape</th>
+      <th>Total Tenders</th>
+    </tr>
+    <% Object.keys(sources).forEach(key => { %>
+      <tr>
+        <td><%= sources[key].label %></td>
+        <td><%= sourceStats[key] ? sourceStats[key].last_scraped || 'Never' : 'Never' %></td>
+        <td><%= sourceStats[key] ? sourceStats[key].last_added : 0 %></td>
+        <td><%= sourceStats[key] ? sourceStats[key].total : 0 %></td>
+      </tr>
+    <% }) %>
+  </table>
 </body>
 </html>

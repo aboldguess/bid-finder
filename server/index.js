@@ -107,7 +107,21 @@ app.get('/awarded', async (req, res) => {
 // so users know how fresh the displayed data is.
 app.get('/stats', async (req, res) => {
   const lastScraped = await db.getLastScraped();
-  res.render('stats', { lastScraped });
+  // Retrieve per-source statistics so the UI can show detailed
+  // information for debugging purposes.
+  const statsRows = await db.getSourceStats();
+  // Convert the list of rows into an object keyed by source for easier lookups
+  // in the template.
+  const stats = {};
+  for (const row of statsRows) {
+    stats[row.key] = row;
+  }
+  res.render('stats', {
+    lastScraped,
+    // Provide the list of sources so labels can be shown alongside stats.
+    sources: config.sources,
+    sourceStats: stats
+  });
 });
 
 // Lists of organisations scraped from tender sources
