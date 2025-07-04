@@ -744,7 +744,10 @@ async function startServer() {
     port = chosen;
   }
 
+  // Persist the chosen port so any modules reading the configuration or
+  // environment variable see the correct value.
   config.port = port;
+  process.env.PORT = String(port);
   app.listen(port, config.host, () => {
     // Display a helpful startup message indicating how the server can be
     // reached. When binding to 0.0.0.0 there is no single address clients should

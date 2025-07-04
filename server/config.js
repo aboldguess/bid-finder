@@ -198,8 +198,9 @@ const defaultTagRules = {
 };
 
 module.exports = {
-  // Port the Express server listens on
-  port: process.env.PORT || 3000,
+  // Port the Express server listens on. Environment variables are parsed as
+  // integers so "3001" is treated the same as 3001.
+  port: process.env.PORT ? parseInt(process.env.PORT, 10) : 3000,
   // Network interface to bind the HTTP server to. Using 0.0.0.0 allows access
   // from other machines on the network. The hostname is logged purely for
   // convenience.
