@@ -16,10 +16,11 @@ This application scrapes new tenders from several procurement portals including 
    ```bash
    node server/index.js
    ```
-   The UI will be available at `http://<HOST>:<PORT>`. When `HOST` is set to
-   `0.0.0.0` (the default) the server listens on all network interfaces. Use the
-   IP address of the machine in place of `<HOST>` when connecting from another
-   computer.
+   If the default port is already in use you will be prompted to choose a
+   different one. The UI will be available at `http://<HOST>:<PORT>`. When
+   `HOST` is set to `0.0.0.0` (the default) the server listens on all network
+   interfaces. Use the IP address of the machine in place of `<HOST>` when
+   connecting from another computer.
 
 ## Usage
 
@@ -42,7 +43,8 @@ This application scrapes new tenders from several procurement portals including 
 
 ## Environment variables
 
-- `PORT` - port for the Express server (default `3000`).
+- `PORT` - port for the Express server (default `3000`). If this port is in use
+  when the server starts you will be asked to supply a different value.
 - `HOST` - interface the server listens on (default `0.0.0.0`).
 - `FRONTEND_DIR` - directory for templates and static files.
 - `DB_FILE` - path to the SQLite database file.

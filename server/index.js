@@ -9,6 +9,9 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const fetch = require('node-fetch');
 const { parseTenders } = require('./htmlParser');
+// Built-in modules used for checking port availability and prompting the user
+const net = require('net');
+const readline = require('readline');
 // Helper for persisting custom source definitions outside the database.
 const sourceStore = require('./sourceStore');
 
@@ -30,6 +33,44 @@ async function scheduleJob() {
   scheduledJob = cron.schedule(config.cronSchedule, async () => {
     logger.info('Running scheduled scrape...');
     await scrape.run();
+  });
+}
+
+/**
+ * Check whether the supplied port is available by attempting to open a server
+ * on it. The server is immediately closed if the bind succeeds.
+ * @param {number} port - Port number to test
+ * @returns {Promise<boolean>} resolves true when the port can be used
+ */
+function isPortFree(port) {
+  return new Promise(resolve => {
+    const tester = net
+      .createServer()
+      .once('error', () => resolve(false))
+      .once('listening', () => tester.close(() => resolve(true)))
+      .listen(port, config.host);
+  });
+}
+
+/**
+ * Prompt the user to enter a new port when the default is already in use.
+ * The promise resolves with the numeric port or null if the input was invalid.
+ * @param {number} current - The port that was found to be occupied
+ * @returns {Promise<number|null>}
+ */
+function promptForPort(current) {
+  return new Promise(resolve => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(`Port ${current} in use. Enter an alternative port: `, answer => {
+      rl.close();
+      const port = parseInt(answer, 10);
+      if (Number.isInteger(port) && port > 0 && port < 65536) {
+        resolve(port);
+      } else {
+        console.error('Invalid port');
+        resolve(null);
+      }
+    });
   });
 }
 
@@ -690,28 +731,43 @@ app.post('/admin/cron', requireAuth, async (req, res) => {
 
 
 
-// Start the HTTP server and log the URL so the user knows where to point
-// their browser. Binding to config.host allows access from other machines when
-// the host is set to 0.0.0.0.
-app.listen(config.port, config.host, () => {
-  // Display a helpful startup message indicating how the server can be
-  // reached. When binding to 0.0.0.0 there is no single address clients should
-  // use, so list all non-internal IPv4 interfaces as suggestions.
-  if (config.host === '0.0.0.0') {
-    const os = require('os');
-    const nets = os.networkInterfaces();
-    const addresses = [];
-    for (const name of Object.keys(nets)) {
-      for (const net of nets[name]) {
-        // Skip over internal (e.g. loopback) and non-IPv4 addresses.
-        if (net.family === 'IPv4' && !net.internal) {
-          addresses.push(`http://${net.address}:${config.port}`);
+// Start the HTTP server once a free port has been determined. If the desired
+// port is occupied the user is prompted to supply an alternative.
+async function startServer() {
+  let port = config.port;
+  while (!(await isPortFree(port))) {
+    const chosen = await promptForPort(port);
+    if (!chosen) {
+      logger.error('No valid port provided. Exiting.');
+      process.exit(1);
+    }
+    port = chosen;
+  }
+
+  config.port = port;
+  app.listen(port, config.host, () => {
+    // Display a helpful startup message indicating how the server can be
+    // reached. When binding to 0.0.0.0 there is no single address clients should
+    // use, so list all non-internal IPv4 interfaces as suggestions.
+    if (config.host === '0.0.0.0') {
+      const os = require('os');
+      const nets = os.networkInterfaces();
+      const addresses = [];
+      for (const name of Object.keys(nets)) {
+        for (const net of nets[name]) {
+          // Skip over internal (e.g. loopback) and non-IPv4 addresses.
+          if (net.family === 'IPv4' && !net.internal) {
+            addresses.push(`http://${net.address}:${port}`);
+          }
         }
       }
+      const urls = addresses.join(', ') || `http://localhost:${port}`;
+      logger.info(`Server running on ${urls}`);
+    } else {
+      logger.info(`Server running on http://${config.host}:${port}`);
     }
-    const urls = addresses.join(', ') || `http://localhost:${config.port}`;
-    logger.info(`Server running on ${urls}`);
-  } else {
-    logger.info(`Server running on http://${config.host}:${config.port}`);
-  }
-});
+  });
+}
+
+// Kick off the server startup process.
+startServer();
