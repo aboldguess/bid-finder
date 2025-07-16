@@ -107,6 +107,13 @@ async function runInternal(onProgress, sourceKey, source) {
       logger.info(`Found ${pageTenders.length} tenders on ${src.label} page ${page}`);
       allTenders.push(...pageTenders);
 
+      // Stop following pagination if the current page contains no tenders.
+      // This prevents unnecessary requests when the "next" link points to a
+      // placeholder page beyond the available results.
+      if (pageTenders.length === 0) {
+        break;
+      }
+
       // Look for a link pointing to the next page. Many sites mark this with a
       // rel="next" attribute, add a class containing "next" or include the word
       // "Next" in the link text. Relative URLs are resolved against the source
@@ -129,7 +136,19 @@ async function runInternal(onProgress, sourceKey, source) {
         : textNext
         ? textNext[1]
         : null;
-      nextUrl = href ? new URL(href.replace(/&amp;/g, '&'), src.base).href : null;
+      // Some sites include a disabled "next" link with a placeholder href such
+      // as "#" or "javascript:void(0)". Following these would cause the scraper
+      // to loop indefinitely, so ignore them when detected.
+      const cleanHref = href && href.replace(/&amp;/g, '&');
+      if (
+        cleanHref &&
+        cleanHref !== '#' &&
+        !cleanHref.toLowerCase().startsWith('javascript')
+      ) {
+        nextUrl = new URL(cleanHref, src.base).href;
+      } else {
+        nextUrl = null;
+      }
       page += 1;
     }
 

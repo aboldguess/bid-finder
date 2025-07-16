@@ -28,6 +28,20 @@ describe('htmlParser', () => {
     expect(tenders[0].ocid).to.equal('ocds-a');
   });
 
+  it('parses list items with search-result-entry class', () => {
+    const html = `
+      <ul>
+        <li class="search-result-entry">
+          <a href="/cC">Contract C</a>
+          <span class="date">2024-03-03</span>
+          <p>Desc C</p>
+        </li>
+      </ul>`;
+    const tenders = parseTenders(html, 'contractsFinder');
+    expect(tenders).to.have.length(1);
+    expect(tenders[0].title).to.equal('Contract C');
+  });
+
   it('parses Sell2Wales table rows', () => {
     const html = `
       <table>
