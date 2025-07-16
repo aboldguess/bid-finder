@@ -12,11 +12,14 @@ const clean = str => str.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
 
 function parseContractsFinder(html) {
   const tenders = [];
-  // Results are contained within elements that include the "search-result" class
-  const blockRe = /<div[^>]*class="[^"]*search-result[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
+  // Results are contained within elements that include the "search-result" or
+  // "search-result-entry" class. Some pages use <div> wrappers while others use
+  // <li> elements, so capture the tag name and match the corresponding closing
+  // tag to avoid prematurely ending the block when nested elements are present.
+  const blockRe = /<(div|li)[^>]*class="[^"]*(?:search-result(?:-entry)?)[^"]*"[^>]*>([\s\S]*?)<\/\1>/gi;
   let blockMatch;
   while ((blockMatch = blockRe.exec(html))) {
-    const block = blockMatch[1];
+    const block = blockMatch[2];
     const link = /<a[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/i.exec(block);
     // Some templates place the title inside the anchor, others in a sibling h2
     const title = link ? clean(link[2]) : clean(/<h2[^>]*>(.*?)<\/h2>/i.exec(block)?.[1] || '');
