@@ -16,8 +16,8 @@ This application scrapes new tenders from several procurement portals including 
    ```bash
    node server/index.js
    ```
-   If the default port is already in use you will be prompted to choose a
-   different one. The UI will be available at `http://<HOST>:<PORT>`. When
+   If the default port is already in use the server will automatically select
+   the next free port. The UI will be available at `http://<HOST>:<PORT>`. When
    `HOST` is set to `0.0.0.0` (the default) the server listens on all network
    interfaces. Use the IP address of the machine in place of `<HOST>` when
    connecting from another computer.

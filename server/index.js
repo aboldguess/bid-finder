@@ -9,9 +9,9 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const fetch = require('node-fetch');
 const { parseTenders } = require('./htmlParser');
-// Built-in modules used for checking port availability and prompting the user
+// Built-in modules used for checking port availability and launching the browser
 const net = require('net');
-const readline = require('readline');
+const { exec } = require('child_process');
 // Helper for persisting custom source definitions outside the database.
 const sourceStore = require('./sourceStore');
 
@@ -53,25 +53,18 @@ function isPortFree(port) {
 }
 
 /**
- * Prompt the user to enter a new port when the default is already in use.
- * The promise resolves with the numeric port or null if the input was invalid.
- * @param {number} current - The port that was found to be occupied
- * @returns {Promise<number|null>}
+ * Open the user's default browser at the supplied URL using an OS-specific
+ * command. This avoids pulling in additional dependencies.
+ * @param {string} url - Address to open in the browser
  */
-function promptForPort(current) {
-  return new Promise(resolve => {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    rl.question(`Port ${current} in use. Enter an alternative port: `, answer => {
-      rl.close();
-      const port = parseInt(answer, 10);
-      if (Number.isInteger(port) && port > 0 && port < 65536) {
-        resolve(port);
-      } else {
-        console.error('Invalid port');
-        resolve(null);
-      }
-    });
-  });
+function openBrowser(url) {
+  const command =
+    process.platform === 'darwin'
+      ? 'open'
+      : process.platform === 'win32'
+      ? 'start ""'
+      : 'xdg-open';
+  exec(`${command} ${url}`);
 }
 
 // Load settings such as the cron schedule and any user-added sources from the
@@ -732,16 +725,13 @@ app.post('/admin/cron', requireAuth, async (req, res) => {
 
 
 // Start the HTTP server once a free port has been determined. If the desired
-// port is occupied the user is prompted to supply an alternative.
+// port is occupied the next free port is used automatically.
 async function startServer() {
   let port = config.port;
+  // Increment the port number until an available one is found
   while (!(await isPortFree(port))) {
-    const chosen = await promptForPort(port);
-    if (!chosen) {
-      logger.error('No valid port provided. Exiting.');
-      process.exit(1);
-    }
-    port = chosen;
+    logger.warn(`Port ${port} in use, trying ${port + 1}`);
+    port++;
   }
 
   // Persist the chosen port so any modules reading the configuration or
@@ -769,6 +759,8 @@ async function startServer() {
     } else {
       logger.info(`Server running on http://${config.host}:${port}`);
     }
+    // Launch the default browser so the user immediately sees the UI
+    openBrowser(`http://localhost:${port}`);
   });
 }
 
