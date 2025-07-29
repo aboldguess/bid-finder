@@ -1,17 +1,30 @@
 #!/bin/bash
 
 # rpi_bidfinder.sh - prepare the project on a Raspberry Pi.
-# Installs Node.js, fetches dependencies and initialises the database.
-# Use the -p or --production flag to skip dev dependencies.
-# Usage: ./scripts/rpi_bidfinder.sh [-p|--production]
+# Installs Node.js, fetches dependencies, initialises the database and can
+# optionally launch the server. Use the -p or --production flag to skip dev
+# dependencies and supply a port number to start the server immediately.
+# Usage: ./scripts/rpi_bidfinder.sh [-p|--production] [PORT]
 
 set -e
 
-# Parse command line options for production mode
+# Parse command line options for production mode and optional port number. The
+# port argument can be provided in any position as long as it is not preceded
+# by -p or --production.
 PROD=0
-if [[ "$1" == "-p" || "$1" == "--production" ]]; then
-  PROD=1 # toggle to install only production dependencies
-fi
+PORT=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -p|--production)
+      PROD=1 # toggle to install only production dependencies
+      shift
+      ;;
+    *)
+      PORT="$1" # treat any other argument as the desired port
+      shift
+      ;;
+  esac
+done
 
 # Ensure system packages are up to date and install Node.js and npm
 sudo apt-get update
@@ -26,4 +39,10 @@ fi
 
 # Initialise the SQLite database so the server can start without errors
 npm run init-db # create the SQLite database
+
+# Launch the application when a port number is supplied. The run.sh helper
+# exports PORT before starting the Node.js server.
+if [[ -n "$PORT" ]]; then
+  ./scripts/run.sh "$PORT"
+fi
 
