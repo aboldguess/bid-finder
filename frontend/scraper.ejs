@@ -76,6 +76,8 @@
     <input id="newLabel" placeholder="Label" title="Display name" required>
     <input id="newUrl" placeholder="Search URL" title="Feed or search page" required>
     <input id="newBase" placeholder="Base URL" title="Website root" required>
+    <!-- Optional parser name; defaults to Contracts Finder if left unchanged -->
+    <input id="newParser" placeholder="Parser" title="Parser name" value="contractsFinder">
     <button id="addBtn" type="submit">Add Source</button>
   </form>
 
@@ -132,6 +134,8 @@
     <input id="newAwardLabel" placeholder="Label" title="Display name" required>
     <input id="newAwardUrl" placeholder="Search URL" title="Award feed" required>
     <input id="newAwardBase" placeholder="Base URL" title="Website root" required>
+    <!-- Optional parser field for award feed scraping -->
+    <input id="newAwardParser" placeholder="Parser" title="Parser name" value="contractsFinder">
     <button id="addAwardBtn" type="submit">Add Award Source</button>
   </form>
 
@@ -208,6 +212,8 @@ document.getElementById('addSourceForm').addEventListener('submit', async e => {
   const label = document.getElementById('newLabel').value.trim();
   const url = document.getElementById('newUrl').value.trim();
   const base = document.getElementById('newBase').value.trim();
+  // Parser field allows custom HTML parsing rules
+  const parser = document.getElementById('newParser').value.trim();
   let method = 'POST';
   let endpoint = '/sources';
   if (editingKey) {
@@ -217,7 +223,7 @@ document.getElementById('addSourceForm').addEventListener('submit', async e => {
   const res = await fetch(endpoint, {
     method,
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key, label, url, base })
+    body: JSON.stringify({ key, label, url, base, parser })
   });
   if (res.ok) {
     location.reload();
@@ -238,6 +244,8 @@ document.querySelectorAll('#sourceTable .sourceRow').forEach(row => {
     document.getElementById('newLabel').value = s.label;
     document.getElementById('newUrl').value = s.url;
     document.getElementById('newBase').value = s.base;
+    // Pre-fill parser so it can be modified if needed
+    document.getElementById('newParser').value = s.parser;
     document.getElementById('addBtn').textContent = 'Update Source';
     editingKey = key;
   });
@@ -245,6 +253,8 @@ document.querySelectorAll('#sourceTable .sourceRow').forEach(row => {
     e.stopPropagation();
     editingKey = null;
     document.getElementById('newKey').disabled = false;
+    // Reset parser field to the default value
+    document.getElementById('newParser').value = 'contractsFinder';
     document.getElementById('addBtn').textContent = 'Add Source';
   });
   detail.querySelector('.deleteBtn').addEventListener('click', async ev => {
@@ -263,6 +273,8 @@ document.getElementById('addAwardSourceForm').addEventListener('submit', async e
   const label = document.getElementById('newAwardLabel').value.trim();
   const url = document.getElementById('newAwardUrl').value.trim();
   const base = document.getElementById('newAwardBase').value.trim();
+  // Award parser allows custom extraction from award feeds
+  const parser = document.getElementById('newAwardParser').value.trim();
   let method = 'POST';
   let endpoint = '/award-sources';
   if (editingAwardKey) {
@@ -272,7 +284,7 @@ document.getElementById('addAwardSourceForm').addEventListener('submit', async e
   const res = await fetch(endpoint, {
     method,
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key, label, url, base })
+    body: JSON.stringify({ key, label, url, base, parser })
   });
   if (res.ok) {
     location.reload();
@@ -311,6 +323,8 @@ document.querySelectorAll('#awardSourceTable .awardSourceRow').forEach(row => {
     document.getElementById('newAwardLabel').value = s.label;
     document.getElementById('newAwardUrl').value = s.url;
     document.getElementById('newAwardBase').value = s.base;
+    // Pre-fill parser for award sources
+    document.getElementById('newAwardParser').value = s.parser;
     document.getElementById('addAwardBtn').textContent = 'Update Award Source';
     editingAwardKey = key;
   });
@@ -318,6 +332,8 @@ document.querySelectorAll('#awardSourceTable .awardSourceRow').forEach(row => {
     e.stopPropagation();
     editingAwardKey = null;
     document.getElementById('newAwardKey').disabled = false;
+    // Reset award parser to the default parser name
+    document.getElementById('newAwardParser').value = 'contractsFinder';
     document.getElementById('addAwardBtn').textContent = 'Add Award Source';
   });
   detail.querySelector('.deleteBtn').addEventListener('click', async ev => {

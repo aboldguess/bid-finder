@@ -9,14 +9,16 @@
   <%- include('partials/nav', { page: 'help', user: user }) %>
   <div id="instructions">
     <h2>Adding New Sources</h2>
-    <p>Use the forms on the <a href="/scraper">Scraper page</a> to register additional tender sources or award sources. Each entry requires four fields:</p>
+    <p>Use the forms on the <a href="/scraper">Scraper page</a> to register additional tender sources or award sources. Each entry requires five fields:</p>
     <ul>
       <li><strong>Key</strong> &ndash; short identifier such as <code>eusupply</code></li>
       <li><strong>Label</strong> &ndash; human readable name displayed in lists</li>
       <li><strong>Search URL</strong> &ndash; RSS feed or results page containing opportunities</li>
       <li><strong>Base URL</strong> &ndash; website root prepended to relative links</li>
+      <li><strong>Parser</strong> &ndash; name of the HTML parser (e.g. <code>rss</code>)</li>
     </ul>
     <p>Award sources follow the same structure but point at feeds of awarded contracts.</p>
+    <p>Available parser names are <code>contractsFinder</code> (default), <code>rss</code>, <code>eusupply</code>, <code>sell2wales</code> and <code>ukri</code>.</p>
   </div>
   <h2>Example Award Sources</h2>
   <table>

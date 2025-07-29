@@ -126,11 +126,14 @@ See the `/help` page for example configurations.
 8. Existing sources are shown in a list below the form. Click **Edit** to modify
    details or **Delete** to remove a source altogether.
 
-When filling in the form you will be asked for four pieces of information:
+When filling in the form you will be asked for five pieces of information:
 - **Key** – a short unique identifier used internally (e.g. `eusupply`).
 - **Label** – human readable name shown in the dashboard (e.g. `EU Supply UK`).
 - **Search URL** – the RSS feed or results page to scrape (e.g. `https://uk.eu-supply.com/ctm/supplier/publictenders?B=UK`).
 - **Base URL** – the website root prepended to tender links (e.g. `https://uk.eu-supply.com`).
+- **Parser** – name of the parser to use such as `rss`, `eusupply`, `sell2wales`, `ukri` or the default `contractsFinder`.
+
+Leaving the parser field empty will use `contractsFinder` which matches the built-in Contracts Finder listings.
 
 The application ships with Contracts Finder, EU Supply and a selection of other
 procurement portals pre-configured so you can start scraping immediately.
