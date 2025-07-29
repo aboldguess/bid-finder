@@ -90,6 +90,13 @@ button:hover {
   cursor: pointer;
 }
 
+/* Small helper text shown above tables */
+.hint {
+  margin-top: 0.25rem;
+  font-size: 0.9em;
+  color: #666;
+}
+
 /* Simple layout for the nested table shown inside detail rows */
 .detailRow table {
   width: 100%;
