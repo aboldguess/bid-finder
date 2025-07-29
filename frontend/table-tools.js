@@ -235,4 +235,24 @@ function enhanceTable(table) {
 // Automatically enhance all tables on the page once the DOM is ready
 window.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('table').forEach(enhanceTable);
+  enableDetailRows();
 });
+
+/**
+ * Attach click handlers for rows that toggle a following detailRow. Any table
+ * row with the class "toggle-row" will show or hide the next sibling row if it
+ * has the class "detailRow". Links and buttons are ignored so other controls
+ * keep working as expected.
+ */
+function enableDetailRows(){
+  document.querySelectorAll('tr.toggle-row').forEach(row => {
+    const detail = row.nextElementSibling;
+    if(!detail || !detail.classList.contains('detailRow')) return;
+    // Start hidden in case serverside markup forgot the style attribute
+    detail.style.display = 'none';
+    row.addEventListener('click', e => {
+      if(e.target.closest('a') || e.target.closest('button')) return;
+      detail.style.display = detail.style.display === 'none' ? '' : 'none';
+    });
+  });
+}

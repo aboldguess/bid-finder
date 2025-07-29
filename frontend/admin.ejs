@@ -54,13 +54,13 @@
   <table id="sourceTable">
     <tr><th>Key</th><th>Label</th><th>URL</th><th>Base</th></tr>
     <% Object.keys(sources).forEach(key => { %>
-      <tr class="sourceRow" data-key="<%= key %>">
+      <tr class="sourceRow toggle-row" data-key="<%= key %>">
         <td><%= key %></td>
         <td><%= sources[key].label %></td>
         <td><%= sources[key].url %></td>
         <td><%= sources[key].base %></td>
       </tr>
-      <tr class="detailRow" data-key="<%= key %>" style="display:none">
+      <tr class="detailRow" data-key="<%= key %>">
         <td colspan="4">
           Last scraped: <%= sourceStats[key] ? sourceStats[key].last_scraped || 'Never' : 'Never' %><br>
           Tenders last scrape: <%= sourceStats[key] ? sourceStats[key].last_added : 0 %><br>
@@ -87,13 +87,13 @@
   <table id="awardSourceTable">
     <tr><th>Key</th><th>Label</th><th>URL</th><th>Base</th></tr>
     <% Object.keys(awardSources).forEach(key => { %>
-      <tr class="awardSourceRow" data-key="<%= key %>">
+      <tr class="awardSourceRow toggle-row" data-key="<%= key %>">
         <td><%= key %></td>
         <td><%= awardSources[key].label %></td>
         <td><%= awardSources[key].url %></td>
         <td><%= awardSources[key].base %></td>
       </tr>
-      <tr class="awardDetailRow" data-key="<%= key %>" style="display:none">
+      <tr class="awardDetailRow" data-key="<%= key %>">
         <td colspan="4">
           Last scraped: <%= sourceStats[key] ? sourceStats[key].last_scraped || 'Never' : 'Never' %><br>
           Contracts last scrape: <%= sourceStats[key] ? sourceStats[key].last_added : 0 %><br>
@@ -187,10 +187,6 @@ document.getElementById('addSourceForm').addEventListener('submit', async e => {
 // Hook up edit and delete buttons for each listed source
 document.querySelectorAll('#sourceTable .sourceRow').forEach(row => {
   const key = row.dataset.key;
-  row.addEventListener('click', () => {
-    const detail = document.querySelector(`.detailRow[data-key="${key}"]`);
-    detail.style.display = detail.style.display === 'none' ? '' : 'none';
-  });
   const detail = document.querySelector(`.detailRow[data-key="${key}"]`);
   detail.querySelector('.editBtn').addEventListener('click', () => {
     const s = sourceData[key];
@@ -241,10 +237,6 @@ document.getElementById('addAwardSourceForm').addEventListener('submit', async e
 // Edit/delete handlers for award sources
 document.querySelectorAll('#awardSourceTable .awardSourceRow').forEach(row => {
   const key = row.dataset.key;
-  row.addEventListener('click', () => {
-    const detail = document.querySelector(`.awardDetailRow[data-key="${key}"]`);
-    detail.style.display = detail.style.display === 'none' ? '' : 'none';
-  });
   const detail = document.querySelector(`.awardDetailRow[data-key="${key}"]`);
   detail.querySelector('.editBtn').addEventListener('click', () => {
     const s = awardSourceData[key];

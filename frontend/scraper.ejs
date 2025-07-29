@@ -37,7 +37,7 @@
       <th>Actions</th>
     </tr>
     <% Object.keys(sources).forEach(key => { %>
-      <tr class="sourceRow" data-key="<%= key %>">
+      <tr class="sourceRow toggle-row" data-key="<%= key %>">
         <td><%= key %></td>
         <td><%= sources[key].label %></td>
         <td class="status"><%= sourceStatus[key] || 'unknown' %></td>
@@ -49,7 +49,7 @@
           <button class="scrapeBtn">Scrape Now</button>
         </td>
       </tr>
-      <tr class="detailRow" data-key="<%= key %>" style="display:none">
+      <tr class="detailRow" data-key="<%= key %>">
         <td colspan="7">
           <div class="details">
             URL: <span class="url"><%= sources[key].url %></span><br>
@@ -96,7 +96,7 @@
       <th>Actions</th>
     </tr>
     <% Object.keys(awardSources).forEach(key => { %>
-      <tr class="awardSourceRow" data-key="<%= key %>">
+      <tr class="awardSourceRow toggle-row" data-key="<%= key %>">
         <td><%= key %></td>
         <td><%= awardSources[key].label %></td>
         <td class="status"><%= sourceStatus[key] || 'unknown' %></td>
@@ -108,7 +108,7 @@
           <button class="scrapeAwardBtn">Scrape Now</button>
         </td>
       </tr>
-      <tr class="awardDetailRow" data-key="<%= key %>" style="display:none">
+      <tr class="awardDetailRow" data-key="<%= key %>">
         <td colspan="7">
           <div class="details">
             URL: <span class="url"><%= awardSources[key].url %></span><br>
@@ -149,11 +149,6 @@ let editingAwardKey = null;
 // Expand row to show configuration details.
 document.querySelectorAll('.sourceRow').forEach(row => {
   const key = row.dataset.key;
-  row.addEventListener('click', e => {
-    if (e.target.closest('button')) return;
-    const detail = document.querySelector(`.detailRow[data-key="${key}"]`);
-    detail.style.display = detail.style.display === 'none' ? '' : 'none';
-  });
   row.querySelector('.testBtn').addEventListener('click', async e => {
     e.stopPropagation();
     row.querySelector('.status').textContent = 'testing...';
@@ -297,10 +292,6 @@ document.getElementById('addAwardSourceForm').addEventListener('submit', async e
 document.querySelectorAll('#awardSourceTable .awardSourceRow').forEach(row => {
   const key = row.dataset.key;
   const detail = document.querySelector(`.awardDetailRow[data-key="${key}"]`);
-  row.addEventListener('click', e => {
-    if (e.target.closest('button')) return;
-    detail.style.display = detail.style.display === 'none' ? '' : 'none';
-  });
   row.querySelector('.testAwardBtn').addEventListener('click', async e => {
     e.stopPropagation();
     row.querySelector('.status').textContent = 'testing...';

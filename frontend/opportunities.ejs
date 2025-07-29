@@ -19,7 +19,7 @@
     </tr>
     <% tenders.forEach(t => { %>
       <!-- Each result row can be clicked to reveal a hidden detail row -->
-      <tr class="tenderRow" data-id="<%= t.id %>">
+      <tr class="tenderRow toggle-row" data-id="<%= t.id %>">
         <td><%= t.title %></td>
         <td><%= t.date %></td>
         <td><%= t.description %></td>
@@ -29,7 +29,7 @@
         <!-- Open tender links in a new tab so the dashboard stays visible -->
         <td><a href="<%= t.link %>" target="_blank">View</a></td>
       </tr>
-      <tr class="detailRow" data-id="<%= t.id %>" style="display:none">
+      <tr class="detailRow" data-id="<%= t.id %>">
         <td colspan="7">
           <table>
             <tr><th>Title</th><td><%= t.title %></td></tr>
@@ -57,18 +57,8 @@
       <a href="/opportunities?page=<%= currentPage + 1 %>">Next</a>
     <% } %>
   </div>
-  <script>
-  // Toggle the detail row when a tender row is clicked so users can view extra
-  // information without leaving the page.
-  document.querySelectorAll('table .tenderRow').forEach(row => {
-    const id = row.dataset.id;
-    row.addEventListener('click', e => {
-      if (e.target.closest('a')) return;
-      const detail = document.querySelector(`.detailRow[data-id="${id}"]`);
-      detail.style.display = detail.style.display === 'none' ? '' : 'none';
-    });
-  });
-  </script>
+  <!-- Table behaviour such as search, sort and detail toggling is provided -->
+  <!-- by table-tools.js so no inline handlers are needed here -->
   <script src="/table-tools.js"></script>
 </body>
 </html>
