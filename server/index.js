@@ -227,11 +227,13 @@ app.get('/scraper', async (req, res) => {
   for (const row of statsRows) {
     stats[row.key] = row;
   }
+  // Provide current cron schedule so the form can display it
   res.render('scraper', {
     sources: config.sources,
     awardSources: config.awardSources,
     sourceStats: stats,
     sourceStatus,
+    cron: config.cronSchedule,
     page: 'scraper'
   });
 });
@@ -303,8 +305,9 @@ app.post('/login', async (req, res) => {
       .render('login', { error: 'Invalid credentials', page: 'login' });
   }
   // Persist minimal user info in the session
+  // Remember the logged in user and redirect to the scraper settings page
   req.session.user = { id: user.id, username: user.username };
-  res.redirect('/admin');
+  res.redirect('/scraper');
 });
 
 // Render registration form
@@ -328,8 +331,9 @@ app.post('/register', async (req, res) => {
   // Hash the password so only the digest is stored
   const hash = await bcrypt.hash(password, 10);
   await db.createUser(username, hash);
+  // Log the new user in immediately and send them to the scraper page
   req.session.user = { username };
-  res.redirect('/admin');
+  res.redirect('/scraper');
 });
 
 // Log the user out and destroy their session
@@ -652,19 +656,10 @@ app.get('/logs', (req, res) => {
 
 // GET /admin - Render the admin interface used for maintenance tasks.
 // Fetch scraping statistics and render the admin page.
-app.get('/admin', requireAuth, async (req, res) => {
-  const statsRows = await db.getSourceStats();
-  const stats = {};
-  for (const row of statsRows) {
-    stats[row.key] = row;
-  }
-  res.render('admin', {
-    sources: config.sources,
-    awardSources: config.awardSources,
-    cron: config.cronSchedule,
-    sourceStats: stats,
-    page: 'admin'
-  });
+// The dedicated admin page has been removed. Redirect any old links to the
+// scraper page which now hosts all management tools.
+app.get('/admin', requireAuth, (req, res) => {
+  res.redirect('/scraper');
 });
 
 // POST /admin/reset-db - Drop and recreate the tenders table. This allows the

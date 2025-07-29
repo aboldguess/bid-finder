@@ -23,6 +23,28 @@
     </form>
   </details> <!-- end database tools section -->
 
+  <!-- Form allowing the cron schedule to be changed dynamically -->
+  <h2>Cron Schedule</h2>
+  <form id="cronForm">
+    <label>Hour
+      <select id="cronHour"></select>
+    </label>
+    <label>Minute
+      <select id="cronMin"></select>
+    </label>
+    <label>Day
+      <select id="cronDom"></select>
+    </label>
+    <label>Month
+      <select id="cronMon"></select>
+    </label>
+    <label>Weekday
+      <select id="cronDow"></select>
+    </label>
+    <button type="submit">Update Schedule</button>
+    <span id="cronPreview"></span>
+  </form>
+
   <!-- Source list for tenders -->
   <details id="opportunitySources">
     <summary><h2>Opportunity Sources</h2></summary>
@@ -381,6 +403,70 @@ document.getElementById('deleteBeforeForm').addEventListener('submit', async e =
     alert('Old tenders removed');
   } else {
     alert('Failed to delete records');
+  }
+});
+
+// --- Cron schedule handling ----------------------------------------------
+// Populate the cron schedule dropdowns with sequential numeric options
+function fill(select, max) {
+  for (let i = 0; i <= max; i++) {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = i;
+    select.appendChild(opt);
+  }
+}
+fill(document.getElementById('cronMin'), 59);
+fill(document.getElementById('cronHour'), 23);
+fill(document.getElementById('cronDom'), 31);
+fill(document.getElementById('cronMon'), 12);
+fill(document.getElementById('cronDow'), 6);
+
+// Initialise selects based on the stored schedule from the server
+const parts = '<%= cron %>'.split(' ');
+document.getElementById('cronMin').value = parts[0];
+document.getElementById('cronHour').value = parts[1];
+document.getElementById('cronDom').value = parts[2];
+document.getElementById('cronMon').value = parts[3];
+document.getElementById('cronDow').value = parts[4];
+
+const cronPreview = document.getElementById('cronPreview');
+// Build a cron expression from the dropdowns. Cron syntax orders minute before hour.
+function buildCron() {
+  const min = document.getElementById('cronMin').value;
+  const hour = document.getElementById('cronHour').value;
+  const dom = document.getElementById('cronDom').value;
+  const mon = document.getElementById('cronMon').value;
+  const dow = document.getElementById('cronDow').value;
+  const str = `${min} ${hour} ${dom} ${mon} ${dow}`;
+  cronPreview.textContent = str;
+  return str;
+}
+document.querySelectorAll('#cronForm select').forEach(sel => sel.addEventListener('change', buildCron));
+buildCron();
+
+// Submit the new schedule via the admin API so the server restarts the cron job
+document.getElementById('cronForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const schedule = buildCron();
+  const res = await fetch('/admin/cron', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json'
+    },
+    body: JSON.stringify({ schedule })
+  });
+  if (res.status === 401) {
+    alert('Please log in first');
+    window.location = '/login';
+    return;
+  }
+  const data = await res.json().catch(() => null);
+  if (res.ok && data && data.success) {
+    alert('Schedule updated');
+  } else {
+    alert('Failed to update schedule');
   }
 });
 </script>

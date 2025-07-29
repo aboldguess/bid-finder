@@ -43,11 +43,12 @@ provide a port number to immediately launch the application:
   contracts found are shown alongside edit options.
 - **Scrape all sources** at once by visiting `/scrape-all`. Each source is
   processed sequentially and the response details which succeeded or failed.
-- **Edit or delete sources** from the admin page. Use the list of configured
-  sources to modify details or remove entries entirely.
+- **Edit or delete sources** directly on the Scraper page which lists all
+  configured entries.
 - **Manage the application** by registering at `/register`, logging in at
-  `/login` and visiting `/admin`. Once logged in your session persists for 30 days so you remain authenticated after closing the browser. Only
-  authenticated users can access admin functions.
+  `/login` and visiting `/scraper`. Once logged in your session persists for 30 days
+  so you remain authenticated after closing the browser. Only
+  authenticated users can access these management functions.
 - **Automatic scraping** runs in the background according to the `CRON_SCHEDULE`
   environment variable (default `0 6 * * *`). Results are stored in the
   database without any manual interaction.
@@ -74,8 +75,8 @@ provide a port number to immediately launch the application:
 
 ## Scheduled cron job
 
-The scraper runs automatically using `node-cron`. With the default schedule `0 6 * * *` the job executes once every day at 06:00. Adjust `CRON_SCHEDULE` to change the frequency. You can also trigger a manual scrape by visiting `/scrape` or clicking the button on the dashboard. Any changes made via the admin interface are saved in the database so the chosen schedule is retained across restarts.
-The admin page provides dropdown fields to help build the cron expression if you are unfamiliar with the syntax. The form lists the hour before the minute for readability, but the cron expression itself always uses the order _minute hour_.
+The scraper runs automatically using `node-cron`. With the default schedule `0 6 * * *` the job executes once every day at 06:00. Adjust `CRON_SCHEDULE` to change the frequency. You can also trigger a manual scrape by visiting `/scrape` or clicking the button on the dashboard. Any changes made via the Scraper page are saved in the database so the chosen schedule is retained across restarts.
+The schedule form lists the hour before the minute for readability, but the cron expression itself always uses the order _minute hour_.
 
 ## Real-time feedback
 
@@ -109,7 +110,7 @@ The dashboard includes a small form for defining additional tender sources at
 runtime. Follow these steps to register a new site:
 See the `/help` page for example configurations.
 
-1. Navigate to `/admin` and locate the **Add Source** form.
+1. Navigate to `/scraper` and locate the **Add Source** form.
 2. Enter a short **key** (letters and numbers only). This is used internally to
    identify the source.
 3. Provide a descriptive **label** which will appear in the drop-down list on
