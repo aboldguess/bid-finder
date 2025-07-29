@@ -24,17 +24,13 @@ This application scrapes new tenders from several procurement portals including 
 
 ### Raspberry Pi quickstart
 
-The repository includes small helper scripts for Raspberry Pi systems. Run the setup script once to install Node.js and initialise the database. The script is now named `rpi_bidfinder.sh`. Pass the `-p` flag to install only production dependencies:
+The repository includes small helper scripts for Raspberry Pi systems. Run the
+setup script once to install Node.js, initialise the database and optionally
+start the server. Pass the `-p` flag to install only production dependencies and
+provide a port number to immediately launch the application:
 
 ```bash
-./scripts/rpi_bidfinder.sh -p
-```
-
-To start the server on a specific port use the `run.sh` helper. Omit the
-argument to use the default port from `server/config.js`:
-
-```bash
-./scripts/run.sh 4000
+./scripts/rpi_bidfinder.sh -p 4000
 ```
 
 ## Usage
