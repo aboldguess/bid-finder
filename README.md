@@ -17,10 +17,26 @@ This application scrapes new tenders from several procurement portals including 
    node server/index.js
    ```
    If the default port is already in use the server will automatically select
-   the next free port. The UI will be available at `http://<HOST>:<PORT>`. When
-   `HOST` is set to `0.0.0.0` (the default) the server listens on all network
-   interfaces. Use the IP address of the machine in place of `<HOST>` when
-   connecting from another computer.
+  the next free port. The UI will be available at `http://<HOST>:<PORT>`. When
+  `HOST` is set to `0.0.0.0` (the default) the server listens on all network
+  interfaces. Use the IP address of the machine in place of `<HOST>` when
+  connecting from another computer.
+
+### Raspberry Pi quickstart
+
+The repository includes small helper scripts for Raspberry Pi systems. Run the
+setup script once to install Node.js and initialise the database:
+
+```bash
+./scripts/setup-pi.sh
+```
+
+To start the server on a specific port use the `run.sh` helper. Omit the
+argument to use the default port from `server/config.js`:
+
+```bash
+./scripts/run.sh 4000
+```
 
 ## Usage
 
