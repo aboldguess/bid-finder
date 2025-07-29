@@ -18,7 +18,7 @@
       <th>Link</th>
     </tr>
     <% tenders.forEach(t => { %>
-      <tr class="tenderRow" data-id="<%= t.id %>">
+      <tr class="tenderRow toggle-row" data-id="<%= t.id %>">
         <td><%= t.title %></td>
         <td><%= t.date %></td>
         <td><%= t.description %></td>
@@ -28,7 +28,7 @@
         <!-- Open award links in a new tab to keep the list available -->
         <td><a href="<%= t.link %>" target="_blank">View</a></td>
       </tr>
-      <tr class="detailRow" data-id="<%= t.id %>" style="display:none">
+      <tr class="detailRow" data-id="<%= t.id %>">
         <td colspan="7">
           <table>
             <tr><th>Title</th><td><%= t.title %></td></tr>
@@ -46,17 +46,7 @@
       <tr><td colspan="7">No awarded contracts found. Scrape an award source to populate this list.</td></tr>
     <% } %>
   </table>
-  <script>
-  // Enable clicking a row to reveal the nested detail table.
-  document.querySelectorAll('table .tenderRow').forEach(row => {
-    const id = row.dataset.id;
-    row.addEventListener('click', e => {
-      if (e.target.closest('a')) return;
-      const detail = document.querySelector(`.detailRow[data-id="${id}"]`);
-      detail.style.display = detail.style.display === 'none' ? '' : 'none';
-    });
-  });
-  </script>
+  <!-- table-tools.js handles row detail toggling and table utilities -->
   <script src="/table-tools.js"></script>
 </body>
 </html>
