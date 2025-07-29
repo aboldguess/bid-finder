@@ -254,5 +254,15 @@ function enableDetailRows(){
       if(e.target.closest('a') || e.target.closest('button')) return;
       detail.style.display = detail.style.display === 'none' ? '' : 'none';
     });
+    // Double click anywhere on the row to immediately open the edit form if
+    // one exists. This provides a quick way to modify entries without hunting
+    // for the small Edit button in the details panel.
+    row.addEventListener('dblclick', e => {
+      if(e.target.closest('a') || e.target.closest('button')) return;
+      // Ensure the detail row is visible before attempting to edit
+      detail.style.display = '';
+      const editBtn = detail.querySelector('.editBtn');
+      if(editBtn) editBtn.click();
+    });
   });
 }
