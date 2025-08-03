@@ -26,9 +26,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Ensure system packages are up to date and install Node.js and npm
+# Ensure system packages are up to date and then install Node.js.
+# The Node.js package from NodeSource already includes npm; installing the
+# separate `npm` package causes conflicts with this bundled version, so we
+# avoid installing it explicitly.
 sudo apt-get update
-sudo apt-get install -y nodejs npm
+sudo apt-get install -y nodejs
 
 # Install Node.js dependencies; limit to production packages when requested
 if [[ $PROD -eq 1 ]]; then
