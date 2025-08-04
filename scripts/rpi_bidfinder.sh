@@ -31,6 +31,12 @@ done
 # separate `npm` package causes conflicts with this bundled version, so we
 # avoid installing it explicitly.
 sudo apt-get update
+
+# Remove any previously installed standalone npm package to avoid conflicts
+# with the bundled npm from NodeSource's Node.js package. Suppress errors if
+# npm is not present so the script can proceed.
+sudo apt-get purge -y npm || true
+
 sudo apt-get install -y nodejs
 
 # Install Node.js dependencies; limit to production packages when requested
