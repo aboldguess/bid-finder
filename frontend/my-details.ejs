@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>My Details</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <h1>My Details</h1>
+  <!-- Shared navigation including profile actions -->
+  <%- include('partials/nav', { page: 'my-details', user: user }) %>
+  <!-- Simple explanation ensures users know what to do -->
+  <p>Review and update your personal information on this page.</p>
+</body>
+</html>

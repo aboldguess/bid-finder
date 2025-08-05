@@ -341,6 +341,38 @@ app.get('/logout', (req, res) => {
   req.session.destroy(() => res.redirect('/'));
 });
 
+// Profile and account management pages -------------------------------------
+
+// Display placeholder screen for managing multiple profiles
+app.get('/profiles', requireAuth, (req, res) => {
+  logger.info('User %s accessed Manage Profiles', req.session.user.username);
+  res.render('manage-profiles', { page: 'profiles' });
+});
+
+// Provide learning resources to the user
+app.get('/learning', requireAuth, (req, res) => {
+  logger.info('User %s opened Learning Zone', req.session.user.username);
+  res.render('learning-zone', { page: 'learning' });
+});
+
+// Show editable details for the current account
+app.get('/my-details', requireAuth, (req, res) => {
+  logger.info('User %s viewing My Details', req.session.user.username);
+  res.render('my-details', { page: 'my-details' });
+});
+
+// Present subscription and billing information
+app.get('/subscription', requireAuth, (req, res) => {
+  logger.info('User %s viewing Subscription Details', req.session.user.username);
+  res.render('subscription-details', { page: 'subscription' });
+});
+
+// Administration area for managing other users
+app.get('/manage-users', requireAuth, (req, res) => {
+  logger.info('User %s accessed Manage Users', req.session.user.username);
+  res.render('manage-users', { page: 'manage-users' });
+});
+
 // POST /sources - Add a new scraping source at runtime. The request should
 // include a unique key along with label, url and base properties. Sources are
 // stored in memory so they persist only for the lifetime of the process.
