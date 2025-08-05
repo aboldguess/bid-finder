@@ -14,7 +14,6 @@
       <th>Description</th>
       <th data-type="source">Source</th>
       <!-- Track when each award was retrieved -->
-      <th data-type="date">Date Scraped</th>
       <th data-type="date">Scraped At</th>
       <th>Tags</th>
       <th>Link</th>
@@ -25,8 +24,6 @@
         <td><%= t.date %></td>
         <td><%= t.description %></td>
         <td><%= t.source %></td>
-        <!-- Date only keeps table compact -->
-        <td><%= t.scraped_at ? t.scraped_at.slice(0,10) : '' %></td>
         <!-- Full timestamp available for investigations -->
         <td><%= t.scraped_at %></td>
         <td><%= t.tags %></td>
@@ -34,14 +31,12 @@
         <td><a href="<%= t.link %>" target="_blank">View</a></td>
       </tr>
       <tr class="detailRow" data-id="<%= t.id %>">
-        <td colspan="8">
+        <td colspan="7">
           <table>
             <tr><th>Title</th><td><%= t.title %></td></tr>
             <tr><th>Date</th><td><%= t.date %></td></tr>
             <tr><th>Description</th><td><%= t.description %></td></tr>
             <tr><th>Source</th><td><%= t.source %></td></tr>
-            <!-- Date component for quick reference -->
-            <tr><th>Date Scraped</th><td><%= t.scraped_at ? t.scraped_at.slice(0,10) : '' %></td></tr>
             <!-- Timestamp for precise audit trail -->
             <tr><th>Scraped At</th><td><%= t.scraped_at %></td></tr>
             <tr><th>Tags</th><td><%= t.tags %></td></tr>
@@ -51,7 +46,7 @@
       </tr>
     <% }) %>
     <% if (tenders.length === 0) { %>
-      <tr><td colspan="8">No awarded contracts found. Scrape an award source to populate this list.</td></tr>
+      <tr><td colspan="7">No awarded contracts found. Scrape an award source to populate this list.</td></tr>
     <% } %>
   </table>
   <!-- table-tools.js handles row detail toggling and table utilities -->
