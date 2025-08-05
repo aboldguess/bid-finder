@@ -7,7 +7,9 @@
 <body>
   <h1>Opportunities</h1>
   <%- include('partials/nav', { page: 'opportunities', user: user }) %>
-  <table>
+  <!-- data-server-pagination tells table-tools.js that navigation is handled
+       by the server so client side pagination should be disabled -->
+  <table data-server-pagination="true">
     <tr>
       <th>Title</th>
       <th data-type="date">Date</th>
