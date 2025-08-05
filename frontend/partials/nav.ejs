@@ -7,8 +7,43 @@
   <li class="<%= page === 'stats' ? 'active' : '' %>"><a href="/stats">Stats</a></li>
   <li class="<%= page === 'help' ? 'active' : '' %>"><a href="/help">Help</a></li>
   <% if (user) { %>
-    <li class="right"><a href="/logout">Logout</a></li>
+    <!-- Profile dropdown shown when user is authenticated -->
+    <li class="right profile-menu">
+      <!-- Button displays user's initial as avatar -->
+      <button id="profileButton" aria-label="User menu" aria-expanded="false">
+        <span class="avatar"><%= user.username.charAt(0).toUpperCase() %></span>
+      </button>
+      <ul id="profileDropdown" class="profile-dropdown hidden">
+        <li><a href="/profiles">Manage Profiles</a></li>
+        <li><a href="/learning">Learning Zone</a></li>
+        <li><a href="/my-details">My Details</a></li>
+        <li><a href="/subscription">Subscription Details</a></li>
+        <li><a href="/manage-users">Manage Users</a></li>
+        <li><a href="/logout">Sign out</a></li>
+      </ul>
+    </li>
   <% } else { %>
     <li class="right"><a href="/login">Login</a></li>
   <% } %>
 </ul>
+<!-- Simple script toggles the profile dropdown for debugging and clarity -->
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('profileButton');
+    const menu = document.getElementById('profileDropdown');
+    if (btn && menu) {
+      // Toggle menu visibility when the avatar is clicked
+      btn.addEventListener('click', () => {
+        menu.classList.toggle('hidden');
+        btn.setAttribute('aria-expanded', !menu.classList.contains('hidden'));
+      });
+      // Hide the menu when clicking outside of it
+      document.addEventListener('click', evt => {
+        if (!btn.contains(evt.target) && !menu.contains(evt.target)) {
+          menu.classList.add('hidden');
+          btn.setAttribute('aria-expanded', 'false');
+        }
+      });
+    }
+  });
+</script>
