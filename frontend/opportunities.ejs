@@ -15,8 +15,7 @@
       <th data-type="date">Date</th>
       <th>Description</th>
       <th data-type="source">Source</th>
-      <!-- New column showing when the tender was scraped (date only) -->
-      <th data-type="date">Date Scraped</th>
+      <!-- Timestamp indicating when each tender was scraped -->
       <th data-type="date">Scraped At</th>
       <th>Tags</th>
       <th>Link</th>
@@ -28,23 +27,19 @@
         <td><%= t.date %></td>
         <td><%= t.description %></td>
         <td><%= t.source %></td>
-        <!-- Strip time for concise display -->
-        <td><%= t.scraped_at ? t.scraped_at.slice(0,10) : '' %></td>
-        <!-- Full timestamp retained for precise auditing -->
+        <!-- Full timestamp retained for precise auditing and debugging -->
         <td><%= t.scraped_at %></td>
         <td><%= t.tags %></td>
         <!-- Open tender links in a new tab so the dashboard stays visible -->
         <td><a href="<%= t.link %>" target="_blank">View</a></td>
       </tr>
       <tr class="detailRow" data-id="<%= t.id %>">
-        <td colspan="8">
+        <td colspan="7">
           <table>
             <tr><th>Title</th><td><%= t.title %></td></tr>
             <tr><th>Date</th><td><%= t.date %></td></tr>
             <tr><th>Description</th><td><%= t.description %></td></tr>
             <tr><th>Source</th><td><%= t.source %></td></tr>
-            <!-- Date only field aids quick visual scanning -->
-            <tr><th>Date Scraped</th><td><%= t.scraped_at ? t.scraped_at.slice(0,10) : '' %></td></tr>
             <!-- Raw timestamp preserved for debugging -->
             <tr><th>Scraped At</th><td><%= t.scraped_at %></td></tr>
             <tr><th>Tags</th><td><%= t.tags %></td></tr>
@@ -54,7 +49,7 @@
       </tr>
     <% }) %>
   <% if (tenders.length === 0) { %>
-      <tr><td colspan="8">No opportunities found. Try running the scraper.</td></tr>
+      <tr><td colspan="7">No opportunities found. Try running the scraper.</td></tr>
   <% } %>
   </table>
   <div class="server-pagination">
