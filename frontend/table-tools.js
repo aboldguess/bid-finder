@@ -70,9 +70,15 @@ function enhanceTable(table) {
       filters[idx] = row => {
         const text = row.children[idx].textContent.trim();
         const cellDate = text ? new Date(text) : null;
-        if (!cellDate) return false;
         const fromVal = from.value ? new Date(from.value) : null;
         const toVal = to.value ? new Date(to.value) : null;
+        // Rows without a valid date should remain visible when no date
+        // filters are active. Previously such rows were always hidden,
+        // causing entire tables to appear empty if some entries lacked
+        // dates.
+        if (!cellDate || isNaN(cellDate)) {
+          return !(fromVal || toVal);
+        }
         if (fromVal && cellDate < fromVal) return false;
         if (toVal && cellDate > toVal) return false;
         return true;
