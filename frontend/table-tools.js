@@ -12,6 +12,10 @@ function enhanceTable(table) {
   const headerRow = table.rows[0];
   if (!headerRow) return;
   const headers = Array.from(headerRow.cells);
+  // Tables can declare they are already paginated on the server by setting
+  // data-server-pagination. In that case client side pagination should be
+  // disabled to avoid conflicting "page x of y" displays.
+  const serverPaginated = table.dataset.serverPagination === 'true';
 
   // Build a list of data rows and store references to accompanying detail rows
   // (if present). These pairs are used for filtering, sorting and pagination so
@@ -120,31 +124,34 @@ function enhanceTable(table) {
 
   // Pagination state: how many rows to show per page and the current page.
   // Larger tables can slow down the browser when rendered in full, so we
-  // cap the number of visible rows at 100. Adjust pageSize here to change the
-  // default across all tables.
+  // cap the number of visible rows at 100 by default. When the table is
+  // serverPaginated we still track these values but do not render navigation.
   const pageSize = 100;
   let currentPage = 0;
   let filteredCount = pairs.length;
 
-  // Navigation controls inserted after the table.
-  const pager = document.createElement('div');
-  pager.className = 'pagination';
-  const prevBtn = document.createElement('button');
-  prevBtn.textContent = 'Prev';
-  const info = document.createElement('span');
-  const nextBtn = document.createElement('button');
-  nextBtn.textContent = 'Next';
-  pager.append(prevBtn, info, nextBtn);
-  table.parentNode.insertBefore(pager, table.nextSibling);
+  let pager, prevBtn, nextBtn, info;
+  if (!serverPaginated) {
+    // Navigation controls inserted after the table.
+    pager = document.createElement('div');
+    pager.className = 'pagination';
+    prevBtn = document.createElement('button');
+    prevBtn.textContent = 'Prev';
+    info = document.createElement('span');
+    nextBtn = document.createElement('button');
+    nextBtn.textContent = 'Next';
+    pager.append(prevBtn, info, nextBtn);
+    table.parentNode.insertBefore(pager, table.nextSibling);
 
-  prevBtn.addEventListener('click', () => {
-    if (currentPage > 0) showPage(currentPage - 1);
-  });
-  nextBtn.addEventListener('click', () => {
-    if (currentPage < Math.ceil(filteredCount / pageSize) - 1) {
-      showPage(currentPage + 1);
-    }
-  });
+    prevBtn.addEventListener('click', () => {
+      if (currentPage > 0) showPage(currentPage - 1);
+    });
+    nextBtn.addEventListener('click', () => {
+      if (currentPage < Math.ceil(filteredCount / pageSize) - 1) {
+        showPage(currentPage + 1);
+      }
+    });
+  }
 
   // Apply initial filters and show the first page.
   applyFilters();
@@ -198,12 +205,14 @@ function enhanceTable(table) {
         icon.textContent = '';
       }
     });
-    // After sorting redisplay the current page so ordering takes effect
+    // After sorting redisplay the current page so ordering takes effect.
     showPage(currentPage);
   }
 
   /**
    * Display a specific page of results based on the current filter set.
+   * When serverPaginated is true all filtered rows are shown without
+   * client-side paging.
    * @param {number} page Page index starting from 0
    */
   function showPage(page) {
@@ -217,18 +226,21 @@ function enhanceTable(table) {
         if (p.detail) p.detail.style.display = 'none';
         return;
       }
-      if (index >= start && index < start + pageSize) {
+      if (serverPaginated || (index >= start && index < start + pageSize)) {
         p.main.style.display = '';
+        if (p.detail) p.detail.style.display = '';
       } else {
         p.main.style.display = 'none';
         if (p.detail) p.detail.style.display = 'none';
       }
       index++;
     });
-    const totalPages = Math.max(1, Math.ceil(filteredCount / pageSize));
-    info.textContent = `Page ${currentPage + 1} of ${totalPages}`;
-    prevBtn.disabled = currentPage === 0;
-    nextBtn.disabled = currentPage >= totalPages - 1;
+    if (!serverPaginated) {
+      const totalPages = Math.max(1, Math.ceil(filteredCount / pageSize));
+      info.textContent = `Page ${currentPage + 1} of ${totalPages}`;
+      prevBtn.disabled = currentPage === 0;
+      nextBtn.disabled = currentPage >= totalPages - 1;
+    }
   }
 }
 
