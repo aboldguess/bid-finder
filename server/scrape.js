@@ -1,5 +1,7 @@
 const fetch = require('node-fetch');
 const { parseTenders } = require('./htmlParser');
+// Detail pages expose additional metadata such as CPV classifications.
+const { parseTenderDetails } = require('./detailParser');
 const db = require('./db');
 const config = require('./config');
 const logger = require('./logger');
@@ -187,8 +189,22 @@ async function runInternal(onProgress, sourceKey, source) {
       const date = tender.date;
       const desc = tender.desc;
       const organisation = tender.organisation;
+      const supplier = tender.supplier;
       const ocid = tender.ocid || null;
       const tags = generateTags(title, desc);
+
+      // Fetch the detail page to extract CPV codes and any other metadata.
+      let cpvCodes = [];
+      try {
+        const resDetail = await fetch(link, { headers });
+        const detailHtml = await resDetail.text();
+        const details = parseTenderDetails(detailHtml);
+        cpvCodes = details.cpv;
+      } catch (err) {
+        // Detail pages occasionally fail to load; log the error but continue.
+        logger.error('Failed to fetch tender details:', err);
+      }
+
       // Include metadata about where and when the tender was scraped so
       // the dashboard can display this context to the user.
       const srcLabel = src.label;
@@ -206,7 +222,8 @@ async function runInternal(onProgress, sourceKey, source) {
           srcLabel,
           scrapedAt,
           tags.join(','),
-          ocid
+          ocid,
+          cpvCodes.join(',')
         );
 
         if (inserted) {
@@ -214,6 +231,13 @@ async function runInternal(onProgress, sourceKey, source) {
           if (organisation) {
             try {
               await db.insertOrganisation(organisation, 'customer');
+            } catch (err) {
+              logger.error('Error inserting organisation:', err);
+            }
+          }
+          if (supplier) {
+            try {
+              await db.insertOrganisation(supplier, 'supplier');
             } catch (err) {
               logger.error('Error inserting organisation:', err);
             }

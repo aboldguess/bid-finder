@@ -1,9 +1,17 @@
-// Parser for detailed award pages. Extracts structured fields from
-// page text so results can be stored consistently across sources.
-// The input is expected to be HTML or plain text containing headings
-// like "Location of contract" followed by the corresponding value on
-// the next line. The parser returns an object with keys matching the
-// database columns used to store additional award information.
+// Parser utilities for tender and award detail pages. The scrapers fetch
+// individual opportunity pages to obtain richer metadata that is not
+// available in listing feeds. Each parser normalises the input HTML into
+// a simple JavaScript object so the rest of the code can work with
+// consistent structures.
+
+// ---------------------------------------------------------------------------
+// Award detail parser
+// ---------------------------------------------------------------------------
+// Extracts structured fields from an awarded contract page. The input is
+// expected to be HTML or plain text containing headings like
+// "Location of contract" followed by the corresponding value on the next
+// line. The parser returns an object with keys matching the database columns
+// used to store additional award information.
 
 function parseAwardDetails(html) {
   // Strip HTML tags and normalise line endings to simplify regex matching.
@@ -93,4 +101,26 @@ function parseAwardDetails(html) {
   return out;
 }
 
-module.exports = { parseAwardDetails };
+// ---------------------------------------------------------------------------
+// Tender detail parser
+// ---------------------------------------------------------------------------
+/**
+ * Parse a tender's detail page to extract CPV classification codes. The
+ * function is intentionally lightweight and uses a simple regular expression
+ * to locate eight digit CPV codes anywhere in the page text. Duplicates are
+ * removed and the codes are returned as an array.
+ *
+ * @param {string} html - Raw HTML of the opportunity detail page
+ * @returns {{cpv: string[]}} Object containing an array of unique CPV codes
+ */
+function parseTenderDetails(html) {
+  // Remove HTML tags so the regex can work on plain text. Collapsing
+  // whitespace avoids spurious blank entries when splitting later.
+  const text = html.replace(/<[^>]*>/g, ' ');
+  // CPV codes are eight digit numbers. Collect all matches and de-duplicate
+  // them to ensure the caller receives a unique list.
+  const cpv = Array.from(new Set(text.match(/\b\d{8}\b/g) || []));
+  return { cpv };
+}
+
+module.exports = { parseAwardDetails, parseTenderDetails };

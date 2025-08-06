@@ -30,27 +30,43 @@ db.serialize(() => {
     /* Time the tender was scraped (ISO string) */
     scraped_at TEXT,
     /* Comma separated tags generated from the title/description */
-    tags TEXT
+    tags TEXT,
+    /* Comma separated CPV classification codes */
+    cpv TEXT
   )`);
-  // Older installations may lack the OCID column. Check the table schema and
-  // add the column if required so inserts do not fail.
+  // Older installations may lack the OCID or CPV columns. Check the table
+  // schema and add any missing columns so inserts do not fail.
   db.all('PRAGMA table_info(tenders)', (err, cols) => {
     if (err) return logger.error('Failed to read schema:', err);
     const hasOcid = cols.some(c => c.name === 'ocid');
-    const ensureIndex = () =>
+    const hasCpv = cols.some(c => c.name === 'cpv');
+    const ensureOcidIndex = () =>
       db.run(
         'CREATE UNIQUE INDEX IF NOT EXISTS idx_tenders_ocid ON tenders(ocid)'
       );
+    const ensureCpvIndex = () =>
+      db.run('CREATE INDEX IF NOT EXISTS idx_tenders_cpv ON tenders(cpv)');
     if (!hasOcid) {
       db.run('ALTER TABLE tenders ADD COLUMN ocid TEXT', alterErr => {
         if (alterErr) {
           return logger.error('Failed to add ocid column:', alterErr);
         }
-        ensureIndex();
+        ensureOcidIndex();
         logger.info('Added missing ocid column to tenders table');
       });
     } else {
-      ensureIndex();
+      ensureOcidIndex();
+    }
+    if (!hasCpv) {
+      db.run('ALTER TABLE tenders ADD COLUMN cpv TEXT', alterErr => {
+        if (alterErr) {
+          return logger.error('Failed to add cpv column:', alterErr);
+        }
+        ensureCpvIndex();
+        logger.info('Added missing cpv column to tenders table');
+      });
+    } else {
+      ensureCpvIndex();
     }
   });
   // Small metadata table used to store global key/value pairs such as the
@@ -171,13 +187,14 @@ module.exports = {
     source,
     scrapedAt,
     tags,
-    ocid = null
+    ocid = null,
+    cpv = ''
   ) => {
     return new Promise((resolve, reject) => {
       db.run(
         // Use INSERT OR IGNORE so that duplicate links or OCIDs are skipped silently.
-        "INSERT OR IGNORE INTO tenders (title, link, ocid, date, description, source, scraped_at, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        [title, link, ocid, date, description, source, scrapedAt, tags],
+        "INSERT OR IGNORE INTO tenders (title, link, ocid, date, description, source, scraped_at, tags, cpv) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [title, link, ocid, date, description, source, scrapedAt, tags, cpv],
         function (err) {
           if (err) {
             // Propagate database errors to the caller.

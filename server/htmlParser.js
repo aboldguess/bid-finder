@@ -20,9 +20,11 @@ function parseContractsFinder(html) {
   let blockMatch;
   while ((blockMatch = blockRe.exec(html))) {
     const block = blockMatch[2];
+    const h2 = /<h2[^>]*>(.*?)<\/h2>/i.exec(block);
     const link = /<a[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/i.exec(block);
-    // Some templates place the title inside the anchor, others in a sibling h2
-    const title = link ? clean(link[2]) : clean(/<h2[^>]*>(.*?)<\/h2>/i.exec(block)?.[1] || '');
+    // Prefer the <h2> title when present as some templates use generic
+    // link text like "View" alongside a separate heading.
+    const title = h2 ? clean(h2[1]) : link ? clean(link[2]) : '';
     const href = link ? link[1] : /<a[^>]*href="([^"]+)"/i.exec(block)?.[1] || '';
     const dateMatch =
       /<time[^>]*>(.*?)<\/time>/i.exec(block) ||

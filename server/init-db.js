@@ -27,7 +27,8 @@ db.serialize(() => {
     description TEXT,
     source TEXT,
     scraped_at TEXT,
-    tags TEXT
+    tags TEXT,
+    cpv TEXT
   )`);
   db.run(`CREATE TABLE IF NOT EXISTS awards (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
