@@ -9,14 +9,24 @@ in the database allowing future filters by procurement category.
 ## Setup
 
 1. Install dependencies:
-   ```bash
-   npm install
-   ```
+ ```bash
+  npm install
+  ```
 2. Initialise the database:
-   ```bash
-   npm run init-db
-   ```
-3. Start the server:
+  ```bash
+  npm run init-db
+  ```
+3. Set a strong session secret so login cookies can be safely signed. Replace
+   the example text with your own random string.
+   - **Linux/macOS/Raspberry Pi**
+     ```bash
+     export SESSION_SECRET="change_me_to_a_random_string"
+     ```
+   - **Windows PowerShell**
+     ```powershell
+     $env:SESSION_SECRET="change_me_to_a_random_string"
+     ```
+4. Start the server:
    ```bash
    node server/index.js
    ```
@@ -64,6 +74,9 @@ provide a port number to immediately launch the application:
 - `HOST` - interface the server listens on (default `0.0.0.0`).
 - `FRONTEND_DIR` - directory for templates and static files.
 - `DB_FILE` - path to the SQLite database file.
+- `SESSION_SECRET` - **required** secret used to sign session cookies. The server
+  exits on startup if this is missing. Generate a long random string for
+  production use.
 - `SCRAPE_URL` - URL used to fetch tender data for the default Contracts Finder feed.
 - `SCRAPE_BASE` - base URL prepended to scraped tender links.
 - `EUSUPPLY_URL` and `EUSUPPLY_BASE` - overrides for the built-in EU Supply source.
@@ -107,6 +120,13 @@ All console output is also written to `logs/app.log` so you can review what the
 scraper was doing after it finishes. The log file persists across restarts and
 includes messages for every tender processed. If no new tenders are stored the
 log will explain whether none were found or all were detected as duplicates.
+
+## Session storage
+
+User login sessions persist across server restarts using a small SQLite database
+(`sessions.sqlite`) created in the project root. The database is managed via the
+`connect-sqlite3` library and can be safely backed up or removed to clear all
+sessions.
 
 ## Adding new sources
 

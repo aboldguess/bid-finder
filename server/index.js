@@ -1,11 +1,20 @@
+/**
+ * @file index.js
+ * @description Entry point for the HTTP server powering the procurement scraper
+ * application. It configures Express, persistent sessions, scheduling and all
+ * HTTP routes exposed by the service.
+ */
 const express = require('express');
+const session = require('express-session');
+// Persist session data to disk so that logins survive server restarts.
+const SQLiteStore = require('connect-sqlite3')(session);
+const path = require('path');
 const db = require('./db');
 const scrape = require('./scrape');
 const scrapeAwarded = require('./scrapeAwarded');
 const cron = require('node-cron');
 const config = require('./config');
 const logger = require('./logger');
-const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const fetch = require('node-fetch');
 const { parseTenders } = require('./htmlParser');
@@ -113,17 +122,34 @@ function openBrowser(url) {
 app.use(express.json());
 // Parse URL-encoded form bodies used by the login and registration forms
 app.use(express.urlencoded({ extended: false }));
-// Simple session middleware storing session data in memory. In production a
-// persistent store should be used instead.
+
+// Sessions are now persisted to a SQLite file instead of memory. A strong
+// SESSION_SECRET **must** be provided or the server exits immediately to
+// avoid running with an insecure default.
+const sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret) {
+  logger.error('SESSION_SECRET environment variable is required');
+  process.exit(1);
+}
+
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || 'change_this_secret',
+    store: new SQLiteStore({
+      // Place the session database at the project root for easy backup.
+      db: 'sessions.sqlite',
+      dir: path.join(__dirname, '..')
+    }),
+    secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
-    // Persist the session cookie for 30 days so users remain logged in
-    // even after closing the browser. The in-memory store still means
-    // sessions are lost if the server restarts.
-    cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 }
+    // Persist the session cookie for 30 days and harden it against common
+    // attacks. The secure flag requires HTTPS in production.
+    cookie: {
+      secure: true,
+      httpOnly: true,
+      sameSite: 'lax',
+      maxAge: 30 * 24 * 60 * 60 * 1000
+    }
   })
 );
 
