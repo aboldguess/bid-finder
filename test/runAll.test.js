@@ -9,8 +9,16 @@ process.env.DB_FILE = ':memory:';
 delete require.cache[require.resolve('../server/db')];
 const db = require('../server/db');
 
-const html = fs.readFileSync(path.join(__dirname, 'mock.html'), 'utf8');
-const fetchStub = sinon.stub().resolves({ text: async () => html });
+const htmlA = fs.readFileSync(path.join(__dirname, 'mock.html'), 'utf8');
+// Second listing uses different OCIDs so inserts are not treated as duplicates.
+const htmlB = htmlA.replace('ocds-1', 'ocds-3').replace('ocds-2', 'ocds-4');
+const fetchStub = sinon.stub();
+fetchStub.onCall(0).resolves({ text: async () => htmlA });
+fetchStub.onCall(1).resolves({ text: async () => '<div></div>' });
+fetchStub.onCall(2).resolves({ text: async () => '<div></div>' });
+fetchStub.onCall(3).resolves({ text: async () => htmlB });
+fetchStub.onCall(4).resolves({ text: async () => '<div></div>' });
+fetchStub.onCall(5).resolves({ text: async () => '<div></div>' });
 
 const configStub = {
   sources: {

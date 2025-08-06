@@ -14,7 +14,12 @@ const db = require('../server/db');
 const html = fs.readFileSync(path.join(__dirname, 'mock.html'), 'utf8');
 
 // Stub fetch so scrape.js receives predictable HTML without making a network call.
-const fetchStub = sinon.stub().resolves({ text: async () => html });
+// The first call returns the listing HTML. Subsequent calls return detail pages
+// containing CPV codes for each opportunity.
+const fetchStub = sinon.stub();
+fetchStub.onCall(0).resolves({ text: async () => html });
+fetchStub.onCall(1).resolves({ text: async () => '<div>CPV 12345678</div>' });
+fetchStub.onCall(2).resolves({ text: async () => '<div>CPV 87654321</div>' });
 
 // Proxyquire allows us to inject the stubbed fetch and the real db instance when
 // requiring the scraper module.
@@ -33,6 +38,8 @@ describe('scrape.run', () => {
     expect(rows[0]).to.have.property('scraped_at');
     expect(rows[0]).to.have.property('tags');
     expect(rows[0]).to.have.property('ocid');
+    expect(rows[0]).to.have.property('cpv');
+    expect(rows.map(r => r.cpv)).to.deep.equal(['87654321', '12345678']);
     const ts = await db.getLastScraped();
     expect(ts).to.be.a('string');
     const cust = await db.getOrganisationsByType('customer');

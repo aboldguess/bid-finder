@@ -2,6 +2,10 @@
 
 This application scrapes new tenders from several procurement portals including the UK government's Contracts Finder website, the EU Supply portal and example sources like Sell2Wales and UKRI. Results are stored in a local SQLite database so you can browse them even after the scraper has finished running.
 
+Each opportunity's detail page is also fetched so that additional metadata,
+including any CPV classification codes, can be captured. CPV codes are indexed
+in the database allowing future filters by procurement category.
+
 ## Setup
 
 1. Install dependencies:

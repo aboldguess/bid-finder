@@ -1,5 +1,5 @@
 const { expect } = require('chai');
-const { parseAwardDetails } = require('../server/detailParser');
+const { parseAwardDetails, parseTenderDetails } = require('../server/detailParser');
 
 describe('parseAwardDetails', () => {
   it('extracts fields from award page text', () => {
@@ -63,5 +63,13 @@ transportationprocurement@kier.co.uk`;
     expect(d.contract_type).to.equal('Works');
     expect(d.suitable_for_sme).to.equal(true);
     expect(d.buyer_email).to.equal('transportationprocurement@kier.co.uk');
+  });
+});
+
+describe('parseTenderDetails', () => {
+  it('extracts unique CPV codes from HTML', () => {
+    const html = '<div>CPV: 12345678, 12345678 and 87654321</div>';
+    const d = parseTenderDetails(html);
+    expect(d.cpv).to.deep.equal(['12345678', '87654321']);
   });
 });
