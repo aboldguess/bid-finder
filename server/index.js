@@ -24,6 +24,39 @@ const { exec } = require('child_process');
 // Helper for persisting custom source definitions outside the database.
 const sourceStore = require('./sourceStore');
 
+// Build an allow list of domains permitted when defining new sources. This
+// prevents the application from being tricked into fetching arbitrary URLs
+// which could be used for SSRF or similar attacks. Domains are derived from the
+// statically configured sources but can be extended via the
+// ALLOWED_SOURCE_DOMAINS environment variable.
+const allowedDomains = new Set([
+  ...Object.values(config.sources).map(s => new URL(s.base).hostname),
+  ...Object.values(config.awardSources).map(s => new URL(s.base).hostname)
+]);
+if (process.env.ALLOWED_SOURCE_DOMAINS) {
+  for (const dom of process.env.ALLOWED_SOURCE_DOMAINS.split(',')) {
+    const trimmed = dom.trim().toLowerCase();
+    if (trimmed) allowedDomains.add(trimmed);
+  }
+}
+
+/**
+ * Determine whether a provided URL is permitted based on protocol and
+ * hostname. Only HTTPS URLs whose hostname appears in the allow list are
+ * accepted.
+ *
+ * @param {string} candidate - URL to validate
+ * @returns {boolean} true when the URL is allowed
+ */
+function isAllowedUrl(candidate) {
+  try {
+    const { protocol, hostname } = new URL(candidate);
+    return protocol === 'https:' && allowedDomains.has(hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
 const app = express();
 // Store per-source status strings for display on the scraper screen. Keys
 // correspond to source identifiers with values like "ok" or an error message.
@@ -422,6 +455,10 @@ app.post('/sources', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Invalid characters in key or label' });
   }
 
+  if (!isAllowedUrl(url) || !isAllowedUrl(base)) {
+    return res.status(400).json({ error: 'URL not permitted' });
+  }
+
   if (config.sources[key]) {
     return res.status(400).json({ error: 'Source key already exists' });
   }
@@ -457,6 +494,10 @@ app.put('/sources/:key', requireAuth, async (req, res) => {
 
   if (/[<>]/.test(key) || /[<>]/.test(label)) {
     return res.status(400).json({ error: 'Invalid characters in key or label' });
+  }
+
+  if (!isAllowedUrl(url) || !isAllowedUrl(base)) {
+    return res.status(400).json({ error: 'URL not permitted' });
   }
 
   try {
@@ -509,6 +550,10 @@ app.post('/award-sources', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Invalid characters in key or label' });
   }
 
+  if (!isAllowedUrl(url) || !isAllowedUrl(base)) {
+    return res.status(400).json({ error: 'URL not permitted' });
+  }
+
   try {
     await db.insertAwardSource(key, label, url, base, parser);
     config.awardSources[key] = { label, url, base, parser };
@@ -536,6 +581,10 @@ app.put('/award-sources/:key', requireAuth, async (req, res) => {
 
   if (/[<>]/.test(key) || /[<>]/.test(label)) {
     return res.status(400).json({ error: 'Invalid characters in key or label' });
+  }
+
+  if (!isAllowedUrl(url) || !isAllowedUrl(base)) {
+    return res.status(400).json({ error: 'URL not permitted' });
   }
 
   try {
