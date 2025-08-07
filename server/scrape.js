@@ -212,6 +212,7 @@ async function runInternal(onProgress, sourceKey, source) {
 
       // Fetch the detail page to extract CPV codes and any other metadata.
       let cpvCodes = [];
+      let details = {};
       try {
         const resDetail = await fetch(link, {
           headers,
@@ -219,7 +220,7 @@ async function runInternal(onProgress, sourceKey, source) {
           size: MAX_RESPONSE_SIZE
         });
         const detailHtml = await resDetail.text();
-        const details = parseTenderDetails(detailHtml);
+        details = parseTenderDetails(detailHtml);
         cpvCodes = details.cpv;
       } catch (err) {
         // Detail pages occasionally fail to load; log the error but continue.
@@ -239,19 +240,26 @@ async function runInternal(onProgress, sourceKey, source) {
           title,
           link,
           date,
-          desc,
+          details.description || desc,
           srcLabel,
           scrapedAt,
           tags.join(','),
           ocid,
-          cpvCodes.join(',')
+          cpvCodes.join(','),
+          details.open_date || date,
+          details.deadline || '',
+          details.customer || organisation || '',
+          details.address || '',
+          details.country || '',
+          details.eligibility || ''
         );
 
         if (inserted) {
           count += 1;
-          if (organisation) {
+          const orgName = details.customer || organisation;
+          if (orgName) {
             try {
-              await db.insertOrganisation(organisation, 'customer');
+              await db.insertOrganisation(orgName, 'customer');
             } catch (err) {
               logger.error('Error inserting organisation:', err);
             }

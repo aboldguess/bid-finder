@@ -28,7 +28,13 @@ db.serialize(() => {
     source TEXT,
     scraped_at TEXT,
     tags TEXT,
-    cpv TEXT
+    cpv TEXT,
+    open_date TEXT,
+    deadline TEXT,
+    customer TEXT,
+    address TEXT,
+    country TEXT,
+    eligibility TEXT
   )`);
   db.run(`CREATE TABLE IF NOT EXISTS awards (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -91,12 +97,39 @@ db.serialize(() => {
     last_scraped TEXT,
     last_added INTEGER,
     total INTEGER
+  )`);
+  db.run(`CREATE TABLE IF NOT EXISTS cpv_codes (
+    code TEXT PRIMARY KEY,
+    description TEXT
   )`, err => {
     if (err) {
       logger.error('Failed to create table:', err);
-    } else {
-      logger.info('Database initialised');
+      db.close();
+      return;
     }
-    db.close();
+    // Load the official CPV code list into the database so lookups can be performed later.
+    const fs = require('fs');
+    const path = require('path');
+    const file = path.join(__dirname, '..', 'cpv_2008_xml', 'cpv_2008.xml');
+    fs.readFile(file, 'utf8', (readErr, data) => {
+      if (readErr) {
+        logger.error('Failed to read CPV XML:', readErr);
+        db.close();
+        return;
+      }
+      const regex = /<CPV CODE="(\d{8})-\d">([\s\S]*?)<\/CPV>/g;
+      const stmt = db.prepare('INSERT OR IGNORE INTO cpv_codes (code, description) VALUES (?, ?)');
+      let m;
+      while ((m = regex.exec(data)) !== null) {
+        const code = m[1];
+        const block = m[2];
+        const d = (block.match(/<TEXT LANG="EN">([^<]+)<\/TEXT>/) || [])[1] || '';
+        stmt.run(code, d.trim());
+      }
+      stmt.finalize(() => {
+        logger.info('Database initialised');
+        db.close();
+      });
+    });
   });
 });
