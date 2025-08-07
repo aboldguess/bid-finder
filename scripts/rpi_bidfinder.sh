@@ -50,8 +50,11 @@ fi
 npm run init-db # create the SQLite database
 
 # Launch the application when a port number is supplied. The run.sh helper
-# exports PORT before starting the Node.js server.
+# exports PORT before starting the Node.js server. The server is started in the
+# background so this script exits immediately.
 if [[ -n "$PORT" ]]; then
   ./scripts/run.sh "$PORT"
 fi
+
+echo "Setup complete."
 
