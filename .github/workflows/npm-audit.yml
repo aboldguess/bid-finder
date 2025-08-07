@@ -1,0 +1,25 @@
+# Workflow: npm audit security check
+# Summary: Runs `npm audit --production` to detect vulnerable dependencies.
+# Structure: Triggered on pushes and pull requests with a single `security` job.
+# Usage: Ensures each build verifies dependencies against the npm advisory DB.
+
+name: npm audit
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm install --ignore-scripts
+      - name: Run npm audit
+        run: npm audit --production
