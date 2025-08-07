@@ -40,11 +40,19 @@ in the database allowing future filters by procurement category.
 
 The repository includes small helper scripts for Raspberry Pi systems. Run the
 setup script once to install Node.js, initialise the database and optionally
-start the server. Pass the `-p` flag to install only production dependencies and
-provide a port number to immediately launch the application:
+start the server. Pass the `-p` flag to install only production dependencies.
+Supplying a port starts the server in the background and writes logs to
+`logs/app.log` so the script returns to the shell immediately:
 
 ```bash
 ./scripts/rpi_bidfinder.sh -p 4000
+tail -f logs/app.log    # monitor server logs
+```
+
+Stop the server later with:
+
+```bash
+pkill -f "node server/index.js"
 ```
 
 ## Usage
