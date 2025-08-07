@@ -60,18 +60,21 @@ pkill -f "node server/index.js"
 - **Access the dashboard** by navigating to `http://<HOST>:<PORT>/opportunities`
   once the server is running. If the server is bound to `0.0.0.0` replace `<HOST>`
   with the machine's actual IP address.
-- **Manage sources** via the `/scraper` page where each source can be tested or
-  scraped individually. Statistics such as last scraped time and number of
-  contracts found are shown alongside edit options.
-- **Scrape all sources** at once by visiting `/scrape-all`. Each source is
-  processed sequentially and the response details which succeeded or failed.
-- **Edit or delete sources** directly on the Scraper page which lists all
-  configured entries.
-- **Manage the application** by registering at `/register`, logging in at
-  `/login` and visiting `/scraper`. Once logged in your session persists for 30 days
-  so you remain authenticated after closing the browser. Only
-  authenticated users can access these management functions.
-- **Automatic scraping** runs in the background according to the `CRON_SCHEDULE`
+  - **Manage sources** via the `/scraper` page where each source can be tested or
+    scraped individually. Statistics such as last scraped time and number of
+    contracts found are shown alongside edit options.
+  - **Scrape all sources** at once by visiting `/scrape-all`. Each source is
+    processed sequentially and the response details which succeeded or failed.
+  - **Edit or delete sources** directly on the Scraper page which lists all
+    configured entries.
+  - **Review and prune stored tenders** using the Database Tools section on the
+    `/scraper` page. Counts per source are shown and records can be deleted in
+    bulk by source or removed entirely before a chosen date.
+  - **Manage the application** by registering at `/register`, logging in at
+    `/login` and visiting `/scraper`. Once logged in your session persists for 30 days
+    so you remain authenticated after closing the browser. Only
+    authenticated users can access these management functions.
+  - **Automatic scraping** runs in the background according to the `CRON_SCHEDULE`
   environment variable (default `0 6 * * *`). Results are stored in the
   database without any manual interaction.
 

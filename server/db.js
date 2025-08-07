@@ -1,3 +1,9 @@
+/**
+ * @file db.js
+ * @description Centralised database helper wrapping SQLite interactions. It
+ * establishes connections, ensures schema consistency and exposes helper
+ * methods for managing tenders, sources and related metadata.
+ */
 const sqlite3 = require('sqlite3').verbose();
 const config = require('./config');
 const logger = require('./logger');
@@ -627,6 +633,38 @@ module.exports = {
   deleteTendersBefore: date => {
     return new Promise((resolve, reject) => {
       db.run('DELETE FROM tenders WHERE date < ?', [date], err => {
+        if (err) return reject(err);
+        resolve();
+      });
+    });
+  },
+
+  /**
+   * Summarise how many tenders are stored for each source.
+   *
+   * @returns {Promise<Array<{source:string,count:number}>>} grouped counts
+   */
+  getTenderCountsBySource: () => {
+    return new Promise((resolve, reject) => {
+      db.all(
+        'SELECT source, COUNT(*) as count FROM tenders GROUP BY source',
+        (err, rows) => {
+          if (err) return reject(err);
+          resolve(rows);
+        }
+      );
+    });
+  },
+
+  /**
+   * Remove all tenders belonging to a specific source.
+   *
+   * @param {string} source - Source label to purge
+   * @returns {Promise<void>} resolves once rows are deleted
+   */
+  deleteTendersBySource: source => {
+    return new Promise((resolve, reject) => {
+      db.run('DELETE FROM tenders WHERE source = ?', [source], err => {
         if (err) return reject(err);
         resolve();
       });
