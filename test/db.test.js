@@ -1,3 +1,8 @@
+/**
+ * @file db.test.js
+ * @description Unit tests verifying database helper behaviour including
+ * insertion, querying and deletion of tender and source records.
+ */
 const { expect } = require('chai');
 
 // Use an in-memory database for tests so nothing is persisted on disk.
@@ -200,6 +205,89 @@ describe('Database helpers', () => {
     // There should be at least one tender and award from previous tests
     expect(tenderCount).to.be.greaterThan(0);
     expect(awardCount).to.be.greaterThan(0);
+  });
+
+  it('getTenderCountsBySource summarises stored rows', async () => {
+    await db.insertTender(
+      's1',
+      'link-s1',
+      '2024-07-01',
+      'd',
+      'src1',
+      '2024-07-02T00:00:00Z',
+      't',
+      'ocds-s1',
+      '55555551',
+      '',
+      '',
+      '',
+      '',
+      '',
+      ''
+    );
+    await db.insertTender(
+      's2',
+      'link-s2',
+      '2024-07-02',
+      'd',
+      'src2',
+      '2024-07-03T00:00:00Z',
+      't',
+      'ocds-s2',
+      '55555552',
+      '',
+      '',
+      '',
+      '',
+      '',
+      ''
+    );
+    const counts = await db.getTenderCountsBySource();
+    const map = Object.fromEntries(counts.map(r => [r.source, r.count]));
+    expect(map.src1).to.be.a('number');
+    expect(map.src2).to.be.a('number');
+  });
+
+  it('deleteTendersBySource removes only the specified source', async () => {
+    await db.insertTender(
+      'd1',
+      'link-d1',
+      '2024-07-03',
+      'd',
+      'delSrc',
+      '2024-07-04T00:00:00Z',
+      't',
+      'ocds-d1',
+      '55555553',
+      '',
+      '',
+      '',
+      '',
+      '',
+      ''
+    );
+    await db.insertTender(
+      'k1',
+      'link-k1',
+      '2024-07-04',
+      'd',
+      'keepSrc',
+      '2024-07-05T00:00:00Z',
+      't',
+      'ocds-k1',
+      '55555554',
+      '',
+      '',
+      '',
+      '',
+      '',
+      ''
+    );
+    await db.deleteTendersBySource('delSrc');
+    const rows = await db.getTenders();
+    const sources = rows.map(r => r.source);
+    expect(sources).to.include('keepSrc');
+    expect(sources).to.not.include('delSrc');
   });
 
   it('deleteAllTenders removes everything', async () => {

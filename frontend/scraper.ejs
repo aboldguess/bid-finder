@@ -2,7 +2,8 @@
   @file scraper.ejs
   @description Administrative interface for managing scraping sources,
   schedules and maintenance operations. Rendered by the /scraper route and
-  includes client-side logic for editing, testing and deleting sources.
+  includes client-side logic for editing, testing and deleting sources as well
+  as database maintenance such as viewing tender counts and purging entries.
 -->
 <!DOCTYPE html>
 <html>
@@ -30,6 +31,14 @@
       <input type="date" id="deleteDate">
       <button type="submit">Delete Records Before Date</button>
     </form>
+    <!-- Table populated with counts for each source so administrators can see
+         how many tenders are stored and selectively purge them -->
+    <h3>Stored Tenders</h3>
+    <p class="hint">Review how many tenders each source has stored and delete
+      them individually.</p>
+    <table id="tenderStats">
+      <tr><th>Source</th><th>Count</th><th>Action</th></tr>
+    </table>
   </details> <!-- end database tools section -->
 
   <!-- Form allowing the cron schedule to be changed dynamically -->
@@ -184,6 +193,56 @@ const sourceData = <%= JSON.stringify(sources).replace(/</g, '\u003c') %>;
 const awardSourceData = <%= JSON.stringify(awardSources).replace(/</g, '\u003c') %>;
 let editingKey = null;
 let editingAwardKey = null;
+
+// Fetch tender counts from the server and populate the statistics table. Called
+// on page load and after any delete action to keep figures accurate.
+async function loadTenderStats() {
+  const table = document.getElementById('tenderStats');
+  // Clear previous rows except header
+  table.querySelectorAll('tr:not(:first-child)').forEach(tr => tr.remove());
+  try {
+    const res = await fetch('/admin/db-info');
+    if (!res.ok) throw new Error('Failed to load');
+    const data = await res.json();
+    data.counts.forEach(row => {
+      const tr = document.createElement('tr');
+      const src = document.createElement('td');
+      src.textContent = row.source || '(unknown)';
+      const count = document.createElement('td');
+      count.textContent = row.count;
+      const action = document.createElement('td');
+      const btn = document.createElement('button');
+      btn.textContent = 'Delete';
+      btn.addEventListener('click', async () => {
+        if (!confirm(`Delete all tenders for ${row.source}?`)) return;
+        const delRes = await fetch('/admin/delete-source', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            'CSRF-Token': csrfToken
+          },
+          body: JSON.stringify({ source: row.source })
+        });
+        const payload = await delRes.json().catch(() => null);
+        if (delRes.ok && payload && payload.success) {
+          loadTenderStats();
+        } else {
+          alert('Failed to delete records');
+        }
+      });
+      action.appendChild(btn);
+      tr.appendChild(src);
+      tr.appendChild(count);
+      tr.appendChild(action);
+      table.appendChild(tr);
+    });
+  } catch (err) {
+    console.error('Failed to fetch tender stats', err);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', loadTenderStats);
 // Expand row to show configuration details.
 document.querySelectorAll('.sourceRow').forEach(row => {
   const key = row.dataset.key;
@@ -393,6 +452,7 @@ document.getElementById('deleteAllForm').addEventListener('submit', async e => {
   const data = await res.json().catch(() => null);
   if (res.ok && data && data.success) {
     alert('All tenders removed');
+    loadTenderStats();
   } else {
     alert('Failed to delete records');
   }
@@ -421,6 +481,7 @@ document.getElementById('deleteBeforeForm').addEventListener('submit', async e =
   const data = await res.json().catch(() => null);
   if (res.ok && data && data.success) {
     alert('Old tenders removed');
+    loadTenderStats();
   } else {
     alert('Failed to delete records');
   }

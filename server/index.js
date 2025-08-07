@@ -895,6 +895,34 @@ app.post('/admin/delete-before', requireAuth, async (req, res) => {
   }
 });
 
+// Provide a summary of stored tenders grouped by source. Useful for
+// administrators to inspect database usage.
+app.get('/admin/db-info', requireAuth, async (req, res) => {
+  try {
+    const counts = await db.getTenderCountsBySource();
+    const total = await db.getTenderCount();
+    res.json({ counts, total });
+  } catch (err) {
+    logger.error('Failed to fetch database info:', err);
+    res.status(500).json({ error: 'Failed to fetch data' });
+  }
+});
+
+// Remove all tenders belonging to the specified source. This allows targeted
+// purging without wiping the entire table.
+app.post('/admin/delete-source', requireAuth, async (req, res) => {
+  const source = req.body && req.body.source;
+  if (!source) return res.status(400).json({ error: 'Missing source' });
+  try {
+    await db.deleteTendersBySource(source);
+    logger.info(`Deleted tenders for source ${source}`);
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('Failed to delete tenders for source:', err);
+    res.status(500).json({ error: 'Failed to delete data' });
+  }
+});
+
 // POST /admin/cron - Update the cron schedule at runtime. The existing job is
 // stopped and a new one is created using the supplied expression.
 app.post('/admin/cron', requireAuth, async (req, res) => {
