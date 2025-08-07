@@ -89,6 +89,11 @@ provide a port number to immediately launch the application:
 - `INTEND_URL` and `INTEND_BASE` - overrides for In-Tend.
 - `CRON_SCHEDULE` - cron expression controlling automatic scraping (defaults to `0 6 * * *`).
 - `TAG_RULES` - JSON mapping of tag names to keyword arrays for automatic tagging.
+- `ADMIN_USERS` - optional comma-separated list of usernames granted administrator
+  access. When provided, sensitive routes like `/logs` are restricted to these
+  accounts.
+- `ENABLE_LOG_STREAM` - set to `false` to disable the `/logs` streaming endpoint
+  in production and avoid exposing real-time log data if not required.
 
 ## Scheduled cron job
 
@@ -120,6 +125,11 @@ All console output is also written to `logs/app.log` so you can review what the
 scraper was doing after it finishes. The log file persists across restarts and
 includes messages for every tender processed. If no new tenders are stored the
 log will explain whether none were found or all were detected as duplicates.
+
+For real-time monitoring the dashboard opens a Server-Sent Events connection to
+`/logs` and streams new log entries as they happen. Set `ENABLE_LOG_STREAM=false`
+in production if you do not require this live feed or wish to avoid exposing
+log data over HTTP.
 
 ## Session storage
 
