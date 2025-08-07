@@ -23,6 +23,8 @@ const net = require('net');
 const { exec } = require('child_process');
 // Helper for persisting custom source definitions outside the database.
 const sourceStore = require('./sourceStore');
+// Lightweight CSRF protection middleware providing req.csrfToken().
+const csrf = require('./csrf');
 
 // Build an allow list of domains permitted when defining new sources. This
 // prevents the application from being tricked into fetching arbitrary URLs
@@ -189,9 +191,13 @@ app.use(
   })
 );
 
-// Make the current user (if any) available to all templates
+// Attach CSRF protection and expose helper to templates.
+app.use(csrf());
+
+// Make the current user and a CSRF token available to all templates.
 app.use((req, res, next) => {
   res.locals.user = req.session.user;
+  res.locals.csrfToken = req.csrfToken();
   next();
 });
 
@@ -850,6 +856,15 @@ app.post('/admin/cron', requireAuth, async (req, res) => {
 });
 
 
+// Global error handler for CSRF token validation failures.
+app.use((err, req, res, next) => {
+  if (err.code !== 'EBADCSRFTOKEN') return next(err);
+  logger.error('CSRF token validation failed for %s', req.path);
+  if (req.headers.accept && req.headers.accept.includes('application/json')) {
+    return res.status(403).json({ error: 'Invalid CSRF token' });
+  }
+  res.status(403).send('Invalid CSRF token');
+});
 
 // Start the HTTP server once a free port has been determined. If the desired
 // port is occupied the next free port is used automatically.

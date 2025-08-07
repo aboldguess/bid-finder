@@ -26,20 +26,29 @@ const { app } = require('../server/index');
 let server;
 const url = p => `http://127.0.0.1:${server.address().port}${p}`;
 let cookie;
+let csrf;
 
 before(async () => {
   server = http.createServer(app).listen(0);
   await new Promise(resolve => server.once('listening', resolve));
 
-  // Register a test user; registration logs the user in and sets a session
-  // cookie which we forward on subsequent requests.
-  const res = await fetch(url('/register'), {
+  // Fetch registration page for initial CSRF token and session cookie
+  let res = await fetch(url('/register'));
+  cookie = res.headers.get('set-cookie').split(';')[0];
+  let html = await res.text();
+  let token = html.match(/name="_csrf" value="([^"]+)"/)[1];
+  // Register a test user; registration logs the user in and sets a session cookie
+  res = await fetch(url('/register'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ username: 'tester', password: 'pass' }),
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: cookie },
+    body: new URLSearchParams({ username: 'tester', password: 'pass', _csrf: token }),
     redirect: 'manual'
   });
   cookie = res.headers.get('set-cookie').split(';')[0];
+  // Retrieve CSRF token for subsequent API calls
+  res = await fetch(url('/scraper'), { headers: { Cookie: cookie } });
+  html = await res.text();
+  csrf = html.match(/name="_csrf" value="([^"]+)"/)[1];
 });
 
 after(() => server.close());
@@ -51,7 +60,8 @@ describe('scraper page XSS protections', () => {
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
-        Cookie: cookie
+        Cookie: cookie,
+        'CSRF-Token': csrf
       },
       body: JSON.stringify({
         key: 'bad',

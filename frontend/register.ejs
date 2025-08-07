@@ -1,3 +1,9 @@
+<!--
+  @file register.ejs
+  @description Registration form allowing new users to create accounts. The
+  form is protected by a CSRF token and provides a link back to the login page
+  for existing users.
+-->
 <!DOCTYPE html>
 <html>
 <head>
@@ -11,6 +17,7 @@
     <p style="color:red"><%= error %></p>
   <% } %>
   <form method="POST" action="/register">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <input name="username" placeholder="Username" required>
     <input type="password" name="password" placeholder="Password" required>
     <button type="submit">Register</button>
