@@ -6,6 +6,8 @@
  */
 const express = require('express');
 const session = require('express-session');
+// Helmet hardens HTTP responses with security-related headers.
+const helmet = require('helmet');
 // Persist session data to disk so that logins survive server restarts.
 const SQLiteStore = require('connect-sqlite3')(session);
 const path = require('path');
@@ -152,6 +154,23 @@ function openBrowser(url) {
   }
   await scheduleJob();
 })();
+
+// Apply security headers before any routes are defined. The Content Security
+// Policy restricts scripts and styles to this server only, with inline
+// allowances for legacy templates that embed small snippets.
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:'],
+        connectSrc: ["'self'"]
+      }
+    }
+  })
+);
 
 // Parse JSON request bodies so the UI can post new sources
 app.use(express.json());
