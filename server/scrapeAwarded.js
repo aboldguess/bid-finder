@@ -1,9 +1,20 @@
+/**
+ * @file scrapeAwarded.js
+ * @description Scraper responsible for collecting awarded contract notices.
+ * It mirrors the behaviour of `scrape.js` but targets sources that provide
+ * information on completed procurements. The module exports `run` for scraping
+ * a single source and `runAll` for iterating over every configured award feed.
+ */
 const fetch = require('node-fetch');
 const { parseTenders } = require('./htmlParser');
 const { parseAwardDetails } = require('./detailParser');
 const db = require('./db');
 const config = require('./config');
 const logger = require('./logger');
+
+// Enforce network limits to defend against slow or extremely large responses.
+const FETCH_TIMEOUT = 10000; // ms
+const MAX_RESPONSE_SIZE = 5 * 1024 * 1024; // 5MB
 
 /**
  * Generate tags for a tender based on the configured keyword rules.
@@ -83,7 +94,11 @@ async function runInternal(onProgress, sourceKey, source) {
 
     while (nextUrl) {
       // Fetch each page sequentially using a browser-like User-Agent.
-      const res = await fetch(nextUrl, { headers });
+      const res = await fetch(nextUrl, {
+        headers,
+        timeout: FETCH_TIMEOUT,
+        size: MAX_RESPONSE_SIZE
+      });
       const html = await res.text();
 
       // Extract tenders from the HTML using the configured parser and add them
@@ -139,7 +154,11 @@ async function runInternal(onProgress, sourceKey, source) {
       // failures here are logged but do not abort the main scraping loop.
       let details = {};
       try {
-        const resDetail = await fetch(link, { headers });
+        const resDetail = await fetch(link, {
+          headers,
+          timeout: FETCH_TIMEOUT,
+          size: MAX_RESPONSE_SIZE
+        });
         const detailHtml = await resDetail.text();
         details = parseAwardDetails(detailHtml);
       } catch (err) {

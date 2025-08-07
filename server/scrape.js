@@ -1,3 +1,11 @@
+/**
+ * @file scrape.js
+ * @description Implements the main tender scraping workflow. Pages are fetched
+ * from configured sources, parsed into individual tenders, optionally enriched
+ * with detail pages and finally persisted to the database. The module exposes
+ * `run` for a single source and `runAll` for iterating over every configured
+ * source. Extensive logging and progress callbacks aid debugging.
+ */
 const fetch = require('node-fetch');
 const { parseTenders } = require('./htmlParser');
 // Detail pages expose additional metadata such as CPV classifications.
@@ -5,6 +13,11 @@ const { parseTenderDetails } = require('./detailParser');
 const db = require('./db');
 const config = require('./config');
 const logger = require('./logger');
+
+// Network safety limits: abort requests taking longer than 10s and cap response
+// bodies at 5MB to avoid resource exhaustion.
+const FETCH_TIMEOUT = 10000; // ms
+const MAX_RESPONSE_SIZE = 5 * 1024 * 1024; // 5MB
 
 /**
  * Generate tags for a tender based on the configured keyword rules.
@@ -100,7 +113,11 @@ async function runInternal(onProgress, sourceKey, source) {
       }
 
       // Fetch each page sequentially using a browser-like User-Agent.
-      const res = await fetch(nextUrl, { headers });
+      const res = await fetch(nextUrl, {
+        headers,
+        timeout: FETCH_TIMEOUT,
+        size: MAX_RESPONSE_SIZE
+      });
       const html = await res.text();
 
       // Extract tenders from the HTML using the configured parser and add them
@@ -196,7 +213,11 @@ async function runInternal(onProgress, sourceKey, source) {
       // Fetch the detail page to extract CPV codes and any other metadata.
       let cpvCodes = [];
       try {
-        const resDetail = await fetch(link, { headers });
+        const resDetail = await fetch(link, {
+          headers,
+          timeout: FETCH_TIMEOUT,
+          size: MAX_RESPONSE_SIZE
+        });
         const detailHtml = await resDetail.text();
         const details = parseTenderDetails(detailHtml);
         cpvCodes = details.cpv;
