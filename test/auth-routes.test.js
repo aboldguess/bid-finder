@@ -28,15 +28,21 @@ const { app } = require('../server/index');
 // tests. This avoids external dependencies like supertest while still exercising
 // the Express middleware stack.
 let server;
+let cookie;
+let csrf;
+// Helper generating a URL to the test server for the given path
+const url = path => `http://127.0.0.1:${server.address().port}${path}`;
 
-before(() => {
+before(async () => {
   server = http.createServer(app).listen(0); // 0 selects a free port
+  await new Promise(resolve => server.once('listening', resolve));
+  const res = await fetch(url('/login'));
+  cookie = res.headers.get('set-cookie').split(';')[0];
+  const html = await res.text();
+  csrf = html.match(/name="_csrf" value="([^"]+)"/)[1];
 });
 
 after(() => server.close());
-
-// Helper generating a URL to the test server for the given path
-const url = path => `http://127.0.0.1:${server.address().port}${path}`;
 
 describe('requireAuth middleware', () => {
   it('redirects unauthenticated users from /scraper to /login', async () => {
@@ -50,7 +56,12 @@ describe('requireAuth middleware', () => {
   it('returns 401 for unauthorised POST /sources requests', async () => {
     const res = await fetch(url('/sources'), {
       method: 'POST',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'CSRF-Token': csrf,
+        Cookie: cookie
+      },
       body: JSON.stringify({})
     });
     expect(res.status).to.equal(401);
@@ -70,5 +81,18 @@ describe('requireAuth middleware', () => {
       redirect: 'manual'
     });
     expect(res.status).to.equal(401);
+  });
+
+  it('rejects POST /login without CSRF token', async () => {
+    const res = await fetch(url('/login'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Cookie: cookie
+      },
+      body: new URLSearchParams({ username: 'x', password: 'y' }),
+      redirect: 'manual'
+    });
+    expect(res.status).to.equal(403);
   });
 });

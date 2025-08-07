@@ -9,6 +9,7 @@
 <head>
   <title>Scraper</title>
   <link rel="stylesheet" href="/style.css">
+  <meta name="csrf-token" content="<%= csrfToken %>">
 </head>
 <body>
   <h1>Scraper</h1>
@@ -21,9 +22,11 @@
   <details id="dbTools">
     <summary><h2>Database Tools</h2></summary>
     <form id="deleteAllForm">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <button type="submit">Delete All Records</button>
     </form>
     <form id="deleteBeforeForm">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="date" id="deleteDate">
       <button type="submit">Delete Records Before Date</button>
     </form>
@@ -32,6 +35,7 @@
   <!-- Form allowing the cron schedule to be changed dynamically -->
   <h2>Cron Schedule</h2>
   <form id="cronForm">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <label>Hour
       <select id="cronHour"></select>
     </label>
@@ -101,6 +105,7 @@
     <% }) %>
   </table>
   <form id="addSourceForm">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <input id="newKey" placeholder="Key" title="Short identifier" required>
     <input id="newLabel" placeholder="Label" title="Display name" required>
     <input id="newUrl" placeholder="Search URL" title="Feed or search page" required>
@@ -159,6 +164,7 @@
     <% }) %>
   </table>
   <form id="addAwardSourceForm">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <input id="newAwardKey" placeholder="Key" title="Short identifier" required>
     <input id="newAwardLabel" placeholder="Label" title="Display name" required>
     <input id="newAwardUrl" placeholder="Search URL" title="Award feed" required>
@@ -173,6 +179,7 @@
 <script>
 // Embed source objects safely into the page. Replacing "<" prevents breaking
 // out of the script tag while still allowing JSON parsing client side.
+const csrfToken = '<%= csrfToken %>';
 const sourceData = <%= JSON.stringify(sources).replace(/</g, '\u003c') %>;
 const awardSourceData = <%= JSON.stringify(awardSources).replace(/</g, '\u003c') %>;
 let editingKey = null;
@@ -220,7 +227,7 @@ document.querySelectorAll('.detailRow').forEach(row => {
     const parser = editForm.querySelector('.editParser').value.trim();
     const res = await fetch('/sources/'+encodeURIComponent(key), {
       method: 'PUT',
-      headers: {'Content-Type':'application/json'},
+      headers: {'Content-Type':'application/json','CSRF-Token': csrfToken},
       body: JSON.stringify({label,url,base,parser})
     });
     if(res.ok){
@@ -248,7 +255,7 @@ document.getElementById('addSourceForm').addEventListener('submit', async e => {
   }
   const res = await fetch(endpoint, {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json','CSRF-Token': csrfToken },
     body: JSON.stringify({ key, label, url, base, parser })
   });
   if (res.ok) {
@@ -286,7 +293,7 @@ document.querySelectorAll('#sourceTable .sourceRow').forEach(row => {
   detail.querySelector('.deleteBtn').addEventListener('click', async ev => {
     ev.stopPropagation();
     if (!confirm(`Delete source ${key}?`)) return;
-    const res = await fetch(`/sources/${encodeURIComponent(key)}`, { method: 'DELETE' });
+    const res = await fetch(`/sources/${encodeURIComponent(key)}`, { method: 'DELETE', headers: {'CSRF-Token': csrfToken} });
     if (res.ok) location.reload();
     else alert('Failed to delete source');
   });
@@ -309,7 +316,7 @@ document.getElementById('addAwardSourceForm').addEventListener('submit', async e
   }
   const res = await fetch(endpoint, {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json','CSRF-Token': csrfToken },
     body: JSON.stringify({ key, label, url, base, parser })
   });
   if (res.ok) {
@@ -361,7 +368,10 @@ document.querySelectorAll('#awardSourceTable .awardSourceRow').forEach(row => {
   detail.querySelector('.deleteBtn').addEventListener('click', async ev => {
     ev.stopPropagation();
     if (!confirm(`Delete source ${key}?`)) return;
-    const res = await fetch(`/award-sources/${encodeURIComponent(key)}`, { method: 'DELETE' });
+    const res = await fetch(`/award-sources/${encodeURIComponent(key)}`, {
+      method: 'DELETE',
+      headers: { 'CSRF-Token': csrfToken }
+    });
     if (res.ok) location.reload();
     else alert('Failed to delete source');
   });
@@ -373,7 +383,7 @@ document.getElementById('deleteAllForm').addEventListener('submit', async e => {
   if (!confirm('Delete all tender records?')) return;
   const res = await fetch('/admin/delete-all', {
     method: 'POST',
-    headers: { Accept: 'application/json' }
+    headers: { Accept: 'application/json','CSRF-Token': csrfToken }
   });
   if (res.status === 401) {
     alert('Please log in first');
@@ -398,7 +408,8 @@ document.getElementById('deleteBeforeForm').addEventListener('submit', async e =
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Accept: 'application/json'
+      Accept: 'application/json',
+      'CSRF-Token': csrfToken
     },
     body: JSON.stringify({ date })
   });
@@ -462,7 +473,8 @@ document.getElementById('cronForm').addEventListener('submit', async e => {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Accept: 'application/json'
+      Accept: 'application/json',
+      'CSRF-Token': csrfToken
     },
     body: JSON.stringify({ schedule })
   });
