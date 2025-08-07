@@ -67,9 +67,30 @@ transportationprocurement@kier.co.uk`;
 });
 
 describe('parseTenderDetails', () => {
-  it('extracts unique CPV codes from HTML', () => {
-    const html = '<div>CPV: 12345678, 12345678 and 87654321</div>';
+  it('extracts fields from tender page text', () => {
+    const html = `Published date
+1 May 2024
+Closing date
+10 May 2024
+Name of buying organisation
+Big Buyer Ltd
+Address
+1 Street
+Country
+England
+Description
+Work on something
+Eligibility
+SME only
+CPV: 12345678 and 87654321`;
     const d = parseTenderDetails(html);
     expect(d.cpv).to.deep.equal(['12345678', '87654321']);
+    expect(d.open_date).to.equal('1 May 2024');
+    expect(d.deadline).to.equal('10 May 2024');
+    expect(d.customer).to.equal('Big Buyer Ltd');
+    expect(d.address).to.equal('1 Street');
+    expect(d.country).to.equal('England');
+    expect(d.description).to.equal('Work on something');
+    expect(d.eligibility).to.equal('SME only');
   });
 });

@@ -3,10 +3,10 @@ const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 const { expect } = require('chai');
 
-it('adds ocid and cpv columns if missing', async () => {
+it('adds missing columns if absent', async () => {
   const file = path.join(__dirname, 'migrate.db');
   if (fs.existsSync(file)) fs.unlinkSync(file);
-  // Create old schema without ocid or cpv columns
+  // Create old schema without newer columns like ocid or cpv
   const oldDb = new sqlite3.Database(file);
   await new Promise(res => oldDb.run(`CREATE TABLE tenders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -25,9 +25,10 @@ it('adds ocid and cpv columns if missing', async () => {
   delete require.cache[require.resolve('../server/db')];
   const db = require('../server/db');
 
-  await db.insertTender('t', 'l', '2024-01-01', 'd', 's', '2024-01-02', 'tag', 'ocid-1', '12345678');
+  await db.insertTender('t', 'l', '2024-01-01', 'd', 's', '2024-01-02', 'tag', 'ocid-1', '12345678', '', '', '', '', '', '');
   const rows = await db.getTenders();
   expect(rows[0].ocid).to.equal('ocid-1');
   expect(rows[0].cpv).to.equal('12345678');
+  expect(rows[0]).to.have.property('open_date');
   fs.unlinkSync(file);
 });

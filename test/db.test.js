@@ -18,7 +18,13 @@ describe('Database helpers', () => {
       '2024-01-02T00:00:00Z',
       'tag1',
       'ocds-x',
-      '12345678'
+      '12345678',
+      '2024-01-01',
+      '2024-02-01',
+      'Buyer',
+      'Addr',
+      'Country',
+      'Eligibility'
     );
     const second = await db.insertTender(
       't1',
@@ -29,7 +35,13 @@ describe('Database helpers', () => {
       '2024-01-02T00:00:00Z',
       'tag1',
       'ocds-x',
-      '12345678'
+      '12345678',
+      '2024-01-01',
+      '2024-02-01',
+      'Buyer',
+      'Addr',
+      'Country',
+      'Eligibility'
     );
     expect(first).to.equal(1);
     expect(second).to.equal(0);
@@ -45,7 +57,13 @@ describe('Database helpers', () => {
       '2024-01-02T00:00:00Z',
       '',
       'ocds-dedupe',
-      '23456789'
+      '23456789',
+      '',
+      '',
+      '',
+      '',
+      '',
+      ''
     );
     const second = await db.insertTender(
       'tO2',
@@ -56,7 +74,13 @@ describe('Database helpers', () => {
       '2024-01-03T00:00:00Z',
       '',
       'ocds-dedupe',
-      '23456789'
+      '23456789',
+      '',
+      '',
+      '',
+      '',
+      '',
+      ''
     );
     expect(first).to.equal(1);
     expect(second).to.equal(0);
@@ -64,8 +88,8 @@ describe('Database helpers', () => {
 
   it('getTenders retrieves rows ordered by date', async () => {
     // Insert two tenders with different dates
-    await db.insertTender('t2', 'link2', '2024-02-01', 'd', 's', '2024-02-02T00:00:00Z', 'tag', 'ocds-2', '11111111');
-    await db.insertTender('t3', 'link3', '2024-03-01', 'd', 's', '2024-03-02T00:00:00Z', 'tag', 'ocds-3', '22222222');
+    await db.insertTender('t2', 'link2', '2024-02-01', 'd', 's', '2024-02-02T00:00:00Z', 'tag', 'ocds-2', '11111111', '', '', '', '', '', '');
+    await db.insertTender('t3', 'link3', '2024-03-01', 'd', 's', '2024-03-02T00:00:00Z', 'tag', 'ocds-3', '22222222', '', '', '', '', '', '');
     const rows = await db.getTenders();
     // There are now four rows in total including earlier inserts.
     expect(rows).to.have.length(4);
@@ -78,6 +102,9 @@ describe('Database helpers', () => {
     expect(rows[0]).to.have.property('tags');
     expect(rows[0]).to.have.property('ocid');
     expect(rows[0]).to.have.property('cpv');
+    expect(rows[0]).to.have.property('open_date');
+    expect(rows[0]).to.have.property('deadline');
+    expect(rows[0]).to.have.property('customer');
   });
 
   it('cron schedule can be stored and retrieved', async () => {
@@ -182,8 +209,8 @@ describe('Database helpers', () => {
   });
 
   it('deleteTendersBefore removes only old rows', async () => {
-    await db.insertTender('new', 'n1', '2024-05-01', 'd', 's', '2024-05-02T00:00:00Z', 't', 'ocds-n', '99999999');
-    await db.insertTender('old', 'o1', '2023-01-01', 'd', 's', '2023-01-02T00:00:00Z', 't', 'ocds-o', '88888888');
+    await db.insertTender('new', 'n1', '2024-05-01', 'd', 's', '2024-05-02T00:00:00Z', 't', 'ocds-n', '99999999', '', '', '', '', '', '');
+    await db.insertTender('old', 'o1', '2023-01-01', 'd', 's', '2023-01-02T00:00:00Z', 't', 'ocds-o', '88888888', '', '', '', '', '', '');
     await db.deleteTendersBefore('2024-01-01');
     const rows = await db.getTenders();
     const titles = rows.map(r => r.title);

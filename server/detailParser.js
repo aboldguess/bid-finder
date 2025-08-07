@@ -1,8 +1,11 @@
+// Mini readme
+// ------------
 // Parser utilities for tender and award detail pages. The scrapers fetch
 // individual opportunity pages to obtain richer metadata that is not
 // available in listing feeds. Each parser normalises the input HTML into
 // a simple JavaScript object so the rest of the code can work with
-// consistent structures.
+// consistent structures. The tender parser now extracts key fields such as
+// deadlines and buyer details so they can be persisted alongside CPV codes.
 
 // ---------------------------------------------------------------------------
 // Award detail parser
@@ -105,22 +108,44 @@ function parseAwardDetails(html) {
 // Tender detail parser
 // ---------------------------------------------------------------------------
 /**
- * Parse a tender's detail page to extract CPV classification codes. The
- * function is intentionally lightweight and uses a simple regular expression
- * to locate eight digit CPV codes anywhere in the page text. Duplicates are
- * removed and the codes are returned as an array.
+ * Parse a tender's detail page to extract structured fields. Besides CPV
+ * codes the function attempts to pull commonly used metadata such as
+ * deadlines and buyer details by looking for labelled sections in the plain
+ * text version of the page.
  *
  * @param {string} html - Raw HTML of the opportunity detail page
- * @returns {{cpv: string[]}} Object containing an array of unique CPV codes
+ * @returns {object} Object containing CPV codes and additional fields
  */
 function parseTenderDetails(html) {
   // Remove HTML tags so the regex can work on plain text. Collapsing
   // whitespace avoids spurious blank entries when splitting later.
-  const text = html.replace(/<[^>]*>/g, ' ');
-  // CPV codes are eight digit numbers. Collect all matches and de-duplicate
-  // them to ensure the caller receives a unique list.
-  const cpv = Array.from(new Set(text.match(/\b\d{8}\b/g) || []));
-  return { cpv };
+  const text = html.replace(/<[^>]*>/g, ' ').replace(/\r/g, '');
+  const lines = text.split(/\n+/).map(l => l.trim()).filter(Boolean);
+  const valueAfter = label => {
+    const idx = lines.findIndex(l => l.toLowerCase() === label.toLowerCase());
+    return idx !== -1 && lines[idx + 1] ? lines[idx + 1] : '';
+  };
+  const out = {};
+  out.cpv = Array.from(new Set(text.match(/\b\d{8}\b/g) || []));
+  out.open_date = valueAfter('Published date');
+  out.deadline = valueAfter('Closing date') || valueAfter('Response deadline');
+  out.customer =
+    valueAfter('Name of buying organisation') || valueAfter('Buyer');
+  out.address = valueAfter('Address');
+  out.country = valueAfter('Country');
+  out.description = (() => {
+    const start = lines.findIndex(l => l.toLowerCase() === 'description');
+    if (start === -1) return '';
+    const vals = [];
+    for (let i = start + 1; i < lines.length; i++) {
+      const l = lines[i];
+      if (/^(eligibility|how to apply|about the buyer)/i.test(l)) break;
+      vals.push(l);
+    }
+    return vals.join(' ');
+  })();
+  out.eligibility = valueAfter('Eligibility');
+  return out;
 }
 
 module.exports = { parseAwardDetails, parseTenderDetails };

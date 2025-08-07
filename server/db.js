@@ -32,43 +32,60 @@ db.serialize(() => {
     /* Comma separated tags generated from the title/description */
     tags TEXT,
     /* Comma separated CPV classification codes */
-    cpv TEXT
+    cpv TEXT,
+    /* Additional metadata extracted from the detail page */
+    open_date TEXT,
+    deadline TEXT,
+    customer TEXT,
+    address TEXT,
+    country TEXT,
+    eligibility TEXT
   )`);
-  // Older installations may lack the OCID or CPV columns. Check the table
+  // Older installations may lack some of the newer columns. Check the table
   // schema and add any missing columns so inserts do not fail.
   db.all('PRAGMA table_info(tenders)', (err, cols) => {
     if (err) return logger.error('Failed to read schema:', err);
-    const hasOcid = cols.some(c => c.name === 'ocid');
-    const hasCpv = cols.some(c => c.name === 'cpv');
+    const has = name => cols.some(c => c.name === name);
+    const addColumn = name =>
+      db.run(`ALTER TABLE tenders ADD COLUMN ${name} TEXT`, alterErr => {
+        if (alterErr) {
+          return logger.error(`Failed to add ${name} column:`, alterErr);
+        }
+        logger.info(`Added missing ${name} column to tenders table`);
+      });
     const ensureOcidIndex = () =>
       db.run(
         'CREATE UNIQUE INDEX IF NOT EXISTS idx_tenders_ocid ON tenders(ocid)'
       );
     const ensureCpvIndex = () =>
       db.run('CREATE INDEX IF NOT EXISTS idx_tenders_cpv ON tenders(cpv)');
-    if (!hasOcid) {
-      db.run('ALTER TABLE tenders ADD COLUMN ocid TEXT', alterErr => {
-        if (alterErr) {
-          return logger.error('Failed to add ocid column:', alterErr);
-        }
-        ensureOcidIndex();
-        logger.info('Added missing ocid column to tenders table');
-      });
+    if (!has('ocid')) {
+      addColumn('ocid');
+      ensureOcidIndex();
     } else {
       ensureOcidIndex();
     }
-    if (!hasCpv) {
-      db.run('ALTER TABLE tenders ADD COLUMN cpv TEXT', alterErr => {
-        if (alterErr) {
-          return logger.error('Failed to add cpv column:', alterErr);
-        }
-        ensureCpvIndex();
-        logger.info('Added missing cpv column to tenders table');
-      });
+    if (!has('cpv')) {
+      addColumn('cpv');
+      ensureCpvIndex();
     } else {
       ensureCpvIndex();
     }
+    ['open_date', 'deadline', 'customer', 'address', 'country', 'eligibility'].forEach(
+      col => {
+        if (!has(col)) {
+          addColumn(col);
+        }
+      }
+    );
   });
+  // Reference table for CPV codes loaded from the official list.
+  db.run(
+    `CREATE TABLE IF NOT EXISTS cpv_codes (
+      code TEXT PRIMARY KEY,
+      description TEXT
+    )`
+  );
   // Small metadata table used to store global key/value pairs such as the
   // timestamp of the last successful scrape. Using a key column keeps the
   // schema flexible should more values be needed later.
@@ -188,13 +205,35 @@ module.exports = {
     scrapedAt,
     tags,
     ocid = null,
-    cpv = ''
+    cpv = '',
+    openDate = '',
+    deadline = '',
+    customer = '',
+    address = '',
+    country = '',
+    eligibility = ''
   ) => {
     return new Promise((resolve, reject) => {
       db.run(
         // Use INSERT OR IGNORE so that duplicate links or OCIDs are skipped silently.
-        "INSERT OR IGNORE INTO tenders (title, link, ocid, date, description, source, scraped_at, tags, cpv) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [title, link, ocid, date, description, source, scrapedAt, tags, cpv],
+        "INSERT OR IGNORE INTO tenders (title, link, ocid, date, description, source, scraped_at, tags, cpv, open_date, deadline, customer, address, country, eligibility) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+          title,
+          link,
+          ocid,
+          date,
+          description,
+          source,
+          scrapedAt,
+          tags,
+          cpv,
+          openDate,
+          deadline,
+          customer,
+          address,
+          country,
+          eligibility
+        ],
         function (err) {
           if (err) {
             // Propagate database errors to the caller.
