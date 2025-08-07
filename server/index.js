@@ -215,6 +215,40 @@ const requireAuth = (req, res, next) => {
   res.redirect('/login');
 };
 
+// Build a set of administrator usernames from the ADMIN_USERS environment
+// variable. When empty, all authenticated users are treated as administrators
+// so optional permission checks fall back to simple authentication.
+const adminUsers = new Set(
+  (process.env.ADMIN_USERS || '')
+    .split(',')
+    .map(u => u.trim().toLowerCase())
+    .filter(Boolean)
+);
+
+/**
+ * Middleware restricting access to administrator accounts. If no administrators
+ * are configured the check is skipped and any authenticated user is allowed.
+ * Responses mirror requireAuth so APIs receive JSON while browser requests
+ * return a plain 403 page.
+ */
+const requireAdmin = (req, res, next) => {
+  if (
+    !adminUsers.size ||
+    (req.session.user && adminUsers.has(req.session.user.username.toLowerCase()))
+  ) {
+    return next();
+  }
+  if (req.headers.accept && req.headers.accept.includes('application/json')) {
+    return res.status(403).json({ error: 'Administrator access required' });
+  }
+  return res.status(403).send('Administrator access required');
+};
+
+// Toggle log streaming at runtime via environment variable. Production
+// deployments can disable the /logs endpoint entirely by setting this to
+// "false" which avoids exposing log data unnecessarily.
+const enableLogStream = process.env.ENABLE_LOG_STREAM !== 'false';
+
 // Configure EJS for HTML templates and serve static assets from the
 // frontend directory defined in config.js
 app.set('view engine', 'ejs');
@@ -776,21 +810,26 @@ app.get('/scrape-awarded-stream', requireAuth, async (req, res) => {
   res.end();
 });
 
-// Stream log entries to the dashboard so progress can be monitored live.
-app.get('/logs', (req, res) => {
-  res.set({
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive'
+// Stream log entries to the dashboard so progress can be monitored live. The
+// route is registered only when log streaming is enabled, allowing production
+// deployments to disable it entirely if sensitive information should not be
+// exposed over HTTP.
+if (enableLogStream) {
+  app.get('/logs', requireAuth, requireAdmin, (req, res) => {
+    res.set({
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive'
+    });
+    res.flushHeaders();
+
+    const send = data => res.write(`data: ${JSON.stringify(data)}\n\n`);
+    const listener = log => send(log);
+    logger.emitter.on('log', listener);
+
+    req.on('close', () => logger.emitter.off('log', listener));
   });
-  res.flushHeaders();
-
-  const send = data => res.write(`data: ${JSON.stringify(data)}\n\n`);
-  const listener = log => send(log);
-  logger.emitter.on('log', listener);
-
-  req.on('close', () => logger.emitter.off('log', listener));
-});
+}
 
 // GET /admin - Render the admin interface used for maintenance tasks.
 // Fetch scraping statistics and render the admin page.
@@ -913,4 +952,4 @@ if (require.main === module) {
   startServer();
 }
 
-module.exports = { app, startServer, requireAuth };
+module.exports = { app, startServer, requireAuth, requireAdmin };

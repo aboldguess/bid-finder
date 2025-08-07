@@ -83,6 +83,12 @@ describe('requireAuth middleware', () => {
     expect(res.status).to.equal(401);
   });
 
+  it('redirects unauthenticated users from /logs to /login', async () => {
+    const res = await fetch(url('/logs'), { redirect: 'manual' });
+    expect(res.status).to.equal(302);
+    expect(res.headers.get('location')).to.match(/\/login$/);
+  });
+
   it('rejects POST /login without CSRF token', async () => {
     const res = await fetch(url('/login'), {
       method: 'POST',
