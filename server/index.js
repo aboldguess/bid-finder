@@ -145,7 +145,10 @@ app.use(
     // Persist the session cookie for 30 days and harden it against common
     // attacks. The secure flag requires HTTPS in production.
     cookie: {
-      secure: true,
+      // In test environments the cookie need not be secure so automated tests can
+      // capture it over plain HTTP. Production deployments should always use
+      // HTTPS which this flag enforces.
+      secure: process.env.NODE_ENV === 'production',
       httpOnly: true,
       sameSite: 'lax',
       maxAge: 30 * 24 * 60 * 60 * 1000
@@ -413,6 +416,12 @@ app.post('/sources', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
+  // Reject keys or labels containing characters that could break out of the
+  // script context when rendered on the admin page.
+  if (/[<>]/.test(key) || /[<>]/.test(label)) {
+    return res.status(400).json({ error: 'Invalid characters in key or label' });
+  }
+
   if (config.sources[key]) {
     return res.status(400).json({ error: 'Source key already exists' });
   }
@@ -444,6 +453,10 @@ app.put('/sources/:key', requireAuth, async (req, res) => {
   }
   if (!label || !url || !base) {
     return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  if (/[<>]/.test(key) || /[<>]/.test(label)) {
+    return res.status(400).json({ error: 'Invalid characters in key or label' });
   }
 
   try {
@@ -492,6 +505,10 @@ app.post('/award-sources', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Source key already exists' });
   }
 
+  if (/[<>]/.test(key) || /[<>]/.test(label)) {
+    return res.status(400).json({ error: 'Invalid characters in key or label' });
+  }
+
   try {
     await db.insertAwardSource(key, label, url, base, parser);
     config.awardSources[key] = { label, url, base, parser };
@@ -515,6 +532,10 @@ app.put('/award-sources/:key', requireAuth, async (req, res) => {
   }
   if (!label || !url || !base) {
     return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  if (/[<>]/.test(key) || /[<>]/.test(label)) {
+    return res.status(400).json({ error: 'Invalid characters in key or label' });
   }
 
   try {

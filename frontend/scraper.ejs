@@ -1,3 +1,9 @@
+<!--
+  @file scraper.ejs
+  @description Administrative interface for managing scraping sources,
+  schedules and maintenance operations. Rendered by the /scraper route and
+  includes client-side logic for editing, testing and deleting sources.
+-->
 <!DOCTYPE html>
 <html>
 <head>
@@ -165,8 +171,10 @@
   </details> <!-- end award sources section -->
 
 <script>
-const sourceData = <%- JSON.stringify(sources) %>;
-const awardSourceData = <%- JSON.stringify(awardSources) %>;
+// Embed source objects safely into the page. Replacing "<" prevents breaking
+// out of the script tag while still allowing JSON parsing client side.
+const sourceData = <%= JSON.stringify(sources).replace(/</g, '\u003c') %>;
+const awardSourceData = <%= JSON.stringify(awardSources).replace(/</g, '\u003c') %>;
 let editingKey = null;
 let editingAwardKey = null;
 // Expand row to show configuration details.
