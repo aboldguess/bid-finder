@@ -246,8 +246,9 @@ app.get('/awarded', async (req, res) => {
 });
 
 // GET /scraper - Display all configured sources along with stats and actions
-// for testing or scraping them individually.
-app.get('/scraper', async (req, res) => {
+// for testing or scraping them individually. Authentication ensures only
+// authorised users can manage scraping configuration.
+app.get('/scraper', requireAuth, async (req, res) => {
   const statsRows = await db.getSourceStats();
   const stats = {};
   for (const row of statsRows) {
@@ -404,7 +405,7 @@ app.get('/manage-users', requireAuth, (req, res) => {
 // stored in memory so they persist only for the lifetime of the process.
 // Persist new sources in the database so they remain available after a restart.
 // The parser field defaults to "contractsFinder" since it matches our test HTML.
-app.post('/sources', async (req, res) => {
+app.post('/sources', requireAuth, async (req, res) => {
   const { key, label, url, base, parser = 'contractsFinder' } = req.body || {};
 
   // Basic validation of the supplied data
@@ -434,7 +435,7 @@ app.post('/sources', async (req, res) => {
 // PUT /sources/:key - Update an existing scraping source. This mirrors the
 // POST /sources handler but modifies an existing row instead of inserting a
 // new one.
-app.put('/sources/:key', async (req, res) => {
+app.put('/sources/:key', requireAuth, async (req, res) => {
   const key = req.params.key;
   const { label, url, base, parser = 'contractsFinder' } = req.body || {};
 
@@ -460,7 +461,7 @@ app.put('/sources/:key', async (req, res) => {
 
 // DELETE /sources/:key - Remove a source entirely. The in-memory configuration
 // is kept in sync so subsequent requests do not reference the deleted source.
-app.delete('/sources/:key', async (req, res) => {
+app.delete('/sources/:key', requireAuth, async (req, res) => {
   const key = req.params.key;
   if (!config.sources[key]) {
     return res.status(404).json({ error: 'Source not found' });
@@ -481,7 +482,7 @@ app.delete('/sources/:key', async (req, res) => {
 // -------- Award Source Management -----------------------------------------
 
 // POST /award-sources - Add a new award scraping source.
-app.post('/award-sources', async (req, res) => {
+app.post('/award-sources', requireAuth, async (req, res) => {
   const { key, label, url, base, parser = 'contractsFinder' } = req.body || {};
 
   if (!key || !label || !url || !base) {
@@ -505,7 +506,7 @@ app.post('/award-sources', async (req, res) => {
 });
 
 // PUT /award-sources/:key - Update an existing award source.
-app.put('/award-sources/:key', async (req, res) => {
+app.put('/award-sources/:key', requireAuth, async (req, res) => {
   const key = req.params.key;
   const { label, url, base, parser = 'contractsFinder' } = req.body || {};
 
@@ -530,7 +531,7 @@ app.put('/award-sources/:key', async (req, res) => {
 });
 
 // DELETE /award-sources/:key - Remove an award source completely.
-app.delete('/award-sources/:key', async (req, res) => {
+app.delete('/award-sources/:key', requireAuth, async (req, res) => {
   const key = req.params.key;
   if (!config.awardSources[key]) {
     return res.status(404).json({ error: 'Source not found' });
@@ -550,8 +551,9 @@ app.delete('/award-sources/:key', async (req, res) => {
 
 // GET /test-source - Fetch the first page of a source to check availability.
 // The response simply reports whether the request succeeded and how many
-// tenders were parsed from that single page.
-app.get('/test-source', async (req, res) => {
+// tenders were parsed from that single page. Protected so only authenticated
+// users can probe external sources.
+app.get('/test-source', requireAuth, async (req, res) => {
   const key = req.query.key;
   const src = config.sources[key];
   if (!src) return res.status(404).json({ error: 'Source not found' });
@@ -568,7 +570,7 @@ app.get('/test-source', async (req, res) => {
 });
 
 // GET /test-award-source - Check an award feed returns parsable results.
-app.get('/test-award-source', async (req, res) => {
+app.get('/test-award-source', requireAuth, async (req, res) => {
   const key = req.query.key;
   const src = config.awardSources[key];
   if (!src) return res.status(404).json({ error: 'Source not found' });
@@ -585,8 +587,10 @@ app.get('/test-award-source', async (req, res) => {
 });
 
 // GET /scrape - Trigger the scraper manually via an HTTP request. The route
-// responds with the number of new tenders that were inserted.
-app.get('/scrape', async (req, res) => {
+// responds with the number of new tenders that were inserted. Restricted to
+// authenticated users because it performs network operations and modifies the
+// database.
+app.get('/scrape', requireAuth, async (req, res) => {
   const sourceKey = req.query.source || 'default';
   const source = config.sources[sourceKey] || config.sources.default;
   logger.info(`Manual scrape triggered for ${sourceKey}`);
@@ -595,7 +599,7 @@ app.get('/scrape', async (req, res) => {
 });
 
 // Trigger the awards scraper for a specific source.
-app.get('/scrape-awarded', async (req, res) => {
+app.get('/scrape-awarded', requireAuth, async (req, res) => {
   const sourceKey = req.query.source || 'default';
   const source = config.awardSources[sourceKey] || config.awardSources.default;
   logger.info(`Manual awards scrape triggered for ${sourceKey}`);
@@ -606,21 +610,21 @@ app.get('/scrape-awarded', async (req, res) => {
 // GET /scrape-all - Run the scraper against every configured source. This
 // endpoint is used by the "Scrape All" button on the dashboard and simply
 // returns a summary of how many tenders were added per source.
-app.get('/scrape-all', async (req, res) => {
+app.get('/scrape-all', requireAuth, async (req, res) => {
   logger.info('Manual scrape triggered for all sources');
   const results = await scrape.runAll();
   res.json(results);
 });
 
 // Scrape all award sources sequentially and return per-source stats.
-app.get('/scrape-awarded-all', async (req, res) => {
+app.get('/scrape-awarded-all', requireAuth, async (req, res) => {
   logger.info('Manual awards scrape triggered for all sources');
   const results = await scrapeAwarded.runAll();
   res.json(results);
 });
 
 // SSE endpoint that streams progress while scraping every source sequentially.
-app.get('/scrape-all-stream', async (req, res) => {
+app.get('/scrape-all-stream', requireAuth, async (req, res) => {
   res.set({
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -636,7 +640,7 @@ app.get('/scrape-all-stream', async (req, res) => {
 
 // GET /scrape-stream - Same as /scrape but streams progress updates using
 // Server-Sent Events so the frontend can display real-time feedback.
-app.get('/scrape-stream', async (req, res) => {
+app.get('/scrape-stream', requireAuth, async (req, res) => {
   const sourceKey = req.query.source || 'default';
   const source = config.sources[sourceKey] || config.sources.default;
   logger.info(`Manual SSE scrape triggered for ${sourceKey}`);
@@ -671,7 +675,7 @@ app.get('/scrape-stream', async (req, res) => {
 });
 
 // SSE streaming variant of the awards scraper.
-app.get('/scrape-awarded-stream', async (req, res) => {
+app.get('/scrape-awarded-stream', requireAuth, async (req, res) => {
   const sourceKey = req.query.source || 'default';
   const source = config.awardSources[sourceKey] || config.awardSources.default;
   logger.info(`Manual SSE awards scrape triggered for ${sourceKey}`);
@@ -817,5 +821,11 @@ async function startServer() {
   });
 }
 
-// Kick off the server startup process.
-startServer();
+// Kick off the server startup process when this file is executed directly.
+// Exporting the app allows the test suite to mount the application without
+// starting an HTTP listener.
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = { app, startServer, requireAuth };
