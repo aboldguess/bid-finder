@@ -126,11 +126,20 @@ function openBrowser(url) {
     // Load any persisted sources and merge them into the config object.
     const rows = await db.getSources();
     for (const row of rows) {
+      let selectors;
+      if (row.selectors) {
+        try {
+          selectors = JSON.parse(row.selectors);
+        } catch (err) {
+          logger.warn(`Failed to parse selectors for source ${row.key}:`, err);
+        }
+      }
       config.sources[row.key] = {
         label: row.label,
         url: row.url,
         base: row.base,
-        parser: row.parser
+        parser: row.parser,
+        selectors
       };
     }
 
@@ -138,11 +147,20 @@ function openBrowser(url) {
     // custom entries defined via the admin UI.
     const awardRows = await db.getAwardSources();
     for (const row of awardRows) {
+      let selectors;
+      if (row.selectors) {
+        try {
+          selectors = JSON.parse(row.selectors);
+        } catch (err) {
+          logger.warn(`Failed to parse award selectors for ${row.key}:`, err);
+        }
+      }
       config.awardSources[row.key] = {
         label: row.label,
         url: row.url,
         base: row.base,
-        parser: row.parser
+        parser: row.parser,
+        selectors
       };
     }
 
@@ -689,7 +707,7 @@ app.get('/test-source', requireAuth, async (req, res) => {
   try {
     const r = await fetch(src.url);
     const html = await r.text();
-    const tenders = parseTenders(html, src.parser);
+    const tenders = parseTenders(html, src);
     sourceStatus[key] = 'ok';
     res.json({ status: 'ok', count: tenders.length });
   } catch (err) {
@@ -706,7 +724,7 @@ app.get('/test-award-source', requireAuth, async (req, res) => {
   try {
     const r = await fetch(src.url);
     const html = await r.text();
-    const tenders = parseTenders(html, src.parser);
+    const tenders = parseTenders(html, src);
     sourceStatus[key] = 'ok';
     res.json({ status: 'ok', count: tenders.length });
   } catch (err) {
