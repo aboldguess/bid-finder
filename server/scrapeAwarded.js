@@ -6,11 +6,13 @@
  * a single source and `runAll` for iterating over every configured award feed.
  */
 const fetch = require('node-fetch');
+const cheerio = require('cheerio');
 const { parseTenders } = require('./htmlParser');
 const { parseAwardDetails } = require('./detailParser');
 const db = require('./db');
 const config = require('./config');
 const logger = require('./logger');
+const { resolvePaginationConfig, findNextPageUrl } = require('./pagination');
 
 // Enforce network limits to defend against slow or extremely large responses.
 const FETCH_TIMEOUT = 10000; // ms
@@ -72,7 +74,8 @@ async function runInternal(onProgress, sourceKey, source) {
         base: defaultAward.base,
         parser: defaultAward.parser || 'contractsFinder',
         label: defaultAward.label || 'Contracts Finder Awards',
-        selectors: defaultAward.selectors
+        selectors: defaultAward.selectors,
+        pagination: defaultAward.pagination || config.pagination
       };
 
     // Log the start of the scrape and let any progress listener know which
@@ -82,19 +85,34 @@ async function runInternal(onProgress, sourceKey, source) {
       onProgress({ step: 'start', source: src });
     }
 
-    // Collect tenders from all available pages. Some sources only show a
-    // limited number of results per page so we follow any "next" links until
-    // no further pages remain. This keeps the implementation generic without
-    // hard coding page query parameters.
+    // Collect tenders from all available pages using the shared pagination
+    // helper to avoid loops and respect configurable page caps.
     const allTenders = [];
     let nextUrl = src.url;
     let page = 1;
+    const pagination = resolvePaginationConfig(src);
+    const pageLimit = Math.max(1, pagination.maxPages || 1);
+    const visitedUrls = new Set();
     const headers = {
       'User-Agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
     };
 
     while (nextUrl) {
+      if (pagination.detectLoops && visitedUrls.has(nextUrl)) {
+        logger.info(
+          `Detected repeated pagination URL on ${src.label}; stopping at ${nextUrl}`
+        );
+        break;
+      }
+      if (page > pageLimit) {
+        logger.info(
+          `Reached pagination limit (${pageLimit}) for ${src.label}; halting further requests`
+        );
+        break;
+      }
+      visitedUrls.add(nextUrl);
+
       // Fetch each page sequentially using a browser-like User-Agent.
       const res = await fetch(nextUrl, {
         headers,
@@ -102,6 +120,7 @@ async function runInternal(onProgress, sourceKey, source) {
         size: MAX_RESPONSE_SIZE
       });
       const html = await res.text();
+      const $ = cheerio.load(html);
 
       // Extract tenders from the HTML using the configured parser and add them
       // to the overall results list.
@@ -109,16 +128,26 @@ async function runInternal(onProgress, sourceKey, source) {
       logger.info(`Found ${pageTenders.length} tenders on ${src.label} page ${page}`);
       allTenders.push(...pageTenders);
 
-      // Look for a link pointing to the next page. Many sites mark this with a
-      // rel="next" attribute or anchor text containing "Next". Relative URLs are
-      // resolved against the source base URL so both absolute and relative links
-      // are handled consistently.
-      const relNext = html.match(/<link[^>]*rel=["']next["'][^>]*href=["']([^"']+)["']/i);
-      const anchorNext =
-        html.match(/<a[^>]*href=["']([^"']+)["'][^>]*>(?:Next|next|›|&gt;|&raquo;)/i);
-      const href = relNext ? relNext[1] : anchorNext ? anchorNext[1] : null;
-      nextUrl = href ? new URL(href.replace(/&amp;/g, '&'), src.base).href : null;
-      page += 1;
+      if (pageTenders.length === 0) {
+        logger.info(`No tenders detected on ${src.label} page ${page}; stopping pagination.`);
+        break;
+      }
+
+      const nextPageUrl = findNextPageUrl(
+        $,
+        src.base || nextUrl,
+        pagination,
+        visitedUrls,
+        page,
+        logger
+      );
+      if (nextPageUrl) {
+        nextUrl = nextPageUrl;
+        page += 1;
+      } else {
+        logger.info(`No further pagination link found on ${src.label} page ${page}.`);
+        nextUrl = null;
+      }
     }
 
     logger.info(`Found ${allTenders.length} tenders on ${src.label}`);
