@@ -4,6 +4,7 @@
  *
  * Structure:
  *   - clean: normalises text by stripping tags and whitespace.
+ *   - parseGeneric
  *   - parseContractsFinder
  *   - parseSell2Wales
  *   - parseUkri
@@ -22,7 +23,197 @@ const cheerio = require('cheerio');
  * @returns {string} Cleaned string.
  */
 function clean(str = '') {
-  return cheerio.load(str).text().replace(/\s+/g, ' ').trim();
+  const safe = typeof str === 'string' ? str : str == null ? '' : String(str);
+  return cheerio.load(safe).text().replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Attempt to resolve a cheerio element according to the supplied selector
+ * definition. Strings are treated as CSS selectors searched within the
+ * provided block, whereas objects allow specifying alternate lookup
+ * strategies such as `closest` or retrieving the block itself using `self`.
+ * Arrays are processed until a non-empty match is found.
+ *
+ * @param {cheerio.Cheerio} block The element representing a single tender.
+ * @param {string|object|Array} def Selector definition.
+ * @returns {cheerio.Cheerio|null} Matched element or null when nothing is found.
+ */
+function resolveElement(block, def) {
+  if (!def) return null;
+
+  if (Array.isArray(def)) {
+    for (const candidate of def) {
+      const el = resolveElement(block, candidate);
+      if (el && el.length) {
+        return el;
+      }
+    }
+    return null;
+  }
+
+  if (typeof def === 'string') {
+    if (def === ':self' || def === 'self') {
+      return block;
+    }
+    const el = block.find(def).first();
+    return el.length ? el : null;
+  }
+
+  if (typeof def === 'object') {
+    if (def.self) {
+      return block;
+    }
+
+    const strategy = def.strategy || (def.closest ? 'closest' : 'find');
+    const selector = def.selector || def.closest || def.find;
+
+    if (!selector) {
+      return block;
+    }
+
+    const el =
+      strategy === 'closest'
+        ? block.closest(selector)
+        : strategy === 'self'
+        ? block
+        : block.find(selector).first();
+
+    return el && el.length ? el : null;
+  }
+
+  return null;
+}
+
+/**
+ * Extract text or attribute data from a block using the provided selector.
+ * When `options.attribute` is supplied the corresponding attribute value is
+ * returned rather than element text. Multiple selectors can be passed via an
+ * array to provide fallbacks.
+ *
+ * @param {cheerio.Cheerio} block Tender wrapper element.
+ * @param {string|object|Array} def Selector definition.
+ * @param {{attribute?: string, cleanText?: boolean}} [options] Extraction opts.
+ * @returns {string} Resolved value (empty string when no match is found).
+ */
+function extractValue(block, def, options = {}) {
+  const { attribute, cleanText = true } = options;
+  const selectors = Array.isArray(def) ? def : [def];
+
+  for (const selectorDef of selectors) {
+    if (!selectorDef) continue;
+
+    let attrName = attribute;
+    if (typeof selectorDef === 'object' && selectorDef.attr && !attrName) {
+      attrName = selectorDef.attr;
+    }
+
+    const el = resolveElement(block, selectorDef);
+    if (!el || !el.length) {
+      continue;
+    }
+
+    if (attrName) {
+      const raw = el.attr(attrName);
+      if (typeof raw === 'string' && raw.trim()) {
+        return cleanText ? clean(raw) : raw.trim();
+      }
+      continue;
+    }
+
+    const html = el.html();
+    if (typeof html === 'string' && html.trim()) {
+      return clean(html);
+    }
+
+    const text = el.text();
+    if (typeof text === 'string' && text.trim()) {
+      return clean(text);
+    }
+  }
+
+  return '';
+}
+
+/**
+ * Generic parser that can be configured via CSS selectors. Each selector is
+ * applied relative to a wrapper element identified by `selectors.item`. When
+ * `item` is omitted the selector supplied for the link or title is used as the
+ * iteration anchor, allowing quick experiments albeit with less context.
+ *
+ * @param {string} html Raw HTML fragment to parse.
+ * @param {object} selectors Map of selector strings/objects.
+ * @param {string|object|Array} selectors.item CSS selector locating each row.
+ * @param {string|object|Array} selectors.title Selector yielding the title.
+ * @param {string|object|Array} selectors.link Selector yielding the link.
+ * @param {string|object|Array} [selectors.date] Selector for the date field.
+ * @param {string|object|Array} [selectors.description] Selector for the summary.
+ * @returns {Array<object>} Normalised tender objects.
+ */
+function parseGeneric(html, selectors = {}) {
+  const $ = cheerio.load(html);
+  const results = [];
+
+  const itemSelector = selectors.item || selectors.items || null;
+  const anchorSelector = selectors.link || selectors.title || 'a';
+  const nodes = itemSelector ? $(itemSelector).toArray() : $(anchorSelector).toArray();
+  const seen = new Set();
+
+  for (const node of nodes) {
+    const base = itemSelector ? $(node) : $(node);
+    const block = !itemSelector && selectors.scope ? base.closest(selectors.scope) : base;
+
+    const title = selectors.title
+      ? extractValue(block, selectors.title)
+      : extractValue(block, ['h1', 'h2', 'h3', 'a']);
+
+    const linkAttr =
+      (typeof selectors.link === 'object' && selectors.link.attr) ||
+      selectors.linkAttribute ||
+      'href';
+    const linkEl = selectors.link ? selectors.link : { selector: 'a', attr: 'href' };
+    const link = extractValue(block, linkEl, { attribute: linkAttr, cleanText: false });
+
+    if (!title || !link) {
+      continue;
+    }
+
+    const key = `${title}|${link}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+
+    const tender = {
+      title,
+      link,
+      date: selectors.date ? extractValue(block, selectors.date) : '',
+      desc: selectors.description ? extractValue(block, selectors.description) : '',
+      organisation: selectors.organisation ? extractValue(block, selectors.organisation) : '',
+      supplier: selectors.supplier ? extractValue(block, selectors.supplier) : ''
+    };
+
+    const ocidAttr =
+      (typeof selectors.ocid === 'object' && selectors.ocid.attr) || selectors.ocidAttribute;
+    let ocid = selectors.ocid
+      ? extractValue(block, selectors.ocid, {
+          attribute: ocidAttr,
+          cleanText: !ocidAttr
+        })
+      : '';
+
+    if (!ocid) {
+      ocid =
+        block.attr('data-ocid') ||
+        block.find('[data-ocid]').attr('data-ocid') ||
+        (block.text().match(/ocds-[a-z0-9-]+/i) || [])[0] ||
+        '';
+    }
+
+    tender.ocid = ocid;
+    results.push(tender);
+  }
+
+  return results;
 }
 
 /**
@@ -234,10 +425,27 @@ function parseRss(xml) {
 }
 
 /**
- * Dispatch parser based on source key.
+ * Dispatch parser based on source configuration. When a selectors object is
+ * supplied the new generic parser is used; otherwise the legacy named parsers
+ * remain available for backwards compatibility and specialised behaviour.
+ *
+ * @param {string} html Raw HTML or XML response body.
+ * @param {string|object} source Either a parser key or full source definition.
+ * @returns {Array<object>} Parsed tender rows.
  */
-exports.parseTenders = function parseTenders(html, site = 'contractsFinder') {
-  switch (site) {
+exports.parseTenders = function parseTenders(html, source = 'contractsFinder') {
+  const sourceConfig =
+    typeof source === 'string' || !source
+      ? { parser: source || 'contractsFinder' }
+      : source;
+
+  if (sourceConfig && sourceConfig.selectors) {
+    return parseGeneric(html, sourceConfig.selectors);
+  }
+
+  const parserKey = sourceConfig && sourceConfig.parser ? sourceConfig.parser : 'contractsFinder';
+
+  switch (parserKey) {
     case 'eusupply':
       return parseEuSupply(html);
     case 'sell2wales':

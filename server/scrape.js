@@ -68,12 +68,14 @@ async function runInternal(onProgress, sourceKey, source) {
     // Determine the URL/base for this run. When no source is supplied we
     // construct an object using the default Contracts Finder settings and the
     // parser key expected by htmlParser.
+    const defaultSource = config.sources?.default || {};
     const src =
       source || {
         url: config.scrapeUrl,
         base: config.scrapeBase,
         parser: 'contractsFinder',
-        label: 'Contracts Finder'
+        label: defaultSource.label || 'Contracts Finder',
+        selectors: defaultSource.selectors
       };
 
     // Track how long the scrape takes so progress messages can include the
@@ -122,7 +124,7 @@ async function runInternal(onProgress, sourceKey, source) {
 
       // Extract tenders from the HTML using the configured parser and add them
       // to the overall results list.
-      const pageTenders = parseTenders(html, src.parser);
+      const pageTenders = parseTenders(html, src);
       logger.info(`Found ${pageTenders.length} tenders on ${src.label} page ${page}`);
       allTenders.push(...pageTenders);
 

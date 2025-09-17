@@ -21,6 +21,11 @@ const defaultSource = {
 // Other sources previously included here have been removed as they either no
 // longer work or never provided reliable results. A small selection is kept to
 // demonstrate multiple scraping strategies.
+//
+// Sources can optionally define a `selectors` object describing CSS selectors
+// for the title, link, date and description fields. When provided the scraper
+// delegates parsing to the generic CSS-driven parser, making it easy to add new
+// HTML portals without shipping additional code.
 
 const euSupplySource = {
   label: 'EU Supply UK',
@@ -28,7 +33,15 @@ const euSupplySource = {
     process.env.EUSUPPLY_URL ||
     'https://uk.eu-supply.com/ctm/supplier/publictenders?B=UK',
   base: process.env.EUSUPPLY_BASE || 'https://uk.eu-supply.com',
-  parser: 'eusupply'
+  parser: 'generic',
+  selectors: {
+    // Each row in the tender listing table contains a single opportunity.
+    item: 'tr',
+    title: 'a',
+    link: { selector: 'a', attr: 'href' },
+    date: ['time', 'td:nth-child(3)'],
+    description: ['td.description', 'p']
+  }
 };
 
 // Example Sell2Wales source used by the additional `sell2wales` parser.

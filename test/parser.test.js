@@ -63,4 +63,33 @@ describe('htmlParser', () => {
     expect(tenders[0].link).to.equal('/u1');
     expect(tenders[1].date).to.equal('2024-04-04');
   });
+
+  it('parses tenders using generic selectors when provided', () => {
+    const html = `
+      <section class="list">
+        <article data-ocid="ocds-x">
+          <a class="opportunity" href="/g1">Generic 1</a>
+          <time>2024-05-01</time>
+          <p class="summary">Desc G1</p>
+        </article>
+        <article>
+          <a class="opportunity" href="/g2">Generic 2</a>
+          <span class="posted">2024-05-02</span>
+          <div class="summary">Desc G2</div>
+        </article>
+      </section>`;
+    const selectors = {
+      item: 'article',
+      title: '.opportunity',
+      link: { selector: '.opportunity', attr: 'href' },
+      date: ['time', '.posted'],
+      description: '.summary'
+    };
+    const tenders = parseTenders(html, { selectors });
+    expect(tenders).to.have.length(2);
+    expect(tenders[0].title).to.equal('Generic 1');
+    expect(tenders[0].ocid).to.equal('ocds-x');
+    expect(tenders[1].date).to.equal('2024-05-02');
+    expect(tenders[1].desc).to.equal('Desc G2');
+  });
 });
