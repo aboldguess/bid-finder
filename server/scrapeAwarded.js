@@ -5,7 +5,6 @@
  * information on completed procurements. The module exports `run` for scraping
  * a single source and `runAll` for iterating over every configured award feed.
  */
-const fetch = require('node-fetch');
 const cheerio = require('cheerio');
 const { parseTenders } = require('./htmlParser');
 const { parseAwardDetails } = require('./detailParser');
@@ -13,10 +12,11 @@ const db = require('./db');
 const config = require('./config');
 const logger = require('./logger');
 const { resolvePaginationConfig, findNextPageUrl } = require('./pagination');
+const { fetchText } = require('./httpClient');
+const { createLimiter } = require('./concurrency');
 
-// Enforce network limits to defend against slow or extremely large responses.
-const FETCH_TIMEOUT = 10000; // ms
-const MAX_RESPONSE_SIZE = 5 * 1024 * 1024; // 5MB
+// Local alias for shared HTTP/network defaults to keep expressions concise.
+const networkDefaults = config.network || {};
 
 /**
  * Generate tags for a tender based on the configured keyword rules.
@@ -114,12 +114,7 @@ async function runInternal(onProgress, sourceKey, source) {
       visitedUrls.add(nextUrl);
 
       // Fetch each page sequentially using a browser-like User-Agent.
-      const res = await fetch(nextUrl, {
-        headers,
-        timeout: FETCH_TIMEOUT,
-        size: MAX_RESPONSE_SIZE
-      });
-      const html = await res.text();
+      const html = await fetchText(nextUrl, { headers });
       const $ = cheerio.load(html);
 
       // Extract tenders from the HTML using the configured parser and add them
@@ -164,39 +159,53 @@ async function runInternal(onProgress, sourceKey, source) {
     // count before inserting anything.
     const total = allTenders.length;
 
-    // Iterate over each result and insert it into the database. The
-    // insertTender function resolves with the number of rows inserted so we can
-    // keep track of how many new tenders were added.
     // Use a single timestamp for all tenders so stats can group them by run.
     const runTs = new Date().toISOString();
+    const detailConcurrency = Math.max(1, networkDefaults.detailConcurrency || 4);
+    const detailLimiter = await createLimiter(detailConcurrency);
+    if (total > 0) {
+      logger.info(
+        `Fetching ${total} award detail page(s) for ${src.label} with concurrency ${detailConcurrency}`
+      );
+    }
 
-    for (const [i, tender] of allTenders.entries()) {
+    // Prefetch award detail pages behind a concurrency limiter so retries do
+    // not overwhelm upstream services.
+    const detailJobs = allTenders.map(tender => {
+      const absoluteLink = new URL(tender.link, src.base).href;
+      return {
+        tender,
+        link: absoluteLink,
+        detailPromise: detailLimiter(async () => {
+          try {
+            const detailHtml = await fetchText(absoluteLink, { headers });
+            return parseAwardDetails(detailHtml) || {};
+          } catch (err) {
+            logger.error(`Failed to fetch award details for ${absoluteLink}:`, err);
+            return {};
+          }
+        })
+      };
+    });
+
+    for (const [i, job] of detailJobs.entries()) {
+      const { tender, link, detailPromise } = job;
       const title = tender.title;
-      // Normalise tender links using the base URL so relative and
-      // absolute URLs are handled consistently. This prevents malformed
-      // links in the stored data.
-      const link = new URL(tender.link, src.base).href;
       const date = tender.date;
       const desc = tender.desc;
       const supplier = tender.supplier;
       const tags = generateTags(title, desc);
 
-      // Fetch the tender detail page to collect additional fields. Any
-      // failures here are logged but do not abort the main scraping loop.
       let details = {};
-      try {
-        const resDetail = await fetch(link, {
-          headers,
-          timeout: FETCH_TIMEOUT,
-          size: MAX_RESPONSE_SIZE
-        });
-        const detailHtml = await resDetail.text();
-        details = parseAwardDetails(detailHtml);
-      } catch (err) {
-        logger.error('Failed to fetch award details:', err);
+      if (detailPromise) {
+        try {
+          details = (await detailPromise) || {};
+        } catch (err) {
+          logger.error(`Detail processing for ${link} failed:`, err);
+          details = {};
+        }
       }
-      // Include metadata about where and when the tender was scraped so
-      // the dashboard can display this context to the user.
+
       const srcLabel = src.label;
       const scrapedAt = runTs;
 

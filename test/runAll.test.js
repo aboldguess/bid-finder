@@ -12,13 +12,16 @@ const db = require('../server/db');
 const htmlA = fs.readFileSync(path.join(__dirname, 'mock.html'), 'utf8');
 // Second listing uses different OCIDs so inserts are not treated as duplicates.
 const htmlB = htmlA.replace('ocds-1', 'ocds-3').replace('ocds-2', 'ocds-4');
-const fetchStub = sinon.stub();
-fetchStub.onCall(0).resolves({ text: async () => htmlA });
-fetchStub.onCall(1).resolves({ text: async () => '<div></div>' });
-fetchStub.onCall(2).resolves({ text: async () => '<div></div>' });
-fetchStub.onCall(3).resolves({ text: async () => htmlB });
-fetchStub.onCall(4).resolves({ text: async () => '<div></div>' });
-fetchStub.onCall(5).resolves({ text: async () => '<div></div>' });
+const fetchTextStub = sinon.stub();
+fetchTextStub.onCall(0).resolves(htmlA);
+fetchTextStub.onCall(1).resolves('<div></div>');
+fetchTextStub.onCall(2).resolves('<div></div>');
+fetchTextStub.onCall(3).resolves(htmlB);
+fetchTextStub.onCall(4).resolves('<div></div>');
+fetchTextStub.onCall(5).resolves('<div></div>');
+
+const limitFn = sinon.stub().callsFake(async task => task());
+const createLimiterStub = sinon.stub().resolves(limitFn);
 
 const configStub = {
   sources: {
@@ -30,7 +33,8 @@ const configStub = {
 };
 
 const scrape = proxyquire('../server/scrape', {
-  'node-fetch': fetchStub,
+  './httpClient': { fetchText: fetchTextStub },
+  './concurrency': { createLimiter: createLimiterStub },
   './db': db,
   './config': configStub
 });

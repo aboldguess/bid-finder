@@ -6,7 +6,6 @@
  * `run` for a single source and `runAll` for iterating over every configured
  * source. Extensive logging and progress callbacks aid debugging.
  */
-const fetch = require('node-fetch');
 const cheerio = require('cheerio');
 const { parseTenders } = require('./htmlParser');
 // Detail pages expose additional metadata such as CPV classifications.
@@ -15,11 +14,12 @@ const db = require('./db');
 const config = require('./config');
 const logger = require('./logger');
 const { resolvePaginationConfig, findNextPageUrl } = require('./pagination');
+const { fetchText } = require('./httpClient');
+const { createLimiter } = require('./concurrency');
 
-// Network safety limits: abort requests taking longer than 10s and cap response
-// bodies at 5MB to avoid resource exhaustion.
-const FETCH_TIMEOUT = 10000; // ms
-const MAX_RESPONSE_SIZE = 5 * 1024 * 1024; // 5MB
+// Shorthand so the scraper can reference the shared HTTP/network configuration
+// without repeatedly dereferencing the config module.
+const networkDefaults = config.network || {};
 
 /**
  * Generate tags for a tender based on the configured keyword rules.
@@ -134,12 +134,7 @@ async function runInternal(onProgress, sourceKey, source) {
       }
 
       // Fetch each page sequentially using a browser-like User-Agent.
-      const res = await fetch(nextUrl, {
-        headers,
-        timeout: FETCH_TIMEOUT,
-        size: MAX_RESPONSE_SIZE
-      });
-      const html = await res.text();
+      const html = await fetchText(nextUrl, { headers });
       const $ = cheerio.load(html);
 
       // Extract tenders from the HTML using the configured parser and add them
@@ -189,19 +184,47 @@ async function runInternal(onProgress, sourceKey, source) {
     // count before inserting anything.
     const total = allTenders.length;
 
-    // Iterate over each result and insert it into the database. The
-    // insertTender function resolves with the number of rows inserted so we can
-    // keep track of how many new tenders were added.
     // Use a single timestamp for all tenders so stats can group them by run.
     const runTs = new Date().toISOString();
+    const detailConcurrency = Math.max(1, networkDefaults.detailConcurrency || 4);
+    const detailLimiter = await createLimiter(detailConcurrency);
+    if (total > 0) {
+      logger.info(
+        `Fetching ${total} detail page(s) for ${src.label} with concurrency ${detailConcurrency}`
+      );
+    }
 
-    for (const [i, tender] of allTenders.entries()) {
+    // Prefetch detail pages using the configured concurrency limit so slow
+    // endpoints do not block the entire scrape.
+    const detailJobs = allTenders.map(tender => {
+      const absoluteLink = new URL(tender.link, src.base).href;
+      return {
+        tender,
+        link: absoluteLink,
+        detailPromise: detailLimiter(async () => {
+          try {
+            const detailHtml = await fetchText(absoluteLink, { headers });
+            const parsed = parseTenderDetails(detailHtml) || {};
+            const cpvRaw = parsed.cpv;
+            const cpvCodes = (Array.isArray(cpvRaw)
+              ? cpvRaw
+              : cpvRaw
+              ? [cpvRaw]
+              : [])
+              .map(code => String(code).trim())
+              .filter(Boolean);
+            return { details: parsed, cpvCodes };
+          } catch (err) {
+            logger.error(`Failed to fetch tender details for ${absoluteLink}:`, err);
+            return { details: {}, cpvCodes: [] };
+          }
+        })
+      };
+    });
+
+    for (const [i, job] of detailJobs.entries()) {
+      const { tender, link, detailPromise } = job;
       const title = tender.title;
-      // Combine the base URL with the scraped link, handling both
-      // absolute and relative hrefs using the URL constructor. This
-      // avoids malformed URLs when the feed already provides an
-      // absolute link.
-      const link = new URL(tender.link, src.base).href;
       const date = tender.date;
       const desc = tender.desc;
       const organisation = tender.organisation;
@@ -209,21 +232,18 @@ async function runInternal(onProgress, sourceKey, source) {
       const ocid = tender.ocid || null;
       const tags = generateTags(title, desc);
 
-      // Fetch the detail page to extract CPV codes and any other metadata.
-      let cpvCodes = [];
       let details = {};
-      try {
-        const resDetail = await fetch(link, {
-          headers,
-          timeout: FETCH_TIMEOUT,
-          size: MAX_RESPONSE_SIZE
-        });
-        const detailHtml = await resDetail.text();
-        details = parseTenderDetails(detailHtml);
-        cpvCodes = details.cpv;
-      } catch (err) {
-        // Detail pages occasionally fail to load; log the error but continue.
-        logger.error('Failed to fetch tender details:', err);
+      let cpvCodes = [];
+      if (detailPromise) {
+        try {
+          const resolved = await detailPromise;
+          details = resolved.details || {};
+          cpvCodes = resolved.cpvCodes || [];
+        } catch (err) {
+          logger.error(`Detail processing for ${link} failed:`, err);
+          details = {};
+          cpvCodes = [];
+        }
       }
 
       // Include metadata about where and when the tender was scraped so
