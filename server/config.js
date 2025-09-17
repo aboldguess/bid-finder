@@ -83,6 +83,19 @@ const defaultPagination = {
   detectLoops: process.env.PAGINATION_DETECT_LOOPS === 'false' ? false : true
 };
 
+// Shared network configuration applied to HTTP requests performed by the
+// scrapers. Values are configurable via environment variables so operators can
+// fine-tune behaviour without altering code.
+const defaultNetwork = {
+  requestTimeout: parsePositiveInt(process.env.HTTP_REQUEST_TIMEOUT, 10000),
+  maxContentLength: parsePositiveInt(
+    process.env.HTTP_MAX_CONTENT_LENGTH,
+    5 * 1024 * 1024
+  ),
+  retryAttempts: parsePositiveInt(process.env.HTTP_RETRY_ATTEMPTS, 3),
+  detailConcurrency: parsePositiveInt(process.env.HTTP_DETAIL_CONCURRENCY, 4)
+};
+
 // Centralised configuration object used throughout the server code. Values can
 // be overridden via environment variables for flexibility in different
 // deployment environments.
@@ -359,6 +372,10 @@ module.exports = {
   // Global pagination defaults used by the scraping helpers. Individual
   // sources can override specific properties via their `pagination` field.
   pagination: defaultPagination,
+
+  // Network-level safeguards shared by the HTTP client wrapper controlling
+  // timeouts, retry counts and detail page concurrency.
+  network: defaultNetwork,
 
   // Legacy fields maintained for backwards compatibility. These map to the
   // default source so existing code and tests continue to work.

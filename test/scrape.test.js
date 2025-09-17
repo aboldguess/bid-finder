@@ -13,18 +13,24 @@ const db = require('../server/db');
 // Load the HTML used to mock the tender website response.
 const html = fs.readFileSync(path.join(__dirname, 'mock.html'), 'utf8');
 
-// Stub fetch so scrape.js receives predictable HTML without making a network call.
-// The first call returns the listing HTML. Subsequent calls return detail pages
-// containing CPV codes for each opportunity.
-const fetchStub = sinon.stub();
-fetchStub.onCall(0).resolves({ text: async () => html });
-fetchStub.onCall(1).resolves({ text: async () => '<div>CPV 12345678</div>' });
-fetchStub.onCall(2).resolves({ text: async () => '<div>CPV 87654321</div>' });
+// Stub the HTTP helper so scrape.js receives predictable HTML without making a
+// network call. The first invocation returns the listing HTML, subsequent calls
+// emulate detail pages containing CPV codes.
+const fetchTextStub = sinon.stub();
+fetchTextStub.onCall(0).resolves(html);
+fetchTextStub.onCall(1).resolves('<div>CPV 12345678</div>');
+fetchTextStub.onCall(2).resolves('<div>CPV 87654321</div>');
 
-// Proxyquire allows us to inject the stubbed fetch and the real db instance when
-// requiring the scraper module.
+// Concurrency helper stubbed to execute detail fetches immediately while
+// preserving the async contract expected by the scraper.
+const limitFn = sinon.stub().callsFake(async task => task());
+const createLimiterStub = sinon.stub().resolves(limitFn);
+
+// Proxyquire allows us to inject the stubbed HTTP helper, limiter and the real
+// db instance when requiring the scraper module.
 const scrape = proxyquire('../server/scrape', {
-  'node-fetch': fetchStub,
+  './httpClient': { fetchText: fetchTextStub },
+  './concurrency': { createLimiter: createLimiterStub },
   './db': db
 });
 
