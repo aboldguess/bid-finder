@@ -7,12 +7,14 @@
  * source. Extensive logging and progress callbacks aid debugging.
  */
 const fetch = require('node-fetch');
+const cheerio = require('cheerio');
 const { parseTenders } = require('./htmlParser');
 // Detail pages expose additional metadata such as CPV classifications.
 const { parseTenderDetails } = require('./detailParser');
 const db = require('./db');
 const config = require('./config');
 const logger = require('./logger');
+const { resolvePaginationConfig, findNextPageUrl } = require('./pagination');
 
 // Network safety limits: abort requests taking longer than 10s and cap response
 // bodies at 5MB to avoid resource exhaustion.
@@ -75,7 +77,8 @@ async function runInternal(onProgress, sourceKey, source) {
         base: config.scrapeBase,
         parser: 'contractsFinder',
         label: defaultSource.label || 'Contracts Finder',
-        selectors: defaultSource.selectors
+        selectors: defaultSource.selectors,
+        pagination: defaultSource.pagination || config.pagination
       };
 
     // Track how long the scrape takes so progress messages can include the
@@ -89,19 +92,35 @@ async function runInternal(onProgress, sourceKey, source) {
       onProgress({ step: 'start', source: src, elapsed: 0 });
     }
 
-    // Collect tenders from all available pages. Some sources only show a
-    // limited number of results per page so we follow any "next" links until
-    // no further pages remain. This keeps the implementation generic without
-    // hard coding page query parameters.
+    // Collect tenders from all available pages. The pagination helper inspects
+    // HTML navigation elements to find the next link while guarding against
+    // loops or excessive page counts.
     const allTenders = [];
     let nextUrl = src.url;
     let page = 1;
+    const pagination = resolvePaginationConfig(src);
+    const pageLimit = Math.max(1, pagination.maxPages || 1);
+    const visitedUrls = new Set();
     const headers = {
       'User-Agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
     };
 
     while (nextUrl) {
+      if (pagination.detectLoops && visitedUrls.has(nextUrl)) {
+        logger.info(
+          `Detected repeated pagination URL on ${src.label}; stopping at ${nextUrl}`
+        );
+        break;
+      }
+      if (page > pageLimit) {
+        logger.info(
+          `Reached pagination limit (${pageLimit}) for ${src.label}; halting further requests`
+        );
+        break;
+      }
+      visitedUrls.add(nextUrl);
+
       // Notify listeners which page is about to be fetched along with the
       // number of seconds elapsed since the run started. This provides visible
       // feedback that progress is being made even when a single page takes a
@@ -121,6 +140,7 @@ async function runInternal(onProgress, sourceKey, source) {
         size: MAX_RESPONSE_SIZE
       });
       const html = await res.text();
+      const $ = cheerio.load(html);
 
       // Extract tenders from the HTML using the configured parser and add them
       // to the overall results list.
@@ -128,49 +148,26 @@ async function runInternal(onProgress, sourceKey, source) {
       logger.info(`Found ${pageTenders.length} tenders on ${src.label} page ${page}`);
       allTenders.push(...pageTenders);
 
-      // Stop following pagination if the current page contains no tenders.
-      // This prevents unnecessary requests when the "next" link points to a
-      // placeholder page beyond the available results.
       if (pageTenders.length === 0) {
+        logger.info(`No tenders detected on ${src.label} page ${page}; stopping pagination.`);
         break;
       }
 
-      // Look for a link pointing to the next page. Many sites mark this with a
-      // rel="next" attribute, add a class containing "next" or include the word
-      // "Next" in the link text. Relative URLs are resolved against the source
-      // base URL so both absolute and relative links are handled consistently.
-      const relNext = html.match(/<link[^>]*rel=["']?next["']?[^>]*href=["']([^"']+)["']/i);
-      // Try to detect links that include "next" in a rel, class or aria-label
-      // attribute so we cover common pagination patterns.
-      const attrNext = html.match(
-        /<a[^>]*(?:rel|class|aria-label)=["'][^"']*next[^"']*["'][^>]*href=["']([^"']+)["']/i
+      const nextPageUrl = findNextPageUrl(
+        $,
+        src.base || nextUrl,
+        pagination,
+        visitedUrls,
+        page,
+        logger
       );
-      // Fallback to matching the visible link text when attributes are not
-      // present or use different naming.
-      const textNext = html.match(
-        /<a[^>]*href=["']([^"']+)["'][^>]*>(?:\s*Next\s*|›|&gt;|&raquo;)/i
-      );
-      const href = relNext
-        ? relNext[1]
-        : attrNext
-        ? attrNext[1]
-        : textNext
-        ? textNext[1]
-        : null;
-      // Some sites include a disabled "next" link with a placeholder href such
-      // as "#" or "javascript:void(0)". Following these would cause the scraper
-      // to loop indefinitely, so ignore them when detected.
-      const cleanHref = href && href.replace(/&amp;/g, '&');
-      if (
-        cleanHref &&
-        cleanHref !== '#' &&
-        !cleanHref.toLowerCase().startsWith('javascript')
-      ) {
-        nextUrl = new URL(cleanHref, src.base).href;
+      if (nextPageUrl) {
+        nextUrl = nextPageUrl;
+        page += 1;
       } else {
+        logger.info(`No further pagination link found on ${src.label} page ${page}.`);
         nextUrl = null;
       }
-      page += 1;
     }
 
     logger.info(`Found ${allTenders.length} tenders on ${src.label}`);

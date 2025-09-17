@@ -1,4 +1,87 @@
+/**
+ * @file config.js
+ * @description Centralised configuration shared across the server, scrapers
+ * and background jobs. Values are derived from environment variables where
+ * available and fall back to sensible defaults for local development. The
+ * module intentionally exposes scraper pagination settings so individual
+ * sources can override behaviour without code changes.
+ */
 const path = require('path');
+
+/**
+ * Parse a comma-separated environment variable into an array of CSS selectors.
+ * Empty values are discarded and the list is cloned to avoid accidental
+ * mutation when the configuration is consumed elsewhere.
+ *
+ * @param {string|string[]} value - Value taken from the environment or config
+ * @param {string[]} fallback - Default selectors when no value is provided
+ * @returns {string[]} normalised selector list
+ */
+function parseSelectorList(value, fallback = []) {
+  if (Array.isArray(value) && value.length > 0) {
+    return value.map(selector => selector.trim()).filter(Boolean);
+  }
+  if (typeof value === 'string' && value.trim()) {
+    return value
+      .split(',')
+      .map(selector => selector.trim())
+      .filter(Boolean);
+  }
+  return [...fallback];
+}
+
+/**
+ * Convert an environment string into a positive integer, falling back to a
+ * default when parsing fails or the provided value is out of range.
+ *
+ * @param {string|number|undefined} value - User supplied value to parse
+ * @param {number} fallback - Default integer to use when parsing fails
+ * @returns {number} a positive integer suitable for pagination limits
+ */
+function parsePositiveInt(value, fallback) {
+  const num = Number.parseInt(value, 10);
+  if (Number.isNaN(num) || num <= 0) {
+    return fallback;
+  }
+  return num;
+}
+
+const DEFAULT_NAV_SELECTORS = [
+  'nav[role="navigation"]',
+  'nav.pagination',
+  '.pagination',
+  'ul.pagination',
+  'ol.pagination',
+  '.pager',
+  '.paging'
+];
+
+const DEFAULT_NEXT_LINK_SELECTORS = [
+  'a[rel="next"]',
+  'link[rel="next"]',
+  'a[aria-label*="next" i]',
+  'a[title*="next" i]',
+  'a.next',
+  'li.next a',
+  '.next a'
+];
+
+// Standard pagination configuration applied to every source unless overridden.
+// Exposed so individual sources can tweak selector lists or page limits.
+const defaultPagination = {
+  maxPages: parsePositiveInt(process.env.PAGINATION_MAX_PAGES, 25),
+  navSelectors: parseSelectorList(
+    process.env.PAGINATION_NAV_SELECTORS,
+    DEFAULT_NAV_SELECTORS
+  ),
+  nextLinkSelectors: parseSelectorList(
+    process.env.PAGINATION_NEXT_SELECTORS,
+    DEFAULT_NEXT_LINK_SELECTORS
+  ),
+  pageNumberPattern:
+    (process.env.PAGINATION_PAGE_NUMBER_PATTERN || '\\d+').trim() || '\\d+',
+  detectLoops: process.env.PAGINATION_DETECT_LOOPS === 'false' ? false : true
+};
 
 // Centralised configuration object used throughout the server code. Values can
 // be overridden via environment variables for flexibility in different
@@ -15,7 +98,8 @@ const defaultSource = {
   base:
     process.env.SCRAPE_BASE ||
     'https://www.contractsfinder.service.gov.uk',
-  parser: 'rss'
+  parser: 'rss',
+  pagination: { ...defaultPagination }
 };
 
 // Other sources previously included here have been removed as they either no
@@ -41,7 +125,8 @@ const euSupplySource = {
     link: { selector: 'a', attr: 'href' },
     date: ['time', 'td:nth-child(3)'],
     description: ['td.description', 'p']
-  }
+  },
+  pagination: { ...defaultPagination }
 };
 
 // Example Sell2Wales source used by the additional `sell2wales` parser.
@@ -52,7 +137,8 @@ const sell2walesSource = {
     process.env.SELL2WALES_URL ||
     'https://www.sell2wales.gov.wales/rss/authority',
   base: process.env.SELL2WALES_BASE || 'https://www.sell2wales.gov.wales',
-  parser: 'rss'
+  parser: 'rss',
+  pagination: { ...defaultPagination }
 };
 
 // Example UKRI opportunities source.
@@ -61,7 +147,8 @@ const ukriSource = {
   // Opportunities feed published by UKRI.
   url: process.env.UKRI_URL || 'https://www.ukri.org/feed/',
   base: process.env.UKRI_BASE || 'https://www.ukri.org',
-  parser: 'rss'
+  parser: 'rss',
+  pagination: { ...defaultPagination }
 };
 
 // Additional procurement portals that expose RSS feeds. These are included as
@@ -72,7 +159,8 @@ const pcsSource = {
     process.env.PCS_URL ||
     'https://www.publiccontractsscotland.gov.uk/rss/rss.xml',
   base: process.env.PCS_BASE || 'https://www.publiccontractsscotland.gov.uk',
-  parser: 'rss'
+  parser: 'rss',
+  pagination: { ...defaultPagination }
 };
 
 const etendersniSource = {
@@ -81,7 +169,8 @@ const etendersniSource = {
     process.env.ETENDERSNI_URL ||
     'https://etendersni.gov.uk/epps/cft/list?ext_t=RSS',
   base: process.env.ETENDERSNI_BASE || 'https://etendersni.gov.uk',
-  parser: 'rss'
+  parser: 'rss',
+  pagination: { ...defaultPagination }
 };
 
 const etendersIEsource = {
@@ -90,7 +179,8 @@ const etendersIEsource = {
     process.env.ETENDERSIE_URL ||
     'https://www.etenders.gov.ie/feeds/rss',
   base: process.env.ETENDERSIE_BASE || 'https://www.etenders.gov.ie',
-  parser: 'rss'
+  parser: 'rss',
+  pagination: { ...defaultPagination }
 };
 
 const procontractSource = {
@@ -99,14 +189,16 @@ const procontractSource = {
     process.env.PROCONTRACT_URL ||
     'https://procontract.due-north.com/rss/rss.xml',
   base: process.env.PROCONTRACT_BASE || 'https://procontract.due-north.com',
-  parser: 'rss'
+  parser: 'rss',
+  pagination: { ...defaultPagination }
 };
 
 const intendSource = {
   label: 'In-Tend',
   url: process.env.INTEND_URL || 'https://in-tendhost.co.uk/feed/',
   base: process.env.INTEND_BASE || 'https://in-tendhost.co.uk',
-  parser: 'rss'
+  parser: 'rss',
+  pagination: { ...defaultPagination }
 };
 
 // Sources providing information on awarded contracts. These mirror the
@@ -121,7 +213,8 @@ const defaultAwardSource = {
   base:
     process.env.AWARD_BASE ||
     'https://www.contractsfinder.service.gov.uk',
-  parser: 'rss'
+  parser: 'rss',
+  pagination: { ...defaultPagination }
 };
 
 const euSupplyAwardSource = {
@@ -130,7 +223,8 @@ const euSupplyAwardSource = {
     process.env.EUSUPPLY_AWARD_URL ||
     'https://uk.eu-supply.com/ctm/award/publiccontracts?B=UK',
   base: process.env.EUSUPPLY_AWARD_BASE || 'https://uk.eu-supply.com',
-  parser: 'rss'
+  parser: 'rss',
+  pagination: { ...defaultPagination }
 };
 
 const sell2walesAwardSource = {
@@ -139,14 +233,16 @@ const sell2walesAwardSource = {
     process.env.SELL2WALES_AWARD_URL ||
     'https://www.sell2wales.gov.wales/rss/award',
   base: process.env.SELL2WALES_AWARD_BASE || 'https://www.sell2wales.gov.wales',
-  parser: 'rss'
+  parser: 'rss',
+  pagination: { ...defaultPagination }
 };
 
 const ukriAwardSource = {
   label: 'UKRI Awards',
   url: process.env.UKRI_AWARD_URL || 'https://www.ukri.org/awards/feed/',
   base: process.env.UKRI_AWARD_BASE || 'https://www.ukri.org',
-  parser: 'rss'
+  parser: 'rss',
+  pagination: { ...defaultPagination }
 };
 
 const pcsAwardSource = {
@@ -156,7 +252,8 @@ const pcsAwardSource = {
     'https://www.publiccontractsscotland.gov.uk/rss/award.xml',
   base:
     process.env.PCS_AWARD_BASE || 'https://www.publiccontractsscotland.gov.uk',
-  parser: 'rss'
+  parser: 'rss',
+  pagination: { ...defaultPagination }
 };
 
 const etendersniAwardSource = {
@@ -165,7 +262,8 @@ const etendersniAwardSource = {
     process.env.ETENDERSNI_AWARD_URL ||
     'https://etendersni.gov.uk/epps/cft/listAward?ext_t=RSS',
   base: process.env.ETENDERSNI_AWARD_BASE || 'https://etendersni.gov.uk',
-  parser: 'rss'
+  parser: 'rss',
+  pagination: { ...defaultPagination }
 };
 
 const etendersieAwardSource = {
@@ -174,7 +272,8 @@ const etendersieAwardSource = {
     process.env.ETENDERSIE_AWARD_URL ||
     'https://www.etenders.gov.ie/feeds/award',
   base: process.env.ETENDERSIE_AWARD_BASE || 'https://www.etenders.gov.ie',
-  parser: 'rss'
+  parser: 'rss',
+  pagination: { ...defaultPagination }
 };
 
 const procontractAwardSource = {
@@ -183,7 +282,8 @@ const procontractAwardSource = {
     process.env.PROCONTRACT_AWARD_URL ||
     'https://procontract.due-north.com/rss/award.xml',
   base: process.env.PROCONTRACT_AWARD_BASE || 'https://procontract.due-north.com',
-  parser: 'rss'
+  parser: 'rss',
+  pagination: { ...defaultPagination }
 };
 
 const intendAwardSource = {
@@ -191,14 +291,16 @@ const intendAwardSource = {
   url:
     process.env.INTEND_AWARD_URL || 'https://in-tendhost.co.uk/awards/feed/',
   base: process.env.INTEND_AWARD_BASE || 'https://in-tendhost.co.uk',
-  parser: 'rss'
+  parser: 'rss',
+  pagination: { ...defaultPagination }
 };
 
 const tedAwardSource = {
   label: 'TED Europa',
   url: process.env.TED_AWARD_URL || 'https://ted.europa.eu/udl?uri=TED/rss/awards',
   base: process.env.TED_AWARD_BASE || 'https://ted.europa.eu',
-  parser: 'rss'
+  parser: 'rss',
+  pagination: { ...defaultPagination }
 };
 
 // Default tagging rules used when none are supplied via the TAG_RULES
@@ -254,14 +356,17 @@ module.exports = {
     ted: tedAwardSource
   },
 
+  // Global pagination defaults used by the scraping helpers. Individual
+  // sources can override specific properties via their `pagination` field.
+  pagination: defaultPagination,
+
   // Legacy fields maintained for backwards compatibility. These map to the
   // default source so existing code and tests continue to work.
   scrapeUrl: defaultSource.url,
   scrapeBase: defaultSource.base,
 
   // Cron expression determining when the scraper runs automatically
-  cronSchedule: process.env.CRON_SCHEDULE || '0 6 * * *'
-  ,
+  cronSchedule: process.env.CRON_SCHEDULE || '0 6 * * *',
   // Keyword rules for automatic tagging. The value can be overridden by
   // setting the TAG_RULES environment variable to a JSON string matching the
   // shape of `defaultTagRules` above.
