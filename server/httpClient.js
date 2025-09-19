@@ -60,10 +60,14 @@ client.interceptors.response.use(
 
     if (attempts >= allowed) {
       const url = requestConfig.url || 'unknown URL';
+      const totalAttempts = attempts + 1; // include the initial request attempt
+      const status = error.response?.status;
+      const statusSegment =
+        typeof status === 'number' ? ` with status ${status}` : '';
       logger.error(
-        `Request to ${url} failed after ${attempts} attempt${
-          attempts === 1 ? '' : 's'
-        }: ${error.message}`
+        `Request to ${url} failed after ${totalAttempts} attempt${
+          totalAttempts === 1 ? '' : 's'
+        }${statusSegment}: ${error.message}`
       );
     }
 
