@@ -191,6 +191,64 @@ db.serialize(() => {
   )`);
 });
 
+/**
+ * Convert a tender date string into a normalised Date instance.
+ *
+ * Historical data is often stored using a mix of ISO dates (2024-06-01),
+ * slashed values (01/06/2024) and natural language strings ("7 June 2024").
+ * For comparison queries we convert everything to a midnight UTC timestamp so
+ * lexical quirks do not affect ordering.
+ *
+ * @param {string} value - Raw date string stored in the database.
+ * @returns {Date|null} Date instance when parsing succeeds, otherwise null.
+ */
+function normaliseTenderDate(value) {
+  if (value == null) return null;
+  const str = String(value).trim();
+  if (!str) return null;
+
+  const buildDate = (year, month, day) => {
+    const y = Number.parseInt(year, 10);
+    const m = Number.parseInt(month, 10);
+    const d = Number.parseInt(day, 10);
+    if ([y, m, d].some(num => Number.isNaN(num))) {
+      return null;
+    }
+    const fullYear = y < 100 ? 2000 + y : y;
+    if (m < 1 || m > 12 || d < 1 || d > 31) {
+      return null;
+    }
+    const date = new Date(Date.UTC(fullYear, m - 1, d));
+    if (
+      date.getUTCFullYear() !== fullYear ||
+      date.getUTCMonth() !== m - 1 ||
+      date.getUTCDate() !== d
+    ) {
+      return null;
+    }
+    return date;
+  };
+
+  const isoMatch = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (isoMatch) {
+    return buildDate(isoMatch[1], isoMatch[2], isoMatch[3]);
+  }
+
+  const dmyMatch = str.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
+  if (dmyMatch) {
+    return buildDate(dmyMatch[3], dmyMatch[2], dmyMatch[1]);
+  }
+
+  // Remove ordinal suffixes such as "7th" before handing to Date.parse.
+  const cleaned = str.replace(/(\d+)(st|nd|rd|th)/gi, '$1');
+  const parsed = new Date(cleaned);
+  if (!Number.isNaN(parsed.getTime())) {
+    return buildDate(parsed.getFullYear(), parsed.getMonth() + 1, parsed.getDate());
+  }
+
+  return null;
+}
+
 module.exports = {
   /**
    * Insert a tender into the database if it does not already exist.
@@ -643,9 +701,9 @@ module.exports = {
    */
   deleteAllTenders: () => {
     return new Promise((resolve, reject) => {
-      db.run('DELETE FROM tenders', err => {
+      db.run('DELETE FROM tenders', function (err) {
         if (err) return reject(err);
-        resolve();
+        resolve(this.changes || 0);
       });
     });
   },
@@ -658,9 +716,35 @@ module.exports = {
    */
   deleteTendersBefore: date => {
     return new Promise((resolve, reject) => {
-      db.run('DELETE FROM tenders WHERE date < ?', [date], err => {
+      const cutoff = normaliseTenderDate(date);
+      if (!cutoff) {
+        const error = new Error('Invalid cutoff date');
+        error.code = 'INVALID_DATE';
+        return reject(error);
+      }
+
+      db.all('SELECT id, date FROM tenders', (err, rows) => {
         if (err) return reject(err);
-        resolve();
+
+        const cutoffTime = cutoff.getTime();
+        const idsToDelete = rows
+          .map(row => ({ id: row.id, parsed: normaliseTenderDate(row.date) }))
+          .filter(row => row.parsed && row.parsed.getTime() < cutoffTime)
+          .map(row => row.id);
+
+        if (!idsToDelete.length) {
+          return resolve(0);
+        }
+
+        const placeholders = idsToDelete.map(() => '?').join(',');
+        db.run(
+          `DELETE FROM tenders WHERE id IN (${placeholders})`,
+          idsToDelete,
+          function (deleteErr) {
+            if (deleteErr) return reject(deleteErr);
+            resolve(this.changes || 0);
+          }
+        );
       });
     });
   },
@@ -690,9 +774,9 @@ module.exports = {
    */
   deleteTendersBySource: source => {
     return new Promise((resolve, reject) => {
-      db.run('DELETE FROM tenders WHERE source = ?', [source], err => {
+      db.run('DELETE FROM tenders WHERE source = ?', [source], function (err) {
         if (err) return reject(err);
-        resolve();
+        resolve(this.changes || 0);
       });
     });
   },
