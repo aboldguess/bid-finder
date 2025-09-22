@@ -694,16 +694,69 @@ module.exports = {
   },
 
   /**
-   * Delete all tenders from the database. Used by admin tools to clear
-   * stored data without dropping and recreating the entire schema.
+   * Delete all scraper output from the database so the UI can return to a
+   * pristine state without recreating the schema. All operations run inside a
+   * transaction so either every table is cleared or none are modified.
    *
-   * @returns {Promise<void>} resolves when all rows are removed
+   * @returns {Promise<{
+   *   tenders:number,
+   *   awards:number,
+   *   awardDetails:number,
+   *   organisations:number,
+   *   sourceStats:number
+   * }>} resolves with a per-table deletion summary so callers can surface
+   * detailed feedback to administrators.
    */
   deleteAllTenders: () => {
+    // Helper executing a statement and resolving with the number of affected
+    // rows. Using a promise wrapper keeps the control-flow readable while
+    // guaranteeing each DELETE happens sequentially.
+    const run = (sql, params = []) =>
+      new Promise((resolve, reject) => {
+        db.run(sql, params, function (err) {
+          if (err) return reject(err);
+          resolve(this.changes || 0);
+        });
+      });
+
     return new Promise((resolve, reject) => {
-      db.run('DELETE FROM tenders', function (err) {
-        if (err) return reject(err);
-        resolve(this.changes || 0);
+      db.serialize(() => {
+        (async () => {
+          const summary = {
+            tenders: 0,
+            awards: 0,
+            awardDetails: 0,
+            organisations: 0,
+            sourceStats: 0
+          };
+
+          try {
+            // BEGIN IMMEDIATE blocks writers which avoids interleaving deletes
+            // with new scraper inserts while the clean-up is in progress.
+            await run('BEGIN IMMEDIATE TRANSACTION');
+
+            // Remove dependent tables first so no orphaned award details or
+            // organisation lookups linger after the purge completes.
+            summary.awardDetails = await run('DELETE FROM award_details');
+            summary.awards = await run('DELETE FROM awards');
+            summary.tenders = await run('DELETE FROM tenders');
+            summary.organisations = await run('DELETE FROM organisations');
+            summary.sourceStats = await run('DELETE FROM source_stats');
+
+            await run('COMMIT');
+            resolve(summary);
+          } catch (err) {
+            try {
+              await run('ROLLBACK');
+            } catch (rollbackErr) {
+              logger.error(
+                'Rollback failed while clearing stored data:',
+                rollbackErr
+              );
+            }
+            reject(err);
+          }
+        })();
       });
     });
   },
