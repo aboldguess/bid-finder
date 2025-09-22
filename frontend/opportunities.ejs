@@ -1,3 +1,14 @@
+<!--
+  File: opportunities.ejs
+  Overview: Renders the Opportunities dashboard table and associated tooling.
+  Structure:
+    - Navigation header followed by user guidance.
+    - Paginated tender table with per-row detail toggle and raw data controls.
+    - Hidden modal used to display stored raw payloads on demand.
+  Behaviour:
+    - table-tools.js enhances sorting/filtering while local script fetches raw JSON
+      for each tender when requested via the "View Raw" buttons.
+-->
 <!DOCTYPE html>
 <html>
 <head>
@@ -7,6 +18,14 @@
 <body>
   <h1>Opportunities</h1>
   <%- include('partials/nav', { page: 'opportunities', user: user }) %>
+  <div id="instructions">
+    <strong>Quick tips:</strong>
+    <ul>
+      <li>Use the column filters to locate tenders quickly. Results update instantly.</li>
+      <li>Click <em>View Raw</em> for any tender to inspect the exact data captured during scraping.</li>
+      <li>Double click a row to jump into edit modes where available.</li>
+    </ul>
+  </div>
   <!-- data-server-pagination tells table-tools.js that navigation is handled
        by the server so client side pagination should be disabled -->
   <table data-server-pagination="true">
@@ -19,6 +38,7 @@
       <th data-type="date">Scraped At</th>
       <th>Tags</th>
       <th>Link</th>
+      <th>Raw Info</th>
     </tr>
     <% tenders.forEach(t => { %>
       <!-- Each result row can be clicked to reveal a hidden detail row -->
@@ -32,9 +52,10 @@
         <td><%= t.tags %></td>
         <!-- Open tender links in a new tab so the dashboard stays visible -->
         <td><a href="<%= t.link %>" target="_blank">View</a></td>
+        <td><button type="button" class="raw-info-btn" data-id="<%= t.id %>">View Raw</button></td>
       </tr>
       <tr class="detailRow" data-id="<%= t.id %>">
-        <td colspan="7">
+        <td colspan="8">
           <table>
             <tr><th>Title</th><td><%= t.title %></td></tr>
             <tr><th>Date</th><td><%= t.date %></td></tr>
@@ -49,7 +70,7 @@
       </tr>
     <% }) %>
   <% if (tenders.length === 0) { %>
-      <tr><td colspan="7">No opportunities found. Try running the scraper.</td></tr>
+      <tr><td colspan="8">No opportunities found. Try running the scraper.</td></tr>
   <% } %>
   </table>
   <div class="server-pagination">
@@ -62,8 +83,105 @@
       <a href="/opportunities?page=<%= currentPage + 1 %>">Next</a>
     <% } %>
   </div>
+
+  <!-- Modal elements used to present raw JSON payloads -->
+  <div id="rawModalOverlay" class="modal-overlay hidden"></div>
+  <div id="rawModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="rawModalTitle" tabindex="-1">
+    <div class="modal__dialog">
+      <header class="modal__header">
+        <h2 id="rawModalTitle">Raw tender data</h2>
+        <button type="button" id="rawModalClose" class="modal__close" aria-label="Close raw data">&times;</button>
+      </header>
+      <div id="rawModalMeta" class="modal-meta"></div>
+      <div class="modal__body">
+        <pre id="rawModalBody">Select a tender to load its stored payload.</pre>
+      </div>
+    </div>
+  </div>
+
   <!-- Table behaviour such as search, sort and detail toggling is provided -->
   <!-- by table-tools.js so no inline handlers are needed here -->
   <script src="/table-tools.js"></script>
+  <script>
+    (function () {
+      const overlay = document.getElementById('rawModalOverlay');
+      const modal = document.getElementById('rawModal');
+      const modalTitle = document.getElementById('rawModalTitle');
+      const modalMeta = document.getElementById('rawModalMeta');
+      const modalBody = document.getElementById('rawModalBody');
+      const closeBtn = document.getElementById('rawModalClose');
+      if (!overlay || !modal || !modalTitle || !modalBody || !closeBtn) {
+        console.warn('Raw data modal elements are missing from the DOM.');
+        return;
+      }
+
+      function closeModal() {
+        overlay.classList.add('hidden');
+        modal.classList.add('hidden');
+        document.body.classList.remove('modal-open');
+      }
+
+      function openModal(title, message, meta) {
+        modalTitle.textContent = title;
+        modalBody.textContent = message;
+        modalMeta.textContent = meta || '';
+        overlay.classList.remove('hidden');
+        modal.classList.remove('hidden');
+        document.body.classList.add('modal-open');
+        // Focus the close button for accessibility once the modal is visible.
+        setTimeout(() => closeBtn.focus(), 0);
+      }
+
+      closeBtn.addEventListener('click', closeModal);
+      overlay.addEventListener('click', closeModal);
+      document.addEventListener('keydown', evt => {
+        if (evt.key === 'Escape' && !modal.classList.contains('hidden')) {
+          closeModal();
+        }
+      });
+
+      document.querySelectorAll('.raw-info-btn').forEach(btn => {
+        btn.addEventListener('click', async event => {
+          event.stopPropagation();
+          const id = btn.dataset.id;
+          if (!id) {
+            openModal('Raw tender data', 'Unable to determine tender identifier.', '');
+            return;
+          }
+          const row = btn.closest('tr');
+          const fallbackTitle = row && row.children.length ? row.children[0].textContent.trim() : 'Tender';
+          openModal(`Raw data: ${fallbackTitle}`, 'Loading raw payload…', '');
+          try {
+            const response = await fetch(`/opportunities/${encodeURIComponent(id)}/raw`, {
+              headers: { 'Accept': 'application/json' }
+            });
+            if (!response.ok) {
+              throw new Error(`Server returned ${response.status}`);
+            }
+            const payload = await response.json();
+            const displayTitle = payload.title || fallbackTitle;
+            let formatted;
+            if (payload.raw === null || payload.raw === undefined || payload.raw === '') {
+              formatted = 'No raw payload stored for this tender yet.';
+            } else if (typeof payload.raw === 'string') {
+              formatted = payload.raw;
+            } else {
+              formatted = JSON.stringify(payload.raw, null, 2);
+            }
+            modalTitle.textContent = `Raw data: ${displayTitle}`;
+            modalBody.textContent = formatted;
+            const source = payload.source ? `Source: ${payload.source}` : 'Source: Unknown';
+            const scraped = payload.scrapedAt ? `Scraped: ${payload.scrapedAt}` : 'Scraped: Unknown';
+            modalMeta.textContent = `${source} | ${scraped}`;
+          } catch (err) {
+            console.error('Failed to load raw payload', err);
+            modalTitle.textContent = `Raw data: ${fallbackTitle}`;
+            modalBody.textContent = `Unable to load raw data. ${err.message || err}`;
+            modalMeta.textContent = '';
+          }
+        });
+      });
+    })();
+  </script>
 </body>
 </html>

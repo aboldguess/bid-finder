@@ -213,10 +213,10 @@ async function runInternal(onProgress, sourceKey, source) {
               : [])
               .map(code => String(code).trim())
               .filter(Boolean);
-            return { details: parsed, cpvCodes };
+            return { details: parsed, cpvCodes, rawHtml: detailHtml };
           } catch (err) {
             logger.error(`Failed to fetch tender details for ${absoluteLink}:`, err);
-            return { details: {}, cpvCodes: [] };
+            return { details: {}, cpvCodes: [], rawHtml: '' };
           }
         })
       };
@@ -234,15 +234,18 @@ async function runInternal(onProgress, sourceKey, source) {
 
       let details = {};
       let cpvCodes = [];
+      let rawHtml = '';
       if (detailPromise) {
         try {
           const resolved = await detailPromise;
           details = resolved.details || {};
           cpvCodes = resolved.cpvCodes || [];
+          rawHtml = resolved.rawHtml || '';
         } catch (err) {
           logger.error(`Detail processing for ${link} failed:`, err);
           details = {};
           cpvCodes = [];
+          rawHtml = '';
         }
       }
 
@@ -250,6 +253,21 @@ async function runInternal(onProgress, sourceKey, source) {
       // the dashboard can display this context to the user.
       const srcLabel = src.label;
       const scrapedAt = runTs;
+
+      let rawDetailsJson = '';
+      try {
+        rawDetailsJson = JSON.stringify({
+          listing: tender,
+          parsedDetails: details,
+          detailPageHtml: rawHtml,
+          resolvedLink: link,
+          source: srcLabel,
+          scrapedAt: scrapedAt
+        });
+      } catch (err) {
+        logger.error('Failed to serialise raw tender payload:', err);
+        rawDetailsJson = '';
+      }
 
       let inserted = 0;
       try {
@@ -270,7 +288,8 @@ async function runInternal(onProgress, sourceKey, source) {
           details.customer || organisation || '',
           details.address || '',
           details.country || '',
-          details.eligibility || ''
+          details.eligibility || '',
+          rawDetailsJson
         );
 
         if (inserted) {

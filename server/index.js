@@ -347,6 +347,40 @@ app.get('/opportunities', async (req, res) => {
   });
 });
 
+// GET /opportunities/:id/raw - Provide the stored raw JSON payload for a tender.
+app.get('/opportunities/:id/raw', async (req, res) => {
+  const id = Number.parseInt(req.params.id, 10);
+  if (!Number.isInteger(id) || id < 1) {
+    return res.status(400).json({ error: 'Invalid tender identifier' });
+  }
+  try {
+    const row = await db.getTenderRawById(id);
+    if (!row) {
+      return res.status(404).json({ error: 'Tender not found' });
+    }
+    let parsed = null;
+    if (row.raw_details) {
+      try {
+        parsed = JSON.parse(row.raw_details);
+      } catch (err) {
+        logger.warn('Raw tender payload could not be parsed as JSON:', err);
+        parsed = row.raw_details;
+      }
+    }
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      id: row.id,
+      title: row.title,
+      source: row.source,
+      scrapedAt: row.scraped_at,
+      raw: parsed
+    });
+  } catch (err) {
+    logger.error('Failed to load raw tender payload:', err);
+    res.status(500).json({ error: 'Unable to load tender payload' });
+  }
+});
+
 // GET /awarded - Display contracts that have been awarded using the separate
 // awards scraper.
 app.get('/awarded', async (req, res) => {

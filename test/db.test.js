@@ -110,6 +110,37 @@ describe('Database helpers', () => {
     expect(rows[0]).to.have.property('open_date');
     expect(rows[0]).to.have.property('deadline');
     expect(rows[0]).to.have.property('customer');
+    expect(rows[0]).to.have.property('raw_details');
+  });
+
+  it('getTenderRawById returns stored payloads', async () => {
+    const rawPayload = JSON.stringify({ sample: true, note: 'raw json' });
+    await db.insertTender(
+      'raw-test',
+      'raw-link',
+      '2024-08-01',
+      'desc',
+      'src',
+      '2024-08-02T00:00:00Z',
+      'tag',
+      'ocds-raw',
+      '33334444',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      rawPayload
+    );
+    const all = await db.getTenders();
+    const row = all.find(r => r.link === 'raw-link');
+    expect(row).to.exist;
+    const stored = await db.getTenderRawById(row.id);
+    expect(stored).to.exist;
+    expect(stored.raw_details).to.equal(rawPayload);
+    const parsed = JSON.parse(stored.raw_details);
+    expect(parsed).to.deep.equal({ sample: true, note: 'raw json' });
   });
 
   it('cron schedule can be stored and retrieved', async () => {
