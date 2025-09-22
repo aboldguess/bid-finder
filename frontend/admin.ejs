@@ -1,0 +1,195 @@
+<!--
+  @file admin.ejs
+  @description Primary administration console combining database maintenance
+    utilities with user management tooling. The page is rendered server-side so
+    the latest statistics are available immediately while client-side scripts
+    handle destructive actions with confirmation dialogues.
+  @structure
+    1. Page header and navigation tabs.
+    2. Summary cards showing live system metrics.
+    3. Database tools for wiping or inspecting stored data.
+    4. User administration area for creating, resetting and deleting accounts.
+    5. Lightweight dialog components for confirmations and password updates.
+-->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Console</title>
+  <link rel="stylesheet" href="/style.css">
+  <meta name="csrf-token" content="<%= csrfToken %>">
+</head>
+<body>
+  <h1>Administration Console</h1>
+  <%- include('partials/nav', { page: 'admin', user: user, isAdmin: isAdmin }) %>
+  <p class="page-intro">Monitor system health, prune stored tenders and manage
+    team access in one place. Review the metrics below before triggering any
+    destructive operation.</p>
+
+  <% if (!adminUsersConfigured) { %>
+    <div class="status-banner info" role="alert">
+      All authenticated users currently have administrator rights because
+      <code>ADMIN_USERS</code> is not configured. Set that environment variable
+      to restrict access to this console in production.
+    </div>
+  <% } %>
+
+  <section class="stat-grid" aria-label="System metrics">
+    <article class="stat-card" aria-labelledby="stat-tenders">
+      <h2 id="stat-tenders">Tenders</h2>
+      <p id="statTenders" class="stat-value"><%= counts.tenders %></p>
+      <p class="stat-note">records stored</p>
+    </article>
+    <article class="stat-card" aria-labelledby="stat-awards">
+      <h2 id="stat-awards">Awards</h2>
+      <p id="statAwards" class="stat-value"><%= counts.awards %></p>
+      <p class="stat-note">award notices retained</p>
+    </article>
+    <article class="stat-card" aria-labelledby="stat-customers">
+      <h2 id="stat-customers">Customers</h2>
+      <p id="statCustomers" class="stat-value"><%= counts.customers %></p>
+      <p class="stat-note">organisations referenced as buyers</p>
+    </article>
+    <article class="stat-card" aria-labelledby="stat-suppliers">
+      <h2 id="stat-suppliers">Suppliers</h2>
+      <p id="statSuppliers" class="stat-value"><%= counts.suppliers %></p>
+      <p class="stat-note">supplier organisations tracked</p>
+    </article>
+    <article class="stat-card" aria-labelledby="stat-sources">
+      <h2 id="stat-sources">Active sources</h2>
+      <p id="statSources" class="stat-value"><%= counts.totalSources %></p>
+      <p class="stat-note">tender feeds configured</p>
+    </article>
+    <article class="stat-card" aria-labelledby="stat-award-sources">
+      <h2 id="stat-award-sources">Award sources</h2>
+      <p id="statAwardSources" class="stat-value"><%= counts.totalAwardSources %></p>
+      <p class="stat-note">award feeds configured</p>
+    </article>
+    <article class="stat-card" aria-labelledby="stat-users">
+      <h2 id="stat-users">Users</h2>
+      <p id="statUsers" class="stat-value"><%= counts.users %></p>
+      <p class="stat-note">registered accounts</p>
+    </article>
+  </section>
+  <p class="stat-note">Last successful scrape:
+    <span id="lastScraped" data-empty="No scrape recorded yet">
+      <%= lastScraped ? lastScraped : 'No scrape recorded yet' %>
+    </span>
+  </p>
+
+  <section id="db-admin" class="panel" aria-labelledby="db-admin-heading">
+    <div class="panel-header">
+      <h2 id="db-admin-heading">Database administration</h2>
+      <p>Take extreme care when wiping data&mdash;the action is irreversible. Logs
+        are written to <code>logs/app.log</code> for full auditability.</p>
+    </div>
+    <div id="dbStatus" class="status-banner" role="status" aria-live="polite" hidden></div>
+    <div class="action-row">
+      <button id="wipeDatabase" class="danger">Wipe all stored data</button>
+      <button id="refreshBreakdown" class="secondary">Refresh statistics</button>
+    </div>
+    <p class="hint">Refreshing statistics pulls a live breakdown from the
+      server without reloading the page.</p>
+    <table id="tenderBreakdownTable">
+      <thead>
+        <tr><th scope="col">Source</th><th scope="col">Tender count</th></tr>
+      </thead>
+      <tbody id="tenderBreakdownBody">
+        <% if (tenderBreakdown.length === 0) { %>
+          <tr class="table-empty"><td colspan="2">No tenders stored yet.</td></tr>
+        <% } else { %>
+          <% tenderBreakdown.forEach(row => { %>
+            <tr>
+              <td><%= row.source %></td>
+              <td><%= row.count %></td>
+            </tr>
+          <% }) %>
+        <% } %>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="user-administration" class="panel" aria-labelledby="user-admin-heading">
+    <div class="panel-header">
+      <h2 id="user-admin-heading">User administration</h2>
+      <p>Create accounts for colleagues, reset forgotten passwords and revoke
+        access. Every action is logged in the server console for transparency.</p>
+    </div>
+    <div id="userStatus" class="status-banner" role="status" aria-live="polite" hidden></div>
+    <form id="createUserForm" class="form-inline" autocomplete="off">
+      <div class="form-field">
+        <label for="newUsername">Username</label>
+        <input id="newUsername" name="username" type="text" required minlength="3" autocomplete="off">
+      </div>
+      <div class="form-field">
+        <label for="newPassword">Password</label>
+        <input id="newPassword" name="password" type="password" required minlength="8" autocomplete="new-password">
+      </div>
+      <button type="submit">Create user</button>
+    </form>
+    <table id="userTable">
+      <thead>
+        <tr><th scope="col">Username</th><th scope="col">Role</th><th scope="col">Actions</th></tr>
+      </thead>
+      <tbody id="userTableBody">
+        <% if (users.length === 0) { %>
+          <tr class="table-empty"><td colspan="3">No users registered.</td></tr>
+        <% } else { %>
+          <% users.forEach(account => { %>
+            <tr data-user-id="<%= account.id %>">
+              <td><span class="username-cell"><%= account.username %></span></td>
+              <td><span class="badge <%= account.isAdmin ? 'badge-admin' : 'badge-user' %>"><%= account.isAdmin ? 'Administrator' : 'Standard' %></span></td>
+              <td>
+                <button type="button" class="secondary reset-password">Reset password</button>
+                <button type="button" class="danger delete-user">Delete</button>
+              </td>
+            </tr>
+          <% }) %>
+        <% } %>
+      </tbody>
+    </table>
+  </section>
+
+  <dialog id="confirmWipeDialog">
+    <form id="confirmWipeForm" method="dialog">
+      <h3>Confirm database wipe</h3>
+      <p>This will permanently delete all stored tenders, awards, organisations
+        and related metadata. Back up the SQLite database before proceeding.</p>
+      <div class="dialog-actions">
+        <button type="submit" class="danger">Yes, wipe everything</button>
+        <button type="button" data-action="cancel" class="secondary">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="passwordDialog">
+    <form id="passwordForm" method="dialog">
+      <h3>Reset user password</h3>
+      <input type="hidden" id="passwordUserId">
+      <div class="form-field">
+        <label for="passwordInput">New password</label>
+        <input id="passwordInput" type="password" required minlength="8" autocomplete="new-password">
+      </div>
+      <div class="form-field">
+        <label for="passwordConfirmInput">Confirm password</label>
+        <input id="passwordConfirmInput" type="password" required minlength="8" autocomplete="new-password">
+      </div>
+      <div class="dialog-actions">
+        <button type="submit">Update password</button>
+        <button type="button" data-action="cancel" class="secondary">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script id="adminData" type="application/json"><%- JSON.stringify({
+    counts,
+    lastScraped,
+    tenderBreakdown,
+    users,
+    cron,
+    adminUsersConfigured,
+    adminUsernames,
+    currentUser
+  }).replace(/</g, '\\u003c') %></script>
+  <script type="module" src="/admin-tools.js"></script>
+</body>
+</html>

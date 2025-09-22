@@ -987,6 +987,24 @@ module.exports = {
   },
 
   /**
+   * Retrieve all user accounts. Only the identifier and username are returned
+   * so no credential data ever leaves the database layer.
+   *
+   * @returns {Promise<Array<{id:number,username:string}>>} sorted list of users
+   */
+  getAllUsers: () => {
+    return new Promise((resolve, reject) => {
+      db.all(
+        'SELECT id, username FROM users ORDER BY username COLLATE NOCASE',
+        (err, rows) => {
+          if (err) return reject(err);
+          resolve(rows);
+        }
+      );
+    });
+  },
+
+  /**
    * Look up a user by username.
    *
    * @param {string} username - Username to search for
@@ -1002,6 +1020,58 @@ module.exports = {
           resolve(row || null);
         }
       );
+    });
+  },
+
+  /**
+   * Look up a user by numeric identifier. Mirrors getUserByUsername but uses
+   * the primary key which is convenient for admin tooling.
+   *
+   * @param {number} id - Identifier of the account
+   * @returns {Promise<object|null>} matching row or null when absent
+   */
+  getUserById: id => {
+    return new Promise((resolve, reject) => {
+      db.get('SELECT id, username FROM users WHERE id = ?', [id], (err, row) => {
+        if (err) return reject(err);
+        resolve(row || null);
+      });
+    });
+  },
+
+  /**
+   * Update a user's stored password hash. The caller is responsible for hashing
+   * the password before invoking this helper.
+   *
+   * @param {number} id - Identifier of the account to update
+   * @param {string} passwordHash - New bcrypt hash to store
+   * @returns {Promise<number>} resolves with number of affected rows
+   */
+  updateUserPassword: (id, passwordHash) => {
+    return new Promise((resolve, reject) => {
+      db.run(
+        'UPDATE users SET password = ? WHERE id = ?',
+        [passwordHash, id],
+        function (err) {
+          if (err) return reject(err);
+          resolve(this.changes || 0);
+        }
+      );
+    });
+  },
+
+  /**
+   * Permanently delete a user account.
+   *
+   * @param {number} id - Identifier of the user to remove
+   * @returns {Promise<number>} number of rows deleted
+   */
+  deleteUser: id => {
+    return new Promise((resolve, reject) => {
+      db.run('DELETE FROM users WHERE id = ?', [id], function (err) {
+        if (err) return reject(err);
+        resolve(this.changes || 0);
+      });
     });
   },
 
