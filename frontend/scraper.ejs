@@ -506,13 +506,33 @@ document.getElementById('deleteAllForm').addEventListener('submit', async e => {
     return;
   }
   if (res.ok && data && data.success) {
-    const removed = data.removed ?? 0;
-    const variant = removed > 0 ? 'success' : 'info';
-    const message =
-      removed > 0
-        ? `${removed} tender${removed === 1 ? '' : 's'} deleted from the database.`
-        : 'No tenders matched the deletion request.';
-    announceDbStatus(message, variant);
+    const summary = data.summary || { tenders: data.removed ?? 0 };
+    const sections = [];
+    const pluralise = (count, singular, plural) =>
+      `${count} ${count === 1 ? singular : plural || `${singular}s`}`;
+
+    if (summary.tenders) {
+      sections.push(pluralise(summary.tenders, 'tender record'));
+    }
+    if (summary.awards) {
+      sections.push(pluralise(summary.awards, 'award record'));
+    }
+    if (summary.awardDetails) {
+      sections.push(pluralise(summary.awardDetails, 'award detail entry'));
+    }
+    if (summary.organisations) {
+      sections.push(pluralise(summary.organisations, 'organisation entry'));
+    }
+    if (summary.sourceStats) {
+      sections.push(pluralise(summary.sourceStats, 'source statistic row'));
+    }
+
+    const hadRemovals = sections.length > 0;
+    const message = hadRemovals
+      ? `Removed ${sections.join('; ')}. Reload the Opportunities page to confirm the empty state.`
+      : 'No stored records were removed. The database was already empty.';
+
+    announceDbStatus(message, hadRemovals ? 'success' : 'info');
     loadTenderStats();
   } else {
     announceDbStatus('Failed to delete records.', 'error');

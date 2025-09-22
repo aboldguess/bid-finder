@@ -926,9 +926,16 @@ app.post('/admin/reset-db', requireAuth, async (req, res) => {
 // authorised users can perform destructive actions.
 app.post('/admin/delete-all', requireAuth, async (req, res) => {
   try {
-    const removed = await db.deleteAllTenders();
-    logger.info('Deleted %d tenders via delete-all tool', removed);
-    res.json({ success: true, removed });
+    const summary = await db.deleteAllTenders();
+    logger.info(
+      'Cleared %d tenders, %d awards and %d organisations via delete-all tool',
+      summary.tenders,
+      summary.awards,
+      summary.organisations
+    );
+    // Preserve the legacy "removed" field for existing front-end code while
+    // also returning the richer summary so the UI can surface a full breakdown.
+    res.json({ success: true, removed: summary.tenders, summary });
   } catch (err) {
     logger.error('Failed to delete all tenders:', err);
     res.status(500).json({ error: 'Failed to delete data' });

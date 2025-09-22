@@ -322,9 +322,71 @@ describe('Database helpers', () => {
   });
 
   it('deleteAllTenders removes everything', async () => {
-    await db.deleteAllTenders();
-    const count = await db.getTenderCount();
-    expect(count).to.equal(0);
+    // Seed fresh data across every table that should be cleared.
+    await db.insertTender(
+      'cleanup tender',
+      'cleanup-link',
+      '2024-09-01',
+      'desc',
+      'cleanup-source',
+      '2024-09-02T00:00:00Z',
+      'tag',
+      'ocds-clean',
+      '99990000',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      ''
+    );
+    const awardInsert = await db.insertAward(
+      'cleanup award',
+      'cleanup-award-link',
+      '2024-09-01',
+      'desc',
+      'cleanup-award-source',
+      '2024-09-02T00:00:00Z',
+      'tag'
+    );
+    if (awardInsert.changes) {
+      await db.insertAwardDetails(awardInsert.id, { buyer: 'Cleanup Buyer' });
+    }
+    await db.insertOrganisation('Cleanup Customer', 'customer');
+    await db.insertOrganisation('Cleanup Supplier', 'supplier');
+    await db.updateSourceStats('cleanup-source', '2024-09-02T00:00:00Z', 2);
+
+    const tenderCountBefore = await db.getTenderCount();
+    const awardsBeforeRows = await db.getAwards();
+    const awardsBefore = awardsBeforeRows.length;
+    const statsBefore = (await db.getSourceStats()).length;
+    const customersBefore = (await db.getOrganisationsByType('customer')).length;
+    const suppliersBefore = (await db.getOrganisationsByType('supplier')).length;
+
+    let awardDetailsBefore = 0;
+    for (const awardRow of awardsBeforeRows) {
+      const detail = await db.getAwardDetails(awardRow.id);
+      if (detail) awardDetailsBefore += 1;
+    }
+
+    const summary = await db.deleteAllTenders();
+
+    expect(summary.tenders).to.equal(tenderCountBefore);
+    expect(summary.awards).to.equal(awardsBefore);
+    expect(summary.awardDetails).to.equal(awardDetailsBefore);
+    expect(summary.organisations).to.equal(customersBefore + suppliersBefore);
+    expect(summary.sourceStats).to.equal(statsBefore);
+
+    expect(await db.getTenderCount()).to.equal(0);
+    expect((await db.getAwards()).length).to.equal(0);
+    expect((await db.getSourceStats()).length).to.equal(0);
+    expect((await db.getOrganisationsByType('customer')).length).to.equal(0);
+    expect((await db.getOrganisationsByType('supplier')).length).to.equal(0);
+    if (awardInsert.changes) {
+      const detailAfter = await db.getAwardDetails(awardInsert.id);
+      expect(detailAfter).to.equal(null);
+    }
   });
 
   it('deleteTendersBefore removes only old rows', async () => {
