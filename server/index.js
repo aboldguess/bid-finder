@@ -928,10 +928,13 @@ app.post('/admin/delete-all', requireAuth, async (req, res) => {
   try {
     const summary = await db.deleteAllTenders();
     logger.info(
-      'Cleared %d tenders, %d awards and %d organisations via delete-all tool',
+      'Cleared %d tenders, %d awards, %d award detail rows, %d organisations, %d source stats entries and %d metadata records via delete-all tool',
       summary.tenders,
       summary.awards,
-      summary.organisations
+      summary.awardDetails,
+      summary.organisations,
+      summary.sourceStats,
+      summary.metadata
     );
     // Preserve the legacy "removed" field for existing front-end code while
     // also returning the richer summary so the UI can surface a full breakdown.

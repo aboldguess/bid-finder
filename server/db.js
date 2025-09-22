@@ -703,7 +703,8 @@ module.exports = {
    *   awards:number,
    *   awardDetails:number,
    *   organisations:number,
-   *   sourceStats:number
+   *   sourceStats:number,
+   *   metadata:number
    * }>} resolves with a per-table deletion summary so callers can surface
    * detailed feedback to administrators.
    */
@@ -727,7 +728,8 @@ module.exports = {
             awards: 0,
             awardDetails: 0,
             organisations: 0,
-            sourceStats: 0
+            sourceStats: 0,
+            metadata: 0
           };
 
           try {
@@ -742,6 +744,12 @@ module.exports = {
             summary.tenders = await run('DELETE FROM tenders');
             summary.organisations = await run('DELETE FROM organisations');
             summary.sourceStats = await run('DELETE FROM source_stats');
+            // Reset metadata that only reflects stored tender data. Other keys
+            // such as the cron schedule are preserved so admin configuration
+            // survives a clean-up operation.
+            summary.metadata = await run(
+              "DELETE FROM metadata WHERE key = 'last_scraped'"
+            );
 
             await run('COMMIT');
             resolve(summary);

@@ -526,10 +526,13 @@ document.getElementById('deleteAllForm').addEventListener('submit', async e => {
     if (summary.sourceStats) {
       sections.push(pluralise(summary.sourceStats, 'source statistic row'));
     }
+    if (summary.metadata) {
+      sections.push(pluralise(summary.metadata, 'metadata entry'));
+    }
 
     const hadRemovals = sections.length > 0;
     const message = hadRemovals
-      ? `Removed ${sections.join('; ')}. Reload the Opportunities page to confirm the empty state.`
+      ? `Removed ${sections.join('; ')}. Reload the Opportunities and Stats pages to confirm the empty state.`
       : 'No stored records were removed. The database was already empty.';
 
     announceDbStatus(message, hadRemovals ? 'success' : 'info');

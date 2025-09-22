@@ -356,6 +356,7 @@ describe('Database helpers', () => {
     await db.insertOrganisation('Cleanup Customer', 'customer');
     await db.insertOrganisation('Cleanup Supplier', 'supplier');
     await db.updateSourceStats('cleanup-source', '2024-09-02T00:00:00Z', 2);
+    await db.setLastScraped('2024-09-02T00:00:00Z');
 
     const tenderCountBefore = await db.getTenderCount();
     const awardsBeforeRows = await db.getAwards();
@@ -377,12 +378,14 @@ describe('Database helpers', () => {
     expect(summary.awardDetails).to.equal(awardDetailsBefore);
     expect(summary.organisations).to.equal(customersBefore + suppliersBefore);
     expect(summary.sourceStats).to.equal(statsBefore);
+    expect(summary.metadata).to.equal(1);
 
     expect(await db.getTenderCount()).to.equal(0);
     expect((await db.getAwards()).length).to.equal(0);
     expect((await db.getSourceStats()).length).to.equal(0);
     expect((await db.getOrganisationsByType('customer')).length).to.equal(0);
     expect((await db.getOrganisationsByType('supplier')).length).to.equal(0);
+    expect(await db.getLastScraped()).to.equal(null);
     if (awardInsert.changes) {
       const detailAfter = await db.getAwardDetails(awardInsert.id);
       expect(detailAfter).to.equal(null);
