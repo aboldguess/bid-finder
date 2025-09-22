@@ -1,3 +1,13 @@
+<!--
+  @file nav.ejs
+  @description Shared navigation tabs for the procurement dashboard. This
+    partial renders all top-level sections plus the authenticated user dropdown
+    so each page has a consistent experience.
+  @structure
+    - Horizontal tab list for primary sections.
+    - Conditional Admin tab for privileged users.
+    - Profile dropdown providing quick links to account tools.
+-->
 <ul class="tabs">
   <li class="<%= page === 'dashboard' ? 'active' : '' %>"><a href="/dashboard">Dashboard</a></li>
   <li class="<%= page === 'opportunities' ? 'active' : '' %>"><a href="/opportunities">Opportunities</a></li>
@@ -5,6 +15,9 @@
   <li class="<%= page === 'scraper' ? 'active' : '' %>"><a href="/scraper">Scraper</a></li>
   <li class="<%= page === 'crm' ? 'active' : '' %>"><a href="/crm">CRM</a></li>
   <li class="<%= page === 'stats' ? 'active' : '' %>"><a href="/stats">Stats</a></li>
+  <% if (user && isAdmin) { %>
+    <li class="<%= page === 'admin' ? 'active' : '' %>"><a href="/admin">Admin</a></li>
+  <% } %>
   <li class="<%= page === 'help' ? 'active' : '' %>"><a href="/help">Help</a></li>
   <% if (user) { %>
     <!-- Profile dropdown shown when user is authenticated -->

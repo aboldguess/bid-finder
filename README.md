@@ -74,6 +74,10 @@ pkill -f "node server/index.js"
     `/login` and visiting `/scraper`. Once logged in your session persists for 30 days
     so you remain authenticated after closing the browser. Only
     authenticated users can access these management functions.
+  - **Open the Admin tab** for a consolidated console that lists live database
+    statistics, offers a confirmation-protected wipe button and lets
+    administrators create, reset or delete user accounts without touching the
+    underlying SQLite files.
   - **Automatic scraping** runs in the background according to the `CRON_SCHEDULE`
   environment variable (default `0 6 * * *`). Results are stored in the
   database without any manual interaction.

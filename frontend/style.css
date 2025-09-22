@@ -148,6 +148,160 @@ button:hover {
   display: none;
 }
 
+/* Administration dashboard layout ------------------------------------------------ */
+.page-intro {
+  margin-top: 0.5rem;
+  margin-bottom: 1rem;
+  font-size: 1rem;
+  color: #495057;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.stat-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 1rem;
+  border: 1px solid #dee2e6;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+}
+
+.stat-card h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: #0f172a;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0.3rem 0;
+  color: #1d4ed8;
+}
+
+.stat-note {
+  font-size: 0.9rem;
+  color: #6c757d;
+}
+
+.panel {
+  margin-top: 1.75rem;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 1.25rem;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+}
+
+.panel-header {
+  margin-bottom: 1rem;
+}
+
+.panel-header h2 {
+  margin: 0 0 0.35rem 0;
+}
+
+.panel .hint {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  color: #6c757d;
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+button.secondary {
+  background: #6c757d;
+}
+
+button.secondary:hover {
+  background: #5c636a;
+}
+
+.form-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+}
+
+.form-field label {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.form-field input {
+  padding: 0.45rem;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+}
+
+#userTable button {
+  margin-right: 0.4rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.badge-admin {
+  background: #d1e7dd;
+  color: #0f5132;
+}
+
+.badge-user {
+  background: #e2e3e5;
+  color: #41464b;
+}
+
+.username-cell {
+  font-weight: 600;
+}
+
+.table-empty td {
+  text-align: center;
+  color: #6c757d;
+}
+
+dialog {
+  border: none;
+  border-radius: 10px;
+  padding: 1.5rem;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.3);
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.dialog-actions button {
+  min-width: 120px;
+}
+
 #dbTools button.danger,
 button.danger {
   background-color: #dc3545;

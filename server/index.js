@@ -231,10 +231,36 @@ app.use(
 // Attach CSRF protection and expose helper to templates.
 app.use(csrf());
 
-// Make the current user and a CSRF token available to all templates.
+// Build a set of administrator usernames from the ADMIN_USERS environment
+// variable. When empty, all authenticated users are treated as administrators
+// so optional permission checks fall back to simple authentication.
+const adminUsers = new Set(
+  (process.env.ADMIN_USERS || '')
+    .split(',')
+    .map(u => u.trim().toLowerCase())
+    .filter(Boolean)
+);
+
+/**
+ * Helper indicating whether the supplied username has administrator access
+ * according to the configured allow list. When no allow list exists all
+ * authenticated users are considered administrators.
+ *
+ * @param {string} [username] - Username taken from the session
+ * @returns {boolean} true if the user should be treated as an administrator
+ */
+const userHasAdminAccess = username => {
+  if (!adminUsers.size) return Boolean(username);
+  return Boolean(username && adminUsers.has(username.toLowerCase()));
+};
+
+// Make the current user and a CSRF token available to all templates alongside
+// a convenience flag that indicates if the active session has admin rights.
 app.use((req, res, next) => {
   res.locals.user = req.session.user;
   res.locals.csrfToken = req.csrfToken();
+  const username = req.session.user && req.session.user.username;
+  res.locals.isAdmin = userHasAdminAccess(username);
   next();
 });
 
@@ -252,16 +278,6 @@ const requireAuth = (req, res, next) => {
   res.redirect('/login');
 };
 
-// Build a set of administrator usernames from the ADMIN_USERS environment
-// variable. When empty, all authenticated users are treated as administrators
-// so optional permission checks fall back to simple authentication.
-const adminUsers = new Set(
-  (process.env.ADMIN_USERS || '')
-    .split(',')
-    .map(u => u.trim().toLowerCase())
-    .filter(Boolean)
-);
-
 /**
  * Middleware restricting access to administrator accounts. If no administrators
  * are configured the check is skipped and any authenticated user is allowed.
@@ -269,10 +285,8 @@ const adminUsers = new Set(
  * return a plain 403 page.
  */
 const requireAdmin = (req, res, next) => {
-  if (
-    !adminUsers.size ||
-    (req.session.user && adminUsers.has(req.session.user.username.toLowerCase()))
-  ) {
+  const username = req.session.user && req.session.user.username;
+  if (userHasAdminAccess(username)) {
     return next();
   }
   if (req.headers.accept && req.headers.accept.includes('application/json')) {
@@ -902,17 +916,79 @@ if (enableLogStream) {
   });
 }
 
-// GET /admin - Render the admin interface used for maintenance tasks.
-// Fetch scraping statistics and render the admin page.
-// The dedicated admin page has been removed. Redirect any old links to the
-// scraper page which now hosts all management tools.
-app.get('/admin', requireAuth, (req, res) => {
-  res.redirect('/scraper');
+// GET /admin - Render the consolidated administration console. Only
+// authenticated administrators may access this page because it exposes tools
+// for destructive database actions and account management.
+app.get('/admin', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const [
+      tenderCount,
+      awardCount,
+      customerCount,
+      supplierCount,
+      lastScraped,
+      tenderBreakdown,
+      users
+    ] = await Promise.all([
+      db.getTenderCount(),
+      db.getAwardCount(),
+      db.getOrganisationCount('customer'),
+      db.getOrganisationCount('supplier'),
+      db.getLastScraped(),
+      db.getTenderCountsBySource(),
+      db.getAllUsers()
+    ]);
+
+    const formattedUsers = users.map(row => ({
+      id: row.id,
+      username: row.username,
+      isAdmin: userHasAdminAccess(row.username)
+    }));
+
+    logger.info('User %s accessed admin console', req.session.user.username);
+
+    res.render('admin', {
+      page: 'admin',
+      counts: {
+        tenders: tenderCount,
+        awards: awardCount,
+        customers: customerCount,
+        suppliers: supplierCount,
+        totalSources: Object.keys(config.sources).length,
+        totalAwardSources: Object.keys(config.awardSources).length,
+        users: formattedUsers.length
+      },
+      lastScraped,
+      tenderBreakdown,
+      users: formattedUsers,
+      cron: config.cronSchedule,
+      adminUsersConfigured: adminUsers.size > 0,
+      adminUsernames: Array.from(adminUsers),
+      currentUser: req.session.user && req.session.user.username
+    });
+  } catch (err) {
+    logger.error('Failed to render admin console:', err);
+    res.status(500).send('Unable to load admin console');
+  }
+});
+
+// Legacy Manage Users page now redirects to the admin console. Non-admin
+// users receive a friendly explanation instead of a blank screen.
+app.get('/manage-users', requireAuth, (req, res) => {
+  const username = req.session.user && req.session.user.username;
+  if (userHasAdminAccess(username)) {
+    return res.redirect('/admin#user-administration');
+  }
+  logger.info(
+    'User %s opened Manage Users without admin rights; showing guidance message',
+    req.session.user.username
+  );
+  res.render('manage-users', { page: 'manage-users' });
 });
 
 // POST /admin/reset-db - Drop and recreate the tenders table. This allows the
 // admin to clear out old data without restarting the server.
-app.post('/admin/reset-db', requireAuth, async (req, res) => {
+app.post('/admin/reset-db', requireAuth, requireAdmin, async (req, res) => {
   try {
     await db.reset();
     res.json({ success: true });
@@ -924,7 +1000,7 @@ app.post('/admin/reset-db', requireAuth, async (req, res) => {
 
 // Remove every tender from the database. Authentication is required so only
 // authorised users can perform destructive actions.
-app.post('/admin/delete-all', requireAuth, async (req, res) => {
+app.post('/admin/delete-all', requireAuth, requireAdmin, async (req, res) => {
   try {
     const summary = await db.deleteAllTenders();
     logger.info(
@@ -946,7 +1022,7 @@ app.post('/admin/delete-all', requireAuth, async (req, res) => {
 });
 
 // Delete tenders older than the supplied date.
-app.post('/admin/delete-before', requireAuth, async (req, res) => {
+app.post('/admin/delete-before', requireAuth, requireAdmin, async (req, res) => {
   const date = req.body && req.body.date;
   if (!date) return res.status(400).json({ error: 'Missing date' });
   try {
@@ -964,11 +1040,33 @@ app.post('/admin/delete-before', requireAuth, async (req, res) => {
 
 // Provide a summary of stored tenders grouped by source. Useful for
 // administrators to inspect database usage.
-app.get('/admin/db-info', requireAuth, async (req, res) => {
+app.get('/admin/db-info', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const counts = await db.getTenderCountsBySource();
-    const total = await db.getTenderCount();
-    res.json({ counts, total });
+    const [
+      counts,
+      total,
+      awardCount,
+      customerCount,
+      supplierCount,
+      lastScraped
+    ] = await Promise.all([
+      db.getTenderCountsBySource(),
+      db.getTenderCount(),
+      db.getAwardCount(),
+      db.getOrganisationCount('customer'),
+      db.getOrganisationCount('supplier'),
+      db.getLastScraped()
+    ]);
+    res.json({
+      counts,
+      total,
+      awardCount,
+      customerCount,
+      supplierCount,
+      lastScraped,
+      sourceCount: Object.keys(config.sources).length,
+      awardSourceCount: Object.keys(config.awardSources).length
+    });
   } catch (err) {
     logger.error('Failed to fetch database info:', err);
     res.status(500).json({ error: 'Failed to fetch data' });
@@ -977,7 +1075,7 @@ app.get('/admin/db-info', requireAuth, async (req, res) => {
 
 // Remove all tenders belonging to the specified source. This allows targeted
 // purging without wiping the entire table.
-app.post('/admin/delete-source', requireAuth, async (req, res) => {
+app.post('/admin/delete-source', requireAuth, requireAdmin, async (req, res) => {
   const source = req.body && req.body.source;
   if (!source) return res.status(400).json({ error: 'Missing source' });
   try {
@@ -992,7 +1090,7 @@ app.post('/admin/delete-source', requireAuth, async (req, res) => {
 
 // POST /admin/cron - Update the cron schedule at runtime. The existing job is
 // stopped and a new one is created using the supplied expression.
-app.post('/admin/cron', requireAuth, async (req, res) => {
+app.post('/admin/cron', requireAuth, requireAdmin, async (req, res) => {
   const schedule = req.body && req.body.schedule;
   if (!schedule || !cron.validate(schedule)) {
     return res.status(400).json({ error: 'Invalid schedule' });
@@ -1005,6 +1103,119 @@ app.post('/admin/cron', requireAuth, async (req, res) => {
   } catch (err) {
     logger.error('Failed to update cron schedule:', err);
     res.status(500).json({ error: 'Failed to update schedule' });
+  }
+});
+
+// -------- User administration ------------------------------------------------
+
+// Fetch a JSON list of all user accounts for the admin interface.
+app.get('/admin/users', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const users = await db.getAllUsers();
+    res.json({
+      users: users.map(row => ({
+        id: row.id,
+        username: row.username,
+        isAdmin: userHasAdminAccess(row.username)
+      })),
+      adminUsersConfigured: adminUsers.size > 0,
+      adminUsernames: Array.from(adminUsers)
+    });
+  } catch (err) {
+    logger.error('Failed to list users:', err);
+    res.status(500).json({ error: 'Failed to list users' });
+  }
+});
+
+// Create a new user account on behalf of the administrator.
+app.post('/admin/users', requireAuth, requireAdmin, async (req, res) => {
+  const { username, password } = req.body || {};
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required' });
+  }
+  if (password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  }
+  try {
+    if (await db.getUserByUsername(username)) {
+      return res.status(409).json({ error: 'Username already exists' });
+    }
+    const hash = await bcrypt.hash(password, 10);
+    await db.createUser(username, hash);
+    const created = await db.getUserByUsername(username);
+    logger.info('Administrator %s created user %s', req.session.user.username, username);
+    res.status(201).json({
+      success: true,
+      user: {
+        id: created.id,
+        username: created.username,
+        isAdmin: userHasAdminAccess(created.username)
+      }
+    });
+  } catch (err) {
+    logger.error('Failed to create user:', err);
+    res.status(500).json({ error: 'Failed to create user' });
+  }
+});
+
+// Update an existing user's password. The password is hashed before storing so
+// the server never exposes plaintext credentials.
+app.patch('/admin/users/:id/password', requireAuth, requireAdmin, async (req, res) => {
+  const id = Number.parseInt(req.params.id, 10);
+  if (!Number.isInteger(id) || id < 1) {
+    return res.status(400).json({ error: 'Invalid user identifier' });
+  }
+  const { password } = req.body || {};
+  if (!password || password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  }
+  try {
+    const userRow = await db.getUserById(id);
+    if (!userRow) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const hash = await bcrypt.hash(password, 10);
+    await db.updateUserPassword(id, hash);
+    logger.info('Administrator %s reset password for %s', req.session.user.username, userRow.username);
+    res.json({
+      success: true,
+      user: {
+        id: userRow.id,
+        username: userRow.username,
+        isAdmin: userHasAdminAccess(userRow.username)
+      }
+    });
+  } catch (err) {
+    logger.error('Failed to reset password:', err);
+    res.status(500).json({ error: 'Failed to reset password' });
+  }
+});
+
+// Delete a user account. Administrators cannot delete their own session to
+// avoid locking themselves out mid-operation.
+app.delete('/admin/users/:id', requireAuth, requireAdmin, async (req, res) => {
+  const id = Number.parseInt(req.params.id, 10);
+  if (!Number.isInteger(id) || id < 1) {
+    return res.status(400).json({ error: 'Invalid user identifier' });
+  }
+  try {
+    const userRow = await db.getUserById(id);
+    if (!userRow) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    if (
+      req.session.user &&
+      req.session.user.username &&
+      req.session.user.username.toLowerCase() === userRow.username.toLowerCase()
+    ) {
+      return res.status(400).json({ error: 'You cannot delete the account currently in use' });
+    }
+    await db.deleteUser(id);
+    logger.info('Administrator %s deleted user %s', req.session.user.username, userRow.username);
+    res.json({ success: true });
+  } catch (err) {
+    logger.error('Failed to delete user:', err);
+    res.status(500).json({ error: 'Failed to delete user' });
   }
 });
 

@@ -1,3 +1,13 @@
+<!--
+  @file manage-users.ejs
+  @description Legacy landing page retained so the profile dropdown can include
+    a "Manage Users" option for all members. Administrators are redirected to
+    the rich Admin console while standard users see guidance on how to request
+    elevated access.
+  @structure
+    - Shared navigation bar for consistency.
+    - Friendly notice with next steps for non-administrators.
+-->
 <!DOCTYPE html>
 <html>
 <head>
@@ -8,7 +18,14 @@
   <h1>Manage Users</h1>
   <!-- Navigation with profile dropdown remains consistent -->
   <%- include('partials/nav', { page: 'manage-users', user: user }) %>
-  <!-- Explain the purpose of the screen to avoid confusion -->
-  <p>Add, remove or update user accounts from this administration area.</p>
+  <div class="panel">
+    <h2>Requesting administrative access</h2>
+    <p>This area is limited to system administrators so every change can be
+      audited and secured. If your role requires user management or database
+      maintenance tools, ask an administrator to add your account to the
+      <code>ADMIN_USERS</code> environment setting.</p>
+    <p>Administrators can open the full toolkit via the <strong>Admin</strong>
+      tab at the top of the screen.</p>
+  </div>
 </body>
 </html>
