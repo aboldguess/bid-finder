@@ -76,6 +76,93 @@ button:hover {
   background-color: #0b5ed7;
 }
 
+/* Admin database tools layout */
+.panel-text {
+  margin-top: 0.75rem;
+}
+
+.db-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.db-action {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  padding: 0.75rem;
+  min-width: 240px;
+  max-width: 320px;
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.08);
+}
+
+.db-action label {
+  font-weight: 600;
+}
+
+.db-action input[type="date"] {
+  padding: 0.4rem;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+}
+
+.form-hint {
+  font-size: 0.85em;
+  color: #6c757d;
+}
+
+.status-banner {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 6px;
+  background: #e2e3e5;
+  color: #41464b;
+  font-weight: 500;
+  border: 1px solid #d3d5d7;
+}
+
+.status-banner.success {
+  background: #d1e7dd;
+  color: #0f5132;
+  border-color: #badbcc;
+}
+
+.status-banner.error {
+  background: #f8d7da;
+  color: #842029;
+  border-color: #f5c2c7;
+}
+
+.status-banner.info {
+  background: #cff4fc;
+  color: #055160;
+  border-color: #b6effb;
+}
+
+.status-banner[hidden] {
+  display: none;
+}
+
+#dbTools button.danger,
+button.danger {
+  background-color: #dc3545;
+}
+
+#dbTools button.danger:hover,
+button.danger:hover {
+  background-color: #bb2d3b;
+}
+
+.summary-row {
+  background: #f1f3f5;
+  font-weight: 600;
+}
+
 /* Highlighted callout containing usage help */
 #instructions {
   background: #f5f5f5;

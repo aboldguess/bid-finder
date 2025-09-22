@@ -336,4 +336,69 @@ describe('Database helpers', () => {
     expect(titles).to.include('new');
     expect(titles).to.not.include('old');
   });
+
+  it('deleteTendersBefore understands varied date formats', async () => {
+    await db.deleteAllTenders();
+    await db.insertTender(
+      'iso-new',
+      'mix1',
+      '2024-07-10',
+      'd',
+      's',
+      '2024-07-11T00:00:00Z',
+      't',
+      'ocds-m1',
+      '77770001',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      ''
+    );
+    await db.insertTender(
+      'worded-old',
+      'mix2',
+      '7 June 2024',
+      'd',
+      's',
+      '2024-06-08T00:00:00Z',
+      't',
+      'ocds-m2',
+      '77770002',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      ''
+    );
+    await db.insertTender(
+      'slash-old',
+      'mix3',
+      '07/06/2024',
+      'd',
+      's',
+      '2024-06-08T00:00:00Z',
+      't',
+      'ocds-m3',
+      '77770003',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      ''
+    );
+    const removed = await db.deleteTendersBefore('2024-07-01');
+    expect(removed).to.equal(2);
+    const remaining = await db.getTenders();
+    const titles = remaining.map(r => r.title);
+    expect(titles).to.include('iso-new');
+    expect(titles).to.not.include('worded-old');
+    expect(titles).to.not.include('slash-old');
+  });
 });

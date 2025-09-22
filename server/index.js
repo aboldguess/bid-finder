@@ -926,8 +926,9 @@ app.post('/admin/reset-db', requireAuth, async (req, res) => {
 // authorised users can perform destructive actions.
 app.post('/admin/delete-all', requireAuth, async (req, res) => {
   try {
-    await db.deleteAllTenders();
-    res.json({ success: true });
+    const removed = await db.deleteAllTenders();
+    logger.info('Deleted %d tenders via delete-all tool', removed);
+    res.json({ success: true, removed });
   } catch (err) {
     logger.error('Failed to delete all tenders:', err);
     res.status(500).json({ error: 'Failed to delete data' });
@@ -939,9 +940,13 @@ app.post('/admin/delete-before', requireAuth, async (req, res) => {
   const date = req.body && req.body.date;
   if (!date) return res.status(400).json({ error: 'Missing date' });
   try {
-    await db.deleteTendersBefore(date);
-    res.json({ success: true });
+    const removed = await db.deleteTendersBefore(date);
+    logger.info('Deleted %d tenders older than %s', removed, date);
+    res.json({ success: true, removed });
   } catch (err) {
+    if (err.code === 'INVALID_DATE') {
+      return res.status(400).json({ error: 'Invalid date supplied' });
+    }
     logger.error('Failed to delete old tenders:', err);
     res.status(500).json({ error: 'Failed to delete data' });
   }
@@ -966,9 +971,9 @@ app.post('/admin/delete-source', requireAuth, async (req, res) => {
   const source = req.body && req.body.source;
   if (!source) return res.status(400).json({ error: 'Missing source' });
   try {
-    await db.deleteTendersBySource(source);
-    logger.info(`Deleted tenders for source ${source}`);
-    res.json({ success: true });
+    const removed = await db.deleteTendersBySource(source);
+    logger.info(`Deleted ${removed} tenders for source ${source}`);
+    res.json({ success: true, removed });
   } catch (err) {
     logger.error('Failed to delete tenders for source:', err);
     res.status(500).json({ error: 'Failed to delete data' });

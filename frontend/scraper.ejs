@@ -20,17 +20,30 @@
     visit the <a href="/help">help page</a> for full instructions.
   </div>
   <!-- Collapsible section listing administrative database actions -->
-  <details id="dbTools">
+  <details id="dbTools" open>
     <summary><h2>Database Tools</h2></summary>
-    <form id="deleteAllForm">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <button type="submit">Delete All Records</button>
-    </form>
-    <form id="deleteBeforeForm">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <input type="date" id="deleteDate">
-      <button type="submit">Delete Records Before Date</button>
-    </form>
+    <div class="panel-text">
+      <p class="hint">Use these maintenance actions to prune stored tenders.
+        All changes apply immediately, so double-check the selected option before
+        confirming.</p>
+      <div id="dbToolStatus" class="status-banner" role="status" aria-live="polite" hidden>
+        Database status updates will appear here.
+      </div>
+      <div class="db-actions">
+        <form id="deleteAllForm" class="db-action">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="danger">Delete All Records</button>
+          <span class="form-hint">Removes every tender from the database.</span>
+        </form>
+        <form id="deleteBeforeForm" class="db-action">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <label for="deleteDate">Delete entries before</label>
+          <input type="date" id="deleteDate" required>
+          <button type="submit" class="danger">Delete Matching Records</button>
+          <span class="form-hint">Useful for archiving tenders older than a specific date.</span>
+        </form>
+      </div>
+    </div>
     <!-- Table populated with counts for each source so administrators can see
          how many tenders are stored and selectively purge them -->
     <h3>Stored Tenders</h3>
@@ -98,8 +111,7 @@
             Base: <span class="base"><%= sources[key].base %></span><br>
             Parser: <span class="parser"><%= sources[key].parser %></span><br>
             <button class="editBtn">Edit</button>
-            <button class="deleteBtn">Delete</button>
-            <button class="deleteBtn">Delete</button>
+            <button class="deleteBtn danger">Delete Source</button>
           </div>
           <div class="editForm" style="display:none">
             <input class="editLabel" value="<%= sources[key].label %>">
@@ -158,7 +170,7 @@
             Base: <span class="base"><%= awardSources[key].base %></span><br>
             Parser: <span class="parser"><%= awardSources[key].parser %></span><br>
             <button class="editBtn">Edit</button>
-            <button class="deleteBtn">Delete</button>
+            <button class="deleteBtn danger">Delete Award Source</button>
           </div>
           <div class="editForm" style="display:none">
             <input class="editLabel" value="<%= awardSources[key].label %>">
@@ -193,6 +205,15 @@ const sourceData = <%= JSON.stringify(sources).replace(/</g, '\u003c') %>;
 const awardSourceData = <%= JSON.stringify(awardSources).replace(/</g, '\u003c') %>;
 let editingKey = null;
 let editingAwardKey = null;
+const statusBanner = document.getElementById('dbToolStatus');
+
+// Present status updates in the banner so administrators do not rely on alerts.
+function announceDbStatus(message, variant = 'info') {
+  if (!statusBanner) return;
+  statusBanner.textContent = message;
+  statusBanner.className = `status-banner ${variant}`;
+  statusBanner.hidden = !message;
+}
 
 // Fetch tender counts from the server and populate the statistics table. Called
 // on page load and after any delete action to keep figures accurate.
@@ -204,7 +225,11 @@ async function loadTenderStats() {
     const res = await fetch('/admin/db-info');
     if (!res.ok) throw new Error('Failed to load');
     const data = await res.json();
-    data.counts.forEach(row => {
+    const counts = Array.isArray(data.counts) ? data.counts : [];
+    if (!counts.length) {
+      announceDbStatus('No tenders are stored in the database yet.', 'info');
+    }
+    counts.forEach(row => {
       const tr = document.createElement('tr');
       const src = document.createElement('td');
       src.textContent = row.source || '(unknown)';
@@ -213,6 +238,7 @@ async function loadTenderStats() {
       const action = document.createElement('td');
       const btn = document.createElement('button');
       btn.textContent = 'Delete';
+      btn.classList.add('danger');
       btn.addEventListener('click', async () => {
         if (!confirm(`Delete all tenders for ${row.source}?`)) return;
         const delRes = await fetch('/admin/delete-source', {
@@ -225,10 +251,22 @@ async function loadTenderStats() {
           body: JSON.stringify({ source: row.source })
         });
         const payload = await delRes.json().catch(() => null);
+        if (delRes.status === 401) {
+          announceDbStatus('Please log in before performing database actions.', 'error');
+          window.location = '/login';
+          return;
+        }
         if (delRes.ok && payload && payload.success) {
+          const removed = payload.removed || 0;
+          const variant = removed > 0 ? 'success' : 'info';
+          const message =
+            removed > 0
+              ? `${removed} tender${removed === 1 ? '' : 's'} removed for ${row.source}.`
+              : `No tenders were removed for ${row.source}.`;
+          announceDbStatus(message, variant);
           loadTenderStats();
         } else {
-          alert('Failed to delete records');
+          announceDbStatus('Failed to delete records for that source.', 'error');
         }
       });
       action.appendChild(btn);
@@ -237,8 +275,25 @@ async function loadTenderStats() {
       tr.appendChild(action);
       table.appendChild(tr);
     });
+    const totalRow = document.createElement('tr');
+    totalRow.className = 'summary-row';
+    const labelCell = document.createElement('td');
+    labelCell.textContent = 'Total stored';
+    const totalCell = document.createElement('td');
+    totalCell.textContent = data.total ?? 0;
+    const spacer = document.createElement('td');
+    spacer.textContent = '';
+    totalRow.append(labelCell, totalCell, spacer);
+    table.appendChild(totalRow);
+    if (counts.length) {
+      announceDbStatus(
+        `Tracking ${data.total ?? 0} tender${(data.total ?? 0) === 1 ? '' : 's'} across ${counts.length} source${counts.length === 1 ? '' : 's'}.`,
+        'success'
+      );
+    }
   } catch (err) {
     console.error('Failed to fetch tender stats', err);
+    announceDbStatus('Unable to load tender statistics. Please try again.', 'error');
   }
 }
 
@@ -444,17 +499,23 @@ document.getElementById('deleteAllForm').addEventListener('submit', async e => {
     method: 'POST',
     headers: { Accept: 'application/json','CSRF-Token': csrfToken }
   });
+  const data = await res.json().catch(() => null);
   if (res.status === 401) {
-    alert('Please log in first');
+    announceDbStatus('Please log in before performing database actions.', 'error');
     window.location = '/login';
     return;
   }
-  const data = await res.json().catch(() => null);
   if (res.ok && data && data.success) {
-    alert('All tenders removed');
+    const removed = data.removed ?? 0;
+    const variant = removed > 0 ? 'success' : 'info';
+    const message =
+      removed > 0
+        ? `${removed} tender${removed === 1 ? '' : 's'} deleted from the database.`
+        : 'No tenders matched the deletion request.';
+    announceDbStatus(message, variant);
     loadTenderStats();
   } else {
-    alert('Failed to delete records');
+    announceDbStatus('Failed to delete records.', 'error');
   }
 });
 
@@ -462,7 +523,10 @@ document.getElementById('deleteAllForm').addEventListener('submit', async e => {
 document.getElementById('deleteBeforeForm').addEventListener('submit', async e => {
   e.preventDefault();
   const date = document.getElementById('deleteDate').value;
-  if (!date) return alert('Select a date first');
+  if (!date) {
+    announceDbStatus('Choose a cutoff date before deleting records.', 'info');
+    return;
+  }
   if (!confirm(`Delete tenders before ${date}?`)) return;
   const res = await fetch('/admin/delete-before', {
     method: 'POST',
@@ -473,17 +537,28 @@ document.getElementById('deleteBeforeForm').addEventListener('submit', async e =
     },
     body: JSON.stringify({ date })
   });
+  const data = await res.json().catch(() => null);
   if (res.status === 401) {
-    alert('Please log in first');
+    announceDbStatus('Please log in before performing database actions.', 'error');
     window.location = '/login';
     return;
   }
-  const data = await res.json().catch(() => null);
+  if (res.status === 400) {
+    const message = (data && data.error) || 'The supplied date could not be processed.';
+    announceDbStatus(message, 'error');
+    return;
+  }
   if (res.ok && data && data.success) {
-    alert('Old tenders removed');
+    const removed = data.removed ?? 0;
+    const variant = removed > 0 ? 'success' : 'info';
+    const message =
+      removed > 0
+        ? `${removed} tender${removed === 1 ? '' : 's'} older than ${date} removed.`
+        : `No tenders older than ${date} were found.`;
+    announceDbStatus(message, variant);
     loadTenderStats();
   } else {
-    alert('Failed to delete records');
+    announceDbStatus('Failed to delete records.', 'error');
   }
 });
 
