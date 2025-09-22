@@ -1,3 +1,9 @@
+/**
+ * @file init-db.js
+ * @description Helper script to initialise the SQLite database. It mirrors the
+ * runtime schema creation used by the server so that deployments can precreate
+ * tables and load CPV metadata without starting the web application.
+ */
 const sqlite3 = require('sqlite3').verbose();
 const config = require('./config');
 const logger = require('./logger');
@@ -34,7 +40,8 @@ db.serialize(() => {
     customer TEXT,
     address TEXT,
     country TEXT,
-    eligibility TEXT
+    eligibility TEXT,
+    raw_details TEXT
   )`);
   db.run(`CREATE TABLE IF NOT EXISTS awards (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

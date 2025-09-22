@@ -45,7 +45,9 @@ db.serialize(() => {
     customer TEXT,
     address TEXT,
     country TEXT,
-    eligibility TEXT
+    eligibility TEXT,
+    /* Raw JSON payload containing the listing and parsed detail data */
+    raw_details TEXT
   )`);
   // Older installations may lack some of the newer columns. Check the table
   // schema and add any missing columns so inserts do not fail.
@@ -77,7 +79,7 @@ db.serialize(() => {
     } else {
       ensureCpvIndex();
     }
-    ['open_date', 'deadline', 'customer', 'address', 'country', 'eligibility'].forEach(
+    ['open_date', 'deadline', 'customer', 'address', 'country', 'eligibility', 'raw_details'].forEach(
       col => {
         if (!has(col)) {
           addColumn(col);
@@ -217,12 +219,13 @@ module.exports = {
     customer = '',
     address = '',
     country = '',
-    eligibility = ''
+    eligibility = '',
+    rawDetails = ''
   ) => {
     return new Promise((resolve, reject) => {
       db.run(
         // Use INSERT OR IGNORE so that duplicate links or OCIDs are skipped silently.
-        "INSERT OR IGNORE INTO tenders (title, link, ocid, date, description, source, scraped_at, tags, cpv, open_date, deadline, customer, address, country, eligibility) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT OR IGNORE INTO tenders (title, link, ocid, date, description, source, scraped_at, tags, cpv, open_date, deadline, customer, address, country, eligibility, raw_details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
           title,
           link,
@@ -238,7 +241,8 @@ module.exports = {
           customer,
           address,
           country,
-          eligibility
+          eligibility,
+          rawDetails
         ],
         function (err) {
           if (err) {
@@ -292,6 +296,28 @@ module.exports = {
             reject(err);
           } else {
             resolve(rows);
+          }
+        }
+      );
+    });
+  },
+
+  /**
+   * Retrieve the stored raw payload for a tender by its identifier.
+   *
+   * @param {number} id - Primary key of the tender row
+   * @returns {Promise<object|null>} resolves with the row or null when missing
+   */
+  getTenderRawById: id => {
+    return new Promise((resolve, reject) => {
+      db.get(
+        'SELECT id, title, source, scraped_at, raw_details FROM tenders WHERE id = ?',
+        [id],
+        (err, row) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(row || null);
           }
         }
       );
