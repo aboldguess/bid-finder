@@ -5,7 +5,8 @@
  * Sections:
  *   1. Base typography and table styling.
  *   2. Utility components such as instructions, pagination and tabs.
- *   3. Modal presentation used for raw tender payload viewing.
+ *   3. Administration panels and form layouts.
+ *   4. Feed management enhancements and preview dialog helpers.
  */
 
 /* Base typography and colours */
@@ -196,6 +197,132 @@ button:hover {
   border-radius: 8px;
   padding: 1.25rem;
   box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+}
+
+.instruction-card {
+  background: #e7f5ff;
+  border: 1px solid #b6e0fe;
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
+}
+
+.instruction-card h3 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+  color: #0f172a;
+}
+
+.instruction-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  line-height: 1.5;
+}
+
+.instruction-list li {
+  margin-bottom: 0.35rem;
+}
+
+.source-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.source-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.source-form {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+}
+
+.source-form fieldset {
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.source-form legend {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem 1rem;
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+
+.source-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.source-actions button {
+  flex: 0 1 auto;
+}
+
+.source-label {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.source-meta {
+  font-size: 0.85rem;
+  color: #6c757d;
+  margin-top: 0.2rem;
+}
+
+.editing-row {
+  outline: 2px solid #1d4ed8;
+  outline-offset: -2px;
+  background: #eef2ff;
+}
+
+.preview-body {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.preview-body h4 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #1d4ed8;
+}
+
+.preview-date {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #6c757d;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
 }
 
 .panel-header {

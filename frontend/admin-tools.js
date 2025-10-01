@@ -1,9 +1,9 @@
 /**
  * @file admin-tools.js
  * @description Client-side controller for the administration console. Handles
- *   destructive database actions, dynamic statistics refreshes and user
- *   management operations with friendly status updates and confirmation
- *   dialogues.
+ *   destructive database actions, dynamic statistics refreshes, feed source
+ *   management and user management operations with friendly status updates and
+ *   confirmation dialogues.
  */
 'use strict';
 
@@ -38,9 +38,27 @@ document.addEventListener('DOMContentLoaded', () => {
     })),
     adminUsersConfigured: Boolean(initial.adminUsersConfigured),
     adminUsernames: initial.adminUsernames || [],
-    currentUser: initial.currentUser || null
+    currentUser: initial.currentUser || null,
+    sources: Object.assign({}, initial.sources || {}),
+    awardSources: Object.assign({}, initial.awardSources || {}),
+    sourceStats: Object.assign({}, initial.sourceStats || {}),
+    sourceStatus: Object.assign({}, initial.sourceStatus || {}),
+    editing: {
+      tender: null,
+      award: null
+    }
   };
   state.counts.users = state.users.length;
+  Object.keys(state.sources || {}).forEach(key => {
+    if (!state.sourceStatus[key]) {
+      state.sourceStatus[key] = 'unknown';
+    }
+  });
+  Object.keys(state.awardSources || {}).forEach(key => {
+    if (!state.sourceStatus[key]) {
+      state.sourceStatus[key] = 'unknown';
+    }
+  });
 
   const csrfMeta = document.querySelector('meta[name="csrf-token"]');
   const csrfToken = csrfMeta ? csrfMeta.content : '';
@@ -59,6 +77,60 @@ document.addEventListener('DOMContentLoaded', () => {
   const passwordUserId = document.getElementById('passwordUserId');
   const passwordInput = document.getElementById('passwordInput');
   const passwordConfirmInput = document.getElementById('passwordConfirmInput');
+  const tenderSourceBody = document.getElementById('tenderSourceTableBody');
+  const awardSourceBody = document.getElementById('awardSourceTableBody');
+  const tenderSourceBanner = document.getElementById('tenderSourceStatus');
+  const awardSourceBanner = document.getElementById('awardSourceStatus');
+  const tenderSourceForm = document.getElementById('tenderSourceForm');
+  const awardSourceForm = document.getElementById('awardSourceForm');
+  const previewDialog = document.getElementById('sourcePreviewDialog');
+  const previewBody = document.getElementById('sourcePreviewBody');
+  const previewSummary = document.getElementById('sourcePreviewSummary');
+  const cancelEditButtons = Array.from(document.querySelectorAll('[data-action="cancel-edit"]'));
+  const formControls = {
+    tender: tenderSourceForm
+      ? {
+          form: tenderSourceForm,
+          inputs: {
+            key: tenderSourceForm.querySelector('input[name="key"]'),
+            label: tenderSourceForm.querySelector('input[name="label"]'),
+            url: tenderSourceForm.querySelector('input[name="url"]'),
+            base: tenderSourceForm.querySelector('input[name="base"]'),
+            parser: tenderSourceForm.querySelector('input[name="parser"]')
+          },
+          submit: tenderSourceForm.querySelector('button[type="submit"]'),
+          cancel: tenderSourceForm.querySelector('[data-action="cancel-edit"]')
+        }
+      : null,
+    award: awardSourceForm
+      ? {
+          form: awardSourceForm,
+          inputs: {
+            key: awardSourceForm.querySelector('input[name="key"]'),
+            label: awardSourceForm.querySelector('input[name="label"]'),
+            url: awardSourceForm.querySelector('input[name="url"]'),
+            base: awardSourceForm.querySelector('input[name="base"]'),
+            parser: awardSourceForm.querySelector('input[name="parser"]')
+          },
+          submit: awardSourceForm.querySelector('button[type="submit"]'),
+          cancel: awardSourceForm.querySelector('[data-action="cancel-edit"]')
+        }
+      : null
+  };
+  const tableBodies = { tender: tenderSourceBody, award: awardSourceBody };
+  const sourceBanners = { tender: tenderSourceBanner, award: awardSourceBanner };
+  const defaultParser = {
+    tender:
+      formControls.tender && formControls.tender.inputs.parser
+        ? formControls.tender.inputs.parser.value || 'contractsFinder'
+        : 'contractsFinder',
+    award:
+      formControls.award && formControls.award.inputs.parser
+        ? formControls.award.inputs.parser.value || 'contractsFinder'
+        : 'contractsFinder'
+  };
+  const apiRoutes = { tender: '/sources', award: '/award-sources' };
+  const testRoutes = { tender: '/test-source', award: '/test-award-source' };
 
   /**
    * Display a status message within the supplied banner element.
@@ -188,9 +260,449 @@ document.addEventListener('DOMContentLoaded', () => {
     userBody.appendChild(fragment);
   }
 
+  function getSourceCollection(kind) {
+    return kind === 'tender' ? state.sources : state.awardSources;
+  }
+
+  function normaliseStatus(value) {
+    return value ? String(value) : 'unknown';
+  }
+
+  function formatTimestamp(value) {
+    if (!value) return 'Never';
+    const dt = new Date(value);
+    if (Number.isNaN(dt.getTime())) {
+      return value;
+    }
+    const date = dt.toLocaleDateString();
+    const time = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return `${date} ${time}`;
+  }
+
+  function highlightSourceRow(kind, key) {
+    const body = tableBodies[kind];
+    if (!body) return;
+    body.querySelectorAll('tr').forEach(row => row.classList.remove('editing-row'));
+    if (!key) return;
+    const row = body.querySelector(`tr[data-key="${key}"]`);
+    if (row) row.classList.add('editing-row');
+  }
+
+  function renderSourceTable(kind) {
+    const body = tableBodies[kind];
+    if (!body) return;
+    body.innerHTML = '';
+    const entries = Object.entries(getSourceCollection(kind));
+    if (!entries.length) {
+      const empty = document.createElement('tr');
+      empty.className = 'table-empty';
+      const cell = document.createElement('td');
+      cell.colSpan = 7;
+      cell.textContent = 'No sources configured yet.';
+      empty.appendChild(cell);
+      body.appendChild(empty);
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    entries
+      .slice()
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .forEach(([key, src]) => {
+        const stats = state.sourceStats[key] || {};
+        const row = document.createElement('tr');
+        row.dataset.key = key;
+        row.dataset.kind = kind;
+        if (state.editing[kind] === key) {
+          row.classList.add('editing-row');
+        }
+
+        const keyCell = document.createElement('td');
+        keyCell.textContent = key;
+
+        const labelCell = document.createElement('td');
+        const labelTitle = document.createElement('div');
+        labelTitle.className = 'source-label';
+        labelTitle.textContent = src && src.label ? src.label : key;
+        labelCell.appendChild(labelTitle);
+        const metaBits = [];
+        if (src && src.base) metaBits.push(src.base);
+        if (src && src.parser) metaBits.push(`Parser: ${src.parser}`);
+        if (metaBits.length) {
+          const meta = document.createElement('div');
+          meta.className = 'source-meta';
+          meta.textContent = metaBits.join(' · ');
+          labelCell.appendChild(meta);
+        }
+
+        const statusCell = document.createElement('td');
+        statusCell.className = 'source-status';
+        statusCell.textContent = normaliseStatus(state.sourceStatus[key]);
+
+        const lastScrapedCell = document.createElement('td');
+        lastScrapedCell.textContent = formatTimestamp(stats.last_scraped);
+
+        const lastAddedCell = document.createElement('td');
+        const lastAdded = typeof stats.last_added === 'number' ? stats.last_added : 0;
+        lastAddedCell.textContent = lastAdded;
+
+        const totalCell = document.createElement('td');
+        const total = typeof stats.total === 'number' ? stats.total : 0;
+        totalCell.textContent = total;
+
+        const actions = document.createElement('td');
+        actions.className = 'source-actions';
+        const testBtn = document.createElement('button');
+        testBtn.type = 'button';
+        testBtn.className = 'secondary source-test';
+        testBtn.textContent = 'Test feed';
+        testBtn.addEventListener('click', () => testSource(kind, key));
+
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'secondary source-edit';
+        editBtn.textContent = 'Edit';
+        editBtn.addEventListener('click', () => beginSourceEdit(kind, key));
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'danger source-delete';
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.addEventListener('click', () => confirmDeleteSource(kind, key));
+
+        actions.append(testBtn, editBtn, deleteBtn);
+
+        row.append(keyCell, labelCell, statusCell, lastScrapedCell, lastAddedCell, totalCell, actions);
+        fragment.appendChild(row);
+      });
+    body.appendChild(fragment);
+  }
+
+  function renderSources() {
+    renderSourceTable('tender');
+    renderSourceTable('award');
+  }
+
+  function resetSourceForm(kind, focus = false) {
+    const control = formControls[kind];
+    if (!control) return;
+    control.form.reset();
+    control.inputs.key.disabled = false;
+    if (control.inputs.parser) {
+      control.inputs.parser.value = defaultParser[kind];
+    }
+    control.submit.textContent = kind === 'tender' ? 'Add source' : 'Add award source';
+    if (control.cancel) {
+      control.cancel.hidden = true;
+    }
+    state.editing[kind] = null;
+    highlightSourceRow(kind, null);
+    if (focus) {
+      control.inputs.key.focus();
+    }
+  }
+
+  function beginSourceEdit(kind, key) {
+    const control = formControls[kind];
+    const collection = getSourceCollection(kind);
+    const data = collection[key];
+    if (!control || !data) return;
+    control.inputs.key.value = key;
+    control.inputs.key.disabled = true;
+    control.inputs.label.value = data.label || '';
+    control.inputs.url.value = data.url || '';
+    control.inputs.base.value = data.base || '';
+    if (control.inputs.parser) {
+      control.inputs.parser.value = data.parser || defaultParser[kind];
+    }
+    control.submit.textContent = kind === 'tender' ? 'Update source' : 'Update award source';
+    if (control.cancel) {
+      control.cancel.hidden = false;
+    }
+    state.editing[kind] = key;
+    highlightSourceRow(kind, key);
+    hideStatus(sourceBanners[kind]);
+  }
+
+  function confirmDeleteSource(kind, key) {
+    const collection = getSourceCollection(kind);
+    const label = collection[key] && collection[key].label ? collection[key].label : key;
+    const typeLabel = kind === 'tender' ? 'tender' : 'award';
+    const confirmed = window.confirm(`Delete ${typeLabel} source "${label}"? This cannot be undone.`);
+    if (!confirmed) return;
+    deleteSource(kind, key);
+  }
+
+  function updateSourceCount(kind, delta) {
+    if (kind === 'tender') {
+      state.counts.totalSources = Math.max(0, (state.counts.totalSources || 0) + delta);
+    } else {
+      state.counts.totalAwardSources = Math.max(0, (state.counts.totalAwardSources || 0) + delta);
+    }
+    updateStatCards();
+  }
+
+  function setRowStatus(kind, key, status) {
+    state.sourceStatus[key] = status;
+    const body = tableBodies[kind];
+    if (!body) return;
+    const row = body.querySelector(`tr[data-key="${key}"]`);
+    if (!row) return;
+    const statusCell = row.querySelector('.source-status');
+    if (statusCell) {
+      statusCell.textContent = normaliseStatus(status);
+    }
+  }
+
+  function openSourcePreview(kind, key, latest, count = 0) {
+    if (!previewDialog || !previewBody || !previewSummary) return;
+    previewBody.innerHTML = '';
+    const collection = getSourceCollection(kind);
+    const label = collection[key] && collection[key].label ? collection[key].label : key;
+    const typeLabel = kind === 'tender' ? 'tender' : 'award';
+    if (count > 0) {
+      previewSummary.textContent = `Showing the newest ${typeLabel} entry from ${label}.`;
+    } else {
+      previewSummary.textContent = `No entries were returned for ${label}. Double-check the feed URL and try again.`;
+    }
+
+    if (!latest) {
+      const message = document.createElement('p');
+      message.textContent = 'No preview was available from that feed.';
+      previewBody.appendChild(message);
+    } else {
+      const title = document.createElement('h4');
+      title.textContent = latest.title || 'Untitled entry';
+      previewBody.appendChild(title);
+
+      if (latest.date) {
+        const date = document.createElement('p');
+        date.className = 'preview-date';
+        date.textContent = formatTimestamp(latest.date);
+        previewBody.appendChild(date);
+      }
+
+      if (latest.link) {
+        const linkPara = document.createElement('p');
+        const link = document.createElement('a');
+        let resolvedLink = latest.link;
+        const baseUrl = collection[key] && collection[key].base;
+        try {
+          resolvedLink = new URL(latest.link, baseUrl || window.location.origin).href;
+        } catch (err) {
+          resolvedLink = latest.link;
+        }
+        link.href = resolvedLink;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = resolvedLink;
+        linkPara.appendChild(link);
+        previewBody.appendChild(linkPara);
+      }
+
+      if (latest.desc) {
+        const desc = document.createElement('p');
+        desc.textContent = latest.desc.replace(/\s+/g, ' ').trim();
+        previewBody.appendChild(desc);
+      }
+    }
+
+    try {
+      previewDialog.showModal();
+    } catch (err) {
+      console.warn('Browser does not support showModal; falling back to open attribute', err);
+      previewDialog.setAttribute('open', 'open');
+    }
+  }
+
+  async function testSource(kind, key) {
+    const collection = getSourceCollection(kind);
+    const label = collection[key] && collection[key].label ? collection[key].label : key;
+    const banner = sourceBanners[kind];
+    hideStatus(banner);
+    setRowStatus(kind, key, 'testing…');
+    announce(banner, `Testing ${kind === 'tender' ? 'tender' : 'award'} source ${label}…`, 'info');
+    try {
+      const res = await fetch(`${testRoutes[kind]}?key=${encodeURIComponent(key)}`, {
+        headers: { Accept: 'application/json' }
+      });
+      const data = await res.json().catch(() => null);
+      if (res.status === 401) {
+        redirectToLogin();
+        return;
+      }
+      if (res.status === 403) {
+        announce(banner, 'Administrator access required to test feeds.', 'error');
+        setRowStatus(kind, key, 'forbidden');
+        return;
+      }
+      if (!res.ok || !data) {
+        const message = (data && (data.error || data.message)) || 'Feed test failed.';
+        announce(banner, message, 'error');
+        setRowStatus(kind, key, 'error');
+        return;
+      }
+      const status = data.status || 'ok';
+      const count = typeof data.count === 'number' ? data.count : 0;
+      setRowStatus(kind, key, status);
+      announce(
+        banner,
+        count
+          ? `Feed responded successfully with ${count} entr${count === 1 ? 'y' : 'ies'}. Preview opened below.`
+          : 'Feed responded successfully but returned no entries.',
+        status === 'ok' ? 'success' : 'info'
+      );
+      openSourcePreview(kind, key, data.latest || null, count);
+    } catch (err) {
+      console.error('Failed to test source', err);
+      announce(banner, 'Unexpected error testing source. See console for details.', 'error');
+      setRowStatus(kind, key, 'error');
+    }
+  }
+
+  async function handleSourceSubmit(kind, evt) {
+    evt.preventDefault();
+    const control = formControls[kind];
+    if (!control) return;
+    hideStatus(sourceBanners[kind]);
+    const keyInput = control.inputs.key.value.trim();
+    const label = control.inputs.label.value.trim();
+    const url = control.inputs.url.value.trim();
+    const base = control.inputs.base.value.trim();
+    const parser = control.inputs.parser
+      ? control.inputs.parser.value.trim() || defaultParser[kind]
+      : defaultParser[kind];
+
+    if (!keyInput || !label || !url || !base) {
+      announce(sourceBanners[kind], 'Please complete every field before saving the feed.', 'info');
+      return;
+    }
+
+    const payload = { key: keyInput, label, url, base, parser };
+    const isUpdate = Boolean(state.editing[kind]);
+    const endpointKey = isUpdate ? state.editing[kind] : keyInput;
+    const endpoint = isUpdate
+      ? `${apiRoutes[kind]}/${encodeURIComponent(endpointKey)}`
+      : apiRoutes[kind];
+    const method = isUpdate ? 'PUT' : 'POST';
+    const typeLabel = kind === 'tender' ? 'tender' : 'award';
+
+    announce(
+      sourceBanners[kind],
+      `${isUpdate ? 'Updating' : 'Creating'} ${typeLabel} source ${label}…`,
+      'info'
+    );
+
+    try {
+      const res = await fetch(endpoint, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'CSRF-Token': csrfToken
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => null);
+      if (res.status === 401) {
+        redirectToLogin();
+        return;
+      }
+      if (res.status === 403) {
+        announce(sourceBanners[kind], 'Administrator access required to modify feeds.', 'error');
+        return;
+      }
+      if (!res.ok || !data || !data.success) {
+        const message = (data && data.error) || 'Failed to save feed configuration.';
+        announce(sourceBanners[kind], message, 'error');
+        return;
+      }
+
+      const saved = data.source || payload;
+      const collection = getSourceCollection(kind);
+      collection[saved.key] = {
+        label: saved.label,
+        url: saved.url,
+        base: saved.base,
+        parser: saved.parser
+      };
+      state.sourceStatus[saved.key] = 'unknown';
+      if (!state.sourceStats[saved.key]) {
+        state.sourceStats[saved.key] = { last_scraped: null, last_added: 0, total: 0 };
+      }
+      if (!isUpdate) {
+        updateSourceCount(kind, 1);
+      }
+      renderSourceTable(kind);
+      resetSourceForm(kind, true);
+      announce(
+        sourceBanners[kind],
+        `${isUpdate ? 'Updated' : 'Added'} ${typeLabel} source ${saved.label || saved.key}.`,
+        'success'
+      );
+    } catch (err) {
+      console.error('Failed to save source', err);
+      announce(sourceBanners[kind], 'Unexpected error saving feed configuration.', 'error');
+    }
+  }
+
+  async function deleteSource(kind, key) {
+    const collection = getSourceCollection(kind);
+    const label = collection[key] && collection[key].label ? collection[key].label : key;
+    const banner = sourceBanners[kind];
+    hideStatus(banner);
+    announce(banner, `Deleting ${kind === 'tender' ? 'tender' : 'award'} source ${label}…`, 'info');
+    try {
+      const res = await fetch(`${apiRoutes[kind]}/${encodeURIComponent(key)}`, {
+        method: 'DELETE',
+        headers: { Accept: 'application/json', 'CSRF-Token': csrfToken }
+      });
+      const data = await res.json().catch(() => null);
+      if (res.status === 401) {
+        redirectToLogin();
+        return;
+      }
+      if (res.status === 403) {
+        announce(banner, 'Administrator access required to delete feeds.', 'error');
+        return;
+      }
+      if (!res.ok || !data || !data.success) {
+        const message = (data && data.error) || 'Failed to delete feed configuration.';
+        announce(banner, message, 'error');
+        return;
+      }
+      delete collection[key];
+      delete state.sourceStatus[key];
+      delete state.sourceStats[key];
+      if (state.editing[kind] === key) {
+        resetSourceForm(kind, false);
+      }
+      updateSourceCount(kind, -1);
+      renderSourceTable(kind);
+      announce(banner, `${label} removed.`, 'success');
+    } catch (err) {
+      console.error('Failed to delete source', err);
+      announce(banner, 'Unexpected error deleting feed configuration.', 'error');
+    }
+  }
+
   updateStatCards();
   renderTenderBreakdown();
   renderUsers();
+  renderSources();
+
+  if (formControls.tender) {
+    formControls.tender.form.addEventListener('submit', evt => handleSourceSubmit('tender', evt));
+  }
+  if (formControls.award) {
+    formControls.award.form.addEventListener('submit', evt => handleSourceSubmit('award', evt));
+  }
+  cancelEditButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const kind = btn.dataset.kind === 'award' ? 'award' : 'tender';
+      resetSourceForm(kind, true);
+    });
+  });
 
   function redirectToLogin() {
     window.location.href = '/login';
