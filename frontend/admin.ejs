@@ -128,11 +128,22 @@
         <li>Provide the site <strong>Base URL</strong> (for example
           <code>https://www.contractsfinder.service.gov.uk</code>). Links in the
           feed are resolved against this value.</li>
-        <li>Leave the <strong>Parser</strong> as <code>contractsFinder</code> unless
-          the feed requires a bespoke parser. Documentation for available parsers
-          lives on the Help page.</li>
+        <li>Pick the <strong>Parser</strong> from the dropdown. Each option notes
+          where it should be used and the default matches most Contracts Finder
+          feeds.</li>
       </ol>
     </div>
+    <details class="parser-reference" open>
+      <summary>Parser reference</summary>
+      <ul class="parser-reference-list">
+        <% parserCatalogue.forEach(parser => { %>
+          <li>
+            <strong><%= parser.label %></strong>
+            (<code><%= parser.key %></code>) &ndash; <%= parser.description %>
+          </li>
+        <% }) %>
+      </ul>
+    </details>
     <div class="source-columns">
       <article class="source-column" aria-labelledby="tender-sources-heading">
         <h3 id="tender-sources-heading">Tender sources</h3>
@@ -180,8 +191,14 @@
               </div>
               <div class="form-field">
                 <label for="tenderSourceParser">Parser</label>
-                <input id="tenderSourceParser" name="parser" type="text" value="contractsFinder" autocomplete="off">
-                <span class="form-hint">Advanced: override only if instructed.</span>
+                <select id="tenderSourceParser" name="parser" autocomplete="off">
+                  <% parserCatalogue.forEach(parser => { %>
+                    <option value="<%= parser.key %>" <%= parser.key === defaultParser ? 'selected' : '' %> title="<%= parser.description %>">
+                      <%= parser.label %>
+                    </option>
+                  <% }) %>
+                </select>
+                <span class="form-hint">Select the parser that matches your feed. Hover the options for quick guidance.</span>
               </div>
             </div>
             <div class="form-actions">
@@ -238,8 +255,14 @@
               </div>
               <div class="form-field">
                 <label for="awardSourceParser">Parser</label>
-                <input id="awardSourceParser" name="parser" type="text" value="contractsFinder" autocomplete="off">
-                <span class="form-hint">Advanced: override only if instructed.</span>
+                <select id="awardSourceParser" name="parser" autocomplete="off">
+                  <% parserCatalogue.forEach(parser => { %>
+                    <option value="<%= parser.key %>" <%= parser.key === defaultParser ? 'selected' : '' %> title="<%= parser.description %>">
+                      <%= parser.label %>
+                    </option>
+                  <% }) %>
+                </select>
+                <span class="form-hint">Choose the parser suited to the award feed. The default handles Contracts Finder listings.</span>
               </div>
             </div>
             <div class="form-actions">
@@ -348,7 +371,9 @@
     sources,
     awardSources,
     sourceStats,
-    sourceStatus
+    sourceStatus,
+    parserCatalogue,
+    defaultParser
   }).replace(/</g, '\\u003c') %></script>
   <script type="module" src="/admin-tools.js"></script>
 </body>

@@ -1,3 +1,14 @@
+<!--
+  @file help.ejs
+  @description Help and onboarding guidance for administrators configuring
+    tender and award sources. The page summarises required fields, documents the
+    available parsers and lists example award feeds so setup can be completed
+    without referencing external documentation.
+  @structure
+    1. Global instructions for adding new sources.
+    2. Parser reference table describing each built-in parser and when to use it.
+    3. Example award sources for quick copy/paste testing.
+-->
 <!DOCTYPE html>
 <html>
 <head>
@@ -15,10 +26,27 @@
       <li><strong>Label</strong> &ndash; human readable name displayed in lists</li>
       <li><strong>Search URL</strong> &ndash; RSS feed or results page containing opportunities</li>
       <li><strong>Base URL</strong> &ndash; website root prepended to relative links</li>
-      <li><strong>Parser</strong> &ndash; name of the HTML parser (e.g. <code>rss</code>)</li>
+      <li><strong>Parser</strong> &ndash; choose the parser from the dropdown. The default (<code><%= defaultParser %></code>) matches most Contracts Finder feeds.</li>
     </ul>
     <p>Award sources follow the same structure but point at feeds of awarded contracts.</p>
-    <p>Available parser names are <code>contractsFinder</code> (default), <code>rss</code>, <code>eusupply</code>, <code>sell2wales</code> and <code>ukri</code>.</p>
+  </div>
+  <div id="parser-reference">
+    <h2>Parser Reference</h2>
+    <p>Pick the parser that best matches the target website. Hover the parser dropdown on the Scraper or Admin pages to view these descriptions inline.</p>
+    <table>
+      <thead>
+        <tr><th>Parser</th><th>Key</th><th>When to use</th></tr>
+      </thead>
+      <tbody>
+        <% parserCatalogue.forEach(parser => { %>
+          <tr>
+            <td><%= parser.label %></td>
+            <td><code><%= parser.key %></code></td>
+            <td><%= parser.description %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
   </div>
   <h2>Example Award Sources</h2>
   <table>

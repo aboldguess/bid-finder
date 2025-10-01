@@ -19,7 +19,11 @@ const config = require('./config');
 const logger = require('./logger');
 const bcrypt = require('bcryptjs');
 const fetch = require('node-fetch');
-const { parseTenders } = require('./htmlParser');
+const {
+  parseTenders,
+  PARSER_CATALOGUE,
+  DEFAULT_PARSER_KEY
+} = require('./htmlParser');
 // Built-in modules used for checking port availability and launching the browser
 const net = require('net');
 const { exec } = require('child_process');
@@ -27,6 +31,36 @@ const { exec } = require('child_process');
 const sourceStore = require('./sourceStore');
 // Lightweight CSRF protection middleware providing req.csrfToken().
 const csrf = require('./csrf');
+
+/**
+ * Provide templates with a cloned parser catalogue so server constants cannot
+ * be mutated accidentally when rendering EJS pages.
+ *
+ * @returns {Array<{key: string, label: string, description: string}>}
+ */
+function buildParserCatalogue() {
+  return PARSER_CATALOGUE.map(option => ({ ...option }));
+}
+
+// Precompute a set of valid parser keys so incoming requests can be validated.
+const parserKeySet = new Set(PARSER_CATALOGUE.map(option => option.key));
+
+/**
+ * Ensure a supplied parser key is recognised, falling back to the default when
+ * no match exists. Trimming prevents entries with stray whitespace.
+ *
+ * @param {string} parserKey - Key provided by the client/UI
+ * @returns {string} Valid parser key safe to persist
+ */
+function normaliseParserKey(parserKey) {
+  if (typeof parserKey === 'string') {
+    const trimmed = parserKey.trim();
+    if (parserKeySet.has(trimmed)) {
+      return trimmed;
+    }
+  }
+  return DEFAULT_PARSER_KEY;
+}
 
 // Build an allow list of domains permitted when defining new sources. This
 // prevents the application from being tricked into fetching arbitrary URLs
@@ -752,6 +786,8 @@ app.get('/scraper', requireAuth, async (req, res) => {
     sourceStats: stats,
     sourceStatus,
     cron: config.cronSchedule,
+    parserCatalogue: buildParserCatalogue(),
+    defaultParser: DEFAULT_PARSER_KEY,
     page: 'scraper'
   });
 });
@@ -783,6 +819,8 @@ app.get('/help', (req, res) => {
   res.render('help', {
     sources: config.sources,
     awardSources: config.awardSources,
+    parserCatalogue: buildParserCatalogue(),
+    defaultParser: DEFAULT_PARSER_KEY,
     page: 'help'
   });
 });
@@ -904,7 +942,8 @@ app.get('/manage-users', requireAuth, (req, res) => {
 // Persist new sources in the database so they remain available after a restart.
 // The parser field defaults to "contractsFinder" since it matches our test HTML.
 app.post('/sources', requireAuth, async (req, res) => {
-  const { key, label, url, base, parser = 'contractsFinder' } = req.body || {};
+  const { key, label, url, base, parser = DEFAULT_PARSER_KEY } = req.body || {};
+  const parserKey = normaliseParserKey(parser);
 
   // Basic validation of the supplied data
   if (!key || !label || !url || !base) {
@@ -928,8 +967,8 @@ app.post('/sources', requireAuth, async (req, res) => {
   try {
     // Store the new source definition then add it to the in-memory object used
     // by the rest of the application.
-    await db.insertSource(key, label, url, base, parser);
-    const record = { label, url, base, parser };
+    await db.insertSource(key, label, url, base, parserKey);
+    const record = { label, url, base, parser: parserKey };
     config.sources[key] = record;
     sourceStatus[key] = 'unknown';
     // Persist the updated configuration so custom sources survive restarts.
@@ -947,7 +986,8 @@ app.post('/sources', requireAuth, async (req, res) => {
 // new one.
 app.put('/sources/:key', requireAuth, async (req, res) => {
   const key = req.params.key;
-  const { label, url, base, parser = 'contractsFinder' } = req.body || {};
+  const { label, url, base, parser = DEFAULT_PARSER_KEY } = req.body || {};
+  const parserKey = normaliseParserKey(parser);
 
   if (!config.sources[key]) {
     return res.status(404).json({ error: 'Source not found' });
@@ -965,8 +1005,8 @@ app.put('/sources/:key', requireAuth, async (req, res) => {
   }
 
   try {
-    await db.updateSource(key, label, url, base, parser);
-    const record = { label, url, base, parser };
+    await db.updateSource(key, label, url, base, parserKey);
+    const record = { label, url, base, parser: parserKey };
     config.sources[key] = record;
     sourceStatus[key] = 'unknown';
     // Persist changes so they are reloaded on the next start.
@@ -1004,7 +1044,8 @@ app.delete('/sources/:key', requireAuth, async (req, res) => {
 
 // POST /award-sources - Add a new award scraping source.
 app.post('/award-sources', requireAuth, async (req, res) => {
-  const { key, label, url, base, parser = 'contractsFinder' } = req.body || {};
+  const { key, label, url, base, parser = DEFAULT_PARSER_KEY } = req.body || {};
+  const parserKey = normaliseParserKey(parser);
 
   if (!key || !label || !url || !base) {
     return res.status(400).json({ error: 'Missing required fields' });
@@ -1022,8 +1063,8 @@ app.post('/award-sources', requireAuth, async (req, res) => {
   }
 
   try {
-    await db.insertAwardSource(key, label, url, base, parser);
-    const record = { label, url, base, parser };
+    await db.insertAwardSource(key, label, url, base, parserKey);
+    const record = { label, url, base, parser: parserKey };
     config.awardSources[key] = record;
     sourceStatus[key] = 'unknown';
     // Ensure award source changes survive server restarts.
@@ -1039,7 +1080,8 @@ app.post('/award-sources', requireAuth, async (req, res) => {
 // PUT /award-sources/:key - Update an existing award source.
 app.put('/award-sources/:key', requireAuth, async (req, res) => {
   const key = req.params.key;
-  const { label, url, base, parser = 'contractsFinder' } = req.body || {};
+  const { label, url, base, parser = DEFAULT_PARSER_KEY } = req.body || {};
+  const parserKey = normaliseParserKey(parser);
 
   if (!config.awardSources[key]) {
     return res.status(404).json({ error: 'Source not found' });
@@ -1057,8 +1099,8 @@ app.put('/award-sources/:key', requireAuth, async (req, res) => {
   }
 
   try {
-    await db.updateAwardSource(key, label, url, base, parser);
-    const record = { label, url, base, parser };
+    await db.updateAwardSource(key, label, url, base, parserKey);
+    const record = { label, url, base, parser: parserKey };
     config.awardSources[key] = record;
     sourceStatus[key] = 'unknown';
     // Persist the updated award sources list.
@@ -1324,7 +1366,9 @@ app.get('/admin', requireAuth, requireAdmin, async (req, res) => {
       sources: config.sources,
       awardSources: config.awardSources,
       sourceStats,
-      sourceStatus
+      sourceStatus,
+      parserCatalogue: buildParserCatalogue(),
+      defaultParser: DEFAULT_PARSER_KEY
     });
   } catch (err) {
     logger.error('Failed to render admin console:', err);

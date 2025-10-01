@@ -208,6 +208,31 @@ button:hover {
   box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
 }
 
+details.parser-reference {
+  background: #fff;
+  border: 1px solid #d0d7de;
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  margin: 1rem 0;
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.04);
+}
+
+details.parser-reference summary {
+  font-weight: 600;
+  cursor: pointer;
+  color: #0f172a;
+}
+
+.parser-reference-list {
+  margin: 0.75rem 0 0;
+  padding-left: 1.25rem;
+  line-height: 1.5;
+}
+
+.parser-reference-list li {
+  margin-bottom: 0.4rem;
+}
+
 .instruction-card h3 {
   margin-top: 0;
   margin-bottom: 0.5rem;
