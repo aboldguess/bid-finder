@@ -5,6 +5,8 @@
  * methods for managing tenders, sources and related metadata.
  */
 const sqlite3 = require('sqlite3').verbose();
+const fs = require('fs');
+const path = require('path');
 const config = require('./config');
 const logger = require('./logger');
 
@@ -17,6 +19,14 @@ const db = new sqlite3.Database(config.dbFile, err => {
     logger.error('Failed to open database:', err);
   }
 });
+
+// Track whether the CPV lookup table has already been hydrated during the
+// current process lifetime. Loading the XML list repeatedly is unnecessary and
+// wastes I/O, so the promise is reused while a load is in progress.
+let cpvLoadPromise = null;
+
+// Shared path to the CPV XML reference file packaged with the repository.
+const cpvXmlPath = path.join(__dirname, '..', 'cpv_2008_xml', 'cpv_2008.xml');
 
 // Ensure the tenders table exists before we attempt any writes. This table will
 // hold every tender that we scrape, avoiding duplicates via the UNIQUE link
@@ -192,6 +202,75 @@ db.serialize(() => {
 });
 
 /**
+ * Ensure the CPV lookup table contains data by hydrating it from the bundled
+ * XML file on demand. The import only runs when the table is empty so the
+ * operation is effectively idempotent even across application restarts.
+ *
+ * @returns {Promise<boolean>} resolves true when data was imported, false when
+ *   the table already contained rows.
+ */
+function ensureCpvCodesLoaded() {
+  if (cpvLoadPromise) {
+    return cpvLoadPromise;
+  }
+
+  cpvLoadPromise = new Promise((resolve, reject) => {
+    db.get('SELECT COUNT(*) AS c FROM cpv_codes', (countErr, row) => {
+      if (countErr) {
+        cpvLoadPromise = null;
+        return reject(countErr);
+      }
+      if (row && row.c > 0) {
+        cpvLoadPromise = null;
+        return resolve(false);
+      }
+
+      fs.readFile(cpvXmlPath, 'utf8', (readErr, xmlData) => {
+        if (readErr) {
+          cpvLoadPromise = null;
+          return reject(readErr);
+        }
+
+        const entries = [];
+        const cpvRegex = /<CPV CODE="(\d{8})-\d">([\s\S]*?)<\/CPV>/g;
+        const textRegex = /<TEXT LANG="EN">([^<]+)<\/TEXT>/;
+        let match;
+        while ((match = cpvRegex.exec(xmlData)) !== null) {
+          const [, code, block] = match;
+          const textMatch = textRegex.exec(block);
+          const description = textMatch ? textMatch[1].trim() : '';
+          if (!code) continue;
+          entries.push({ code, description });
+        }
+
+        db.serialize(() => {
+          const stmt = db.prepare(
+            'INSERT OR REPLACE INTO cpv_codes (code, description) VALUES (?, ?)'
+          );
+          entries.forEach(entry => {
+            stmt.run(entry.code, entry.description, err => {
+              if (err) {
+                logger.error('Failed to store CPV code %s: %s', entry.code, err.message);
+              }
+            });
+          });
+          stmt.finalize(finalizeErr => {
+            cpvLoadPromise = null;
+            if (finalizeErr) {
+              return reject(finalizeErr);
+            }
+            logger.info('Hydrated CPV lookup table with %d entries', entries.length);
+            resolve(true);
+          });
+        });
+      });
+    });
+  });
+
+  return cpvLoadPromise;
+}
+
+/**
  * Convert a tender date string into a normalised Date instance.
  *
  * Historical data is often stored using a mix of ISO dates (2024-06-01),
@@ -250,6 +329,7 @@ function normaliseTenderDate(value) {
 }
 
 module.exports = {
+  ensureCpvCodesLoaded,
   /**
    * Insert a tender into the database if it does not already exist.
    *
@@ -383,6 +463,57 @@ module.exports = {
   },
 
   /**
+   * Search the CPV catalogue using a combination of code and description terms.
+   *
+   * @param {object} options - Search configuration.
+   * @param {string} options.search - Free text query (optional).
+   * @param {number} options.limit - Maximum number of rows to return.
+   * @param {number} options.offset - Number of rows to skip from the start.
+   * @returns {Promise<{ rows: Array<{code:string, description:string}>, total: number }>}
+   *   Resolves with the matching CPV entries and a total count for pagination.
+   */
+  searchCpvCodes: ({ search = '', limit = 50, offset = 0 }) => {
+    return new Promise((resolve, reject) => {
+      const where = [];
+      const params = [];
+
+      const trimmed = search.trim();
+      if (trimmed) {
+        const terms = trimmed.split(/\s+/).map(t => t.trim()).filter(Boolean);
+        terms.forEach(term => {
+          const clause = ['description LIKE ?'];
+          params.push(`%${term}%`);
+          if (/^\d+$/.test(term)) {
+            clause.push('code LIKE ?');
+            params.push(`${term}%`);
+          }
+          where.push(`(${clause.join(' OR ')})`);
+        });
+      }
+
+      const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+      const countSql = `SELECT COUNT(*) AS c FROM cpv_codes ${whereSql}`;
+      const dataSql = `SELECT code, description FROM cpv_codes ${whereSql} ORDER BY code LIMIT ? OFFSET ?`;
+
+      const countParams = params.slice();
+      db.get(countSql, countParams, (countErr, countRow) => {
+        if (countErr) {
+          return reject(countErr);
+        }
+        const total = countRow ? countRow.c : 0;
+        const dataParams = params.slice();
+        dataParams.push(limit, offset);
+        db.all(dataSql, dataParams, (dataErr, rows) => {
+          if (dataErr) {
+            return reject(dataErr);
+          }
+          resolve({ rows, total });
+        });
+      });
+    });
+  },
+
+  /**
    * Insert an awarded contract if it does not already exist. The parameters
    * mirror insertTender so the scraper logic can be reused for awarded data.
    */
@@ -475,6 +606,140 @@ module.exports = {
           resolve(row || null);
         }
       );
+    });
+  },
+
+  /**
+   * Retrieve the distinct list of tender sources stored in the database so the
+   * UI can offer friendly filter controls.
+   *
+   * @returns {Promise<string[]>} resolves with an alphabetically sorted list of sources.
+   */
+  getTenderSources: () => {
+    return new Promise((resolve, reject) => {
+      db.all(
+        "SELECT DISTINCT source FROM tenders WHERE source IS NOT NULL AND source != '' ORDER BY source",
+        (err, rows) => {
+          if (err) return reject(err);
+          resolve(rows.map(r => r.source));
+        }
+      );
+    });
+  },
+
+  /**
+   * Perform an advanced tender search supporting keyword queries, date ranges,
+   * source filtering and CPV logic (AND/OR). Results are paginated so the
+   * frontend can request data incrementally.
+   *
+   * @param {object} filters - Filter definition.
+   * @param {string} [filters.query] - Free text search applied to title, description, tags and CPV.
+   * @param {string[]} [filters.sources] - Specific sources to include.
+   * @param {string} [filters.scrapedFrom] - Lower bound for scraped_at (ISO string).
+   * @param {string} [filters.scrapedTo] - Upper bound for scraped_at (ISO string).
+   * @param {string} [filters.openFrom] - Lower bound for open_date.
+   * @param {string} [filters.openTo] - Upper bound for open_date.
+   * @param {string} [filters.closeFrom] - Lower bound for deadline.
+   * @param {string} [filters.closeTo] - Upper bound for deadline.
+   * @param {string[]} [filters.cpv] - CPV codes to filter by.
+   * @param {'and'|'or'} [filters.cpvMode] - Whether every CPV must match or any.
+   * @param {string} [filters.sort] - Sort column identifier.
+   * @param {'asc'|'desc'} [filters.direction] - Sort direction.
+   * @param {number} limit - Maximum rows to return.
+   * @param {number} offset - Row offset.
+   * @returns {Promise<{ rows: any[], total: number }>} resolves with matching rows and count.
+   */
+  searchTenders: (filters, limit, offset) => {
+    return new Promise((resolve, reject) => {
+      const where = [];
+      const params = [];
+
+      if (filters.query) {
+        const like = `%${filters.query}%`;
+        where.push('(title LIKE ? OR description LIKE ? OR tags LIKE ? OR cpv LIKE ? )');
+        params.push(like, like, like, like);
+      }
+
+      if (filters.sources && filters.sources.length) {
+        const validSources = filters.sources.filter(Boolean);
+        if (validSources.length) {
+          const placeholders = validSources.map(() => '?').join(',');
+          where.push(`source IN (${placeholders})`);
+          params.push(...validSources);
+        }
+      }
+
+      if (filters.scrapedFrom) {
+        where.push('scraped_at >= ?');
+        params.push(filters.scrapedFrom);
+      }
+      if (filters.scrapedTo) {
+        where.push('scraped_at <= ?');
+        params.push(filters.scrapedTo);
+      }
+      if (filters.openFrom) {
+        where.push('open_date >= ?');
+        params.push(filters.openFrom);
+      }
+      if (filters.openTo) {
+        where.push('open_date <= ?');
+        params.push(filters.openTo);
+      }
+      if (filters.closeFrom) {
+        where.push('deadline >= ?');
+        params.push(filters.closeFrom);
+      }
+      if (filters.closeTo) {
+        where.push('deadline <= ?');
+        params.push(filters.closeTo);
+      }
+
+      if (filters.cpv && filters.cpv.length) {
+        const sanitizedCodes = filters.cpv.filter(code => /^\d{8}$/.test(code));
+        if (sanitizedCodes.length) {
+          if (filters.cpvMode === 'and') {
+            sanitizedCodes.forEach(code => {
+              where.push("instr(',' || COALESCE(cpv, '') || ',', ?) > 0");
+              params.push(`,${code},`);
+            });
+          } else {
+            const clauses = sanitizedCodes.map(() => "instr(',' || COALESCE(cpv, '') || ',', ?) > 0");
+            where.push(`(${clauses.join(' OR ')})`);
+            sanitizedCodes.forEach(code => params.push(`,${code},`));
+          }
+        }
+      }
+
+      const sortColumnMap = {
+        title: 'title COLLATE NOCASE',
+        source: 'source COLLATE NOCASE',
+        scraped_at: 'scraped_at',
+        open_date: 'open_date',
+        deadline: 'deadline',
+        published_date: 'date'
+      };
+      const sortKey = sortColumnMap[filters.sort] || 'scraped_at';
+      const sortDirection = filters.direction === 'asc' ? 'ASC' : 'DESC';
+
+      const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+      const countSql = `SELECT COUNT(*) AS c FROM tenders ${whereSql}`;
+      const dataSql = `SELECT id, title, link, date AS published_date, description, source, scraped_at, tags, cpv, open_date, deadline, raw_details FROM tenders ${whereSql} ORDER BY ${sortKey} ${sortDirection} LIMIT ? OFFSET ?`;
+
+      const countParams = params.slice();
+      db.get(countSql, countParams, (countErr, countRow) => {
+        if (countErr) {
+          return reject(countErr);
+        }
+        const total = countRow ? countRow.c : 0;
+        const dataParams = params.slice();
+        dataParams.push(limit, offset);
+        db.all(dataSql, dataParams, (dataErr, rows) => {
+          if (dataErr) {
+            return reject(dataErr);
+          }
+          resolve({ rows, total });
+        });
+      });
     });
   },
 

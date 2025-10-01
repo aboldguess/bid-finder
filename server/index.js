@@ -113,6 +113,143 @@ function openBrowser(url) {
   exec(`${command} ${url}`);
 }
 
+/**
+ * Normalise the CPV favourites stored in the session ensuring codes are valid
+ * eight digit strings and descriptions are safe to render.
+ *
+ * @param {object} session - Express session object.
+ * @returns {Array<{code: string, description: string}>} Sanitised favourites.
+ */
+function getSessionCpvFavourites(session) {
+  const raw = Array.isArray(session.cpvFavourites) ? session.cpvFavourites : [];
+  const seen = new Set();
+  const cleaned = [];
+  raw.forEach(entry => {
+    if (!entry || typeof entry.code !== 'string') {
+      return;
+    }
+    const code = entry.code.trim();
+    if (!/^\d{8}$/.test(code) || seen.has(code)) {
+      return;
+    }
+    const description =
+      entry.description && typeof entry.description === 'string'
+        ? entry.description.trim()
+        : '';
+    seen.add(code);
+    cleaned.push({ code, description });
+  });
+  session.cpvFavourites = cleaned;
+  return cleaned;
+}
+
+/**
+ * Append a CPV favourite to the current session when it does not already
+ * exist. The updated array is returned for convenience.
+ *
+ * @param {object} session - Express session object.
+ * @param {string} code - Eight digit CPV code.
+ * @param {string} description - Friendly description sourced from the XML.
+ * @returns {Array<{code: string, description: string}>} Updated favourites.
+ */
+function addSessionCpvFavourite(session, code, description) {
+  const favourites = getSessionCpvFavourites(session);
+  if (!favourites.some(f => f.code === code)) {
+    favourites.push({ code, description });
+  }
+  session.cpvFavourites = favourites;
+  return favourites;
+}
+
+/**
+ * Remove a CPV favourite from the session if present.
+ *
+ * @param {object} session - Express session object.
+ * @param {string} code - Eight digit CPV code to delete.
+ * @returns {Array<{code: string, description: string}>} Updated favourites.
+ */
+function removeSessionCpvFavourite(session, code) {
+  const favourites = getSessionCpvFavourites(session);
+  const filtered = favourites.filter(entry => entry.code !== code);
+  session.cpvFavourites = filtered;
+  return filtered;
+}
+
+/**
+ * Attempt to derive a tender's monetary value from nested raw detail payloads.
+ * Only the first plausible value encountered is returned to avoid overwhelming
+ * the UI with multiple numbers.
+ *
+ * @param {string} rawDetails - JSON string stored alongside the tender.
+ * @returns {string} Human readable value or an empty string when none found.
+ */
+function deriveTenderValue(rawDetails) {
+  if (!rawDetails) {
+    return '';
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(rawDetails);
+  } catch (err) {
+    return '';
+  }
+
+  const visited = new Set();
+  const queue = [parsed];
+  const keys = [
+    'value',
+    'contract_value',
+    'contractValue',
+    'estimated_value',
+    'estimatedValue',
+    'budget',
+    'budget_value',
+    'budgetValue'
+  ];
+
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || typeof current !== 'object') {
+      continue;
+    }
+    if (visited.has(current)) {
+      continue;
+    }
+    visited.add(current);
+
+    for (const key of keys) {
+      if (Object.prototype.hasOwnProperty.call(current, key)) {
+        const candidate = current[key];
+        if (candidate == null) continue;
+        if (typeof candidate === 'string' && candidate.trim()) {
+          return candidate.trim();
+        }
+        if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+          return candidate.toString();
+        }
+        if (typeof candidate === 'object') {
+          const amount = candidate.amount || candidate.value || candidate.estimation;
+          const currency = candidate.currency || candidate.currencyCode || '';
+          if (amount) {
+            const amountStr = typeof amount === 'number' ? amount.toString() : String(amount).trim();
+            if (amountStr) {
+              return currency ? `${amountStr} ${currency}`.trim() : amountStr;
+            }
+          }
+        }
+      }
+    }
+
+    Object.values(current).forEach(val => {
+      if (val && typeof val === 'object') {
+        queue.push(val);
+      }
+    });
+  }
+
+  return '';
+}
+
 // Load settings such as the cron schedule and any user-added sources from the
 // database before the server begins handling requests. This ensures the in-memory
 // configuration matches what was saved previously.
@@ -392,6 +529,184 @@ app.get('/opportunities/:id/raw', async (req, res) => {
   } catch (err) {
     logger.error('Failed to load raw tender payload:', err);
     res.status(500).json({ error: 'Unable to load tender payload' });
+  }
+});
+
+// GET /cpv - Render the CPV explorer allowing users to browse and favourite codes.
+app.get('/cpv', async (req, res) => {
+  let loadError = null;
+  try {
+    await db.ensureCpvCodesLoaded();
+  } catch (err) {
+    logger.error('Unable to initialise CPV catalogue:', err);
+    loadError = 'CPV catalogue could not be initialised. Check server logs for details.';
+  }
+  const favourites = getSessionCpvFavourites(req.session);
+  res.render('cpv', {
+    page: 'cpv',
+    favourites,
+    loadError
+  });
+});
+
+// GET /api/cpv-codes - Lightweight search endpoint backed by the cpv_codes table.
+app.get('/api/cpv-codes', async (req, res) => {
+  const search = (req.query.search || '').toString();
+  const page = Math.max(1, parseInt(req.query.page || '1', 10));
+  const pageSize = Math.min(100, Math.max(1, parseInt(req.query.limit || '25', 10)));
+  const offset = (page - 1) * pageSize;
+
+  try {
+    await db.ensureCpvCodesLoaded();
+    const { rows, total } = await db.searchCpvCodes({ search, limit: pageSize, offset });
+    res.json({
+      results: rows,
+      total,
+      page,
+      pageSize
+    });
+  } catch (err) {
+    logger.error('Failed to search CPV catalogue:', err);
+    res.status(500).json({ error: 'Unable to search CPV catalogue' });
+  }
+});
+
+// GET /api/cpv-favourites - Surface the session favourites to the frontend.
+app.get('/api/cpv-favourites', (req, res) => {
+  const favourites = getSessionCpvFavourites(req.session);
+  res.json({ favourites });
+});
+
+// POST /api/cpv-favourites - Add or remove CPV favourites stored against the session.
+app.post('/api/cpv-favourites', (req, res) => {
+  const body = req.body || {};
+  const code = typeof body.code === 'string' ? body.code.trim() : '';
+  if (!/^\d{8}$/.test(code)) {
+    return res.status(400).json({ error: 'Invalid CPV code supplied' });
+  }
+  const action = (body.action || 'add').toLowerCase();
+
+  if (action === 'remove') {
+    const favourites = removeSessionCpvFavourite(req.session, code);
+    logger.info('Removed CPV favourite %s for session %s', code, req.sessionID);
+    return res.json({ favourites });
+  }
+
+  const description =
+    body.description && typeof body.description === 'string'
+      ? body.description.trim()
+      : '';
+  if (!description) {
+    return res.status(400).json({ error: 'Description is required when favouriting a CPV code' });
+  }
+
+  const favourites = addSessionCpvFavourite(req.session, code, description);
+  if (favourites.length > 100) {
+    favourites.pop();
+    return res
+      .status(400)
+      .json({ error: 'Maximum of 100 favourites reached for this session', favourites });
+  }
+  logger.info('Added CPV favourite %s for session %s', code, req.sessionID);
+  res.json({ favourites });
+});
+
+// GET /tenders - Advanced tender browser featuring filtering and CPV discovery tools.
+app.get('/tenders', async (req, res) => {
+  let loadError = null;
+  try {
+    await db.ensureCpvCodesLoaded();
+  } catch (err) {
+    logger.error('Unable to ensure CPV catalogue for tender explorer:', err);
+    loadError = 'CPV catalogue was not fully initialised. CPV search may be limited.';
+  }
+
+  let sources = [];
+  try {
+    sources = await db.getTenderSources();
+  } catch (err) {
+    logger.error('Failed to load tender sources for explorer:', err);
+    loadError = loadError || 'Tender sources could not be loaded from the database.';
+  }
+
+  const favourites = getSessionCpvFavourites(req.session);
+  res.render('tenders', {
+    page: 'tenders',
+    sources,
+    favourites,
+    loadError
+  });
+});
+
+// GET /api/tenders - Provide filtered tender data for the explorer interface.
+app.get('/api/tenders', async (req, res) => {
+  const page = Math.max(1, parseInt(req.query.page || '1', 10));
+  const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize || req.query.limit || '25', 10)));
+  const offset = (page - 1) * pageSize;
+
+  const toArray = value => {
+    if (!value) return [];
+    if (Array.isArray(value)) {
+      return value.map(v => v && v.toString().trim()).filter(Boolean);
+    }
+    return value
+      .toString()
+      .split(',')
+      .map(v => v.trim())
+      .filter(Boolean);
+  };
+
+  const filters = {
+    query: (req.query.q || '').toString().trim(),
+    sources: toArray(req.query.sources),
+    scrapedFrom: (req.query.scrapedFrom || '').toString().trim() || null,
+    scrapedTo: (req.query.scrapedTo || '').toString().trim() || null,
+    openFrom: (req.query.openFrom || '').toString().trim() || null,
+    openTo: (req.query.openTo || '').toString().trim() || null,
+    closeFrom: (req.query.closeFrom || '').toString().trim() || null,
+    closeTo: (req.query.closeTo || '').toString().trim() || null,
+    cpv: toArray(req.query.cpv).filter(code => /^\d{8}$/.test(code)),
+    cpvMode: (req.query.cpvMode || 'or').toString().toLowerCase() === 'and' ? 'and' : 'or',
+    sort: (req.query.sort || '').toString(),
+    direction: (req.query.direction || '').toString().toLowerCase() === 'asc' ? 'asc' : 'desc'
+  };
+
+  try {
+    const { rows, total } = await db.searchTenders(filters, pageSize, offset);
+    const results = rows.map(row => {
+      const cpvCodes = row.cpv ? row.cpv.split(',').map(code => code.trim()).filter(Boolean) : [];
+      const tags = row.tags ? row.tags.split(',').map(tag => tag.trim()).filter(Boolean) : [];
+      return {
+        id: row.id,
+        title: row.title,
+        link: row.link,
+        source: row.source,
+        scrapedAt: row.scraped_at,
+        publishedDate: row.published_date,
+        openDate: row.open_date,
+        closingDate: row.deadline,
+        tags,
+        cpvCodes,
+        description: row.description,
+        value: deriveTenderValue(row.raw_details)
+      };
+    });
+    logger.info(
+      'Tender explorer query returned %d rows from %d total (page %d, size %d)',
+      results.length,
+      total,
+      page,
+      pageSize
+    );
+    res.json({
+      page,
+      pageSize,
+      total,
+      results
+    });
+  } catch (err) {
+    logger.error('Tender explorer query failed:', err);
+    res.status(500).json({ error: 'Unable to load tenders for the requested filters' });
   }
 });
 

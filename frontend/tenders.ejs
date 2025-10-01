@@ -1,0 +1,127 @@
+<!--
+  File: tenders.ejs
+  Overview: Advanced tender explorer tab with faceted filters, CPV integration
+    and search controls. Powered by tenders-hub.js which retrieves data via the
+    /api/tenders endpoint.
+  Structure:
+    - Navigation and instructional banner.
+    - Filter form covering keyword, source, date and CPV options.
+    - Results table with pagination and live status feedback.
+-->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Tender Explorer</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <h1>Tenders</h1>
+  <%- include('partials/nav', { page: 'tenders', user: user }) %>
+  <div id="instructions">
+    <strong>Analyse your tender pipeline with confidence:</strong>
+    <ul>
+      <li>Combine keyword search, source filtering and CPV logic to pinpoint relevant opportunities.</li>
+      <li>Select "Match all" in the CPV section to require every chosen code, or "Match any" for a broader sweep.</li>
+      <li>Favourite codes from the CPV Explorer tab appear here for quick one-click filtering.</li>
+      <li>Most filters apply automatically; use the reset button to start again if the view feels too narrow.</li>
+    </ul>
+  </div>
+  <% if (loadError) { %>
+    <div class="status-banner error"><%= loadError %></div>
+  <% } %>
+  <section class="panel">
+    <h2>Filter tenders</h2>
+    <form id="tenderFilters" class="tender-filters">
+      <div class="filter-grid">
+        <label for="tenderSearch">Keyword search</label>
+        <input id="tenderSearch" type="search" placeholder="Search title, description, tags or CPV">
+
+        <label for="sourceSelect">Sources</label>
+        <div id="sourceSelect" class="multiselect" aria-live="polite"></div>
+
+        <label for="scrapedFrom">Scraped from</label>
+        <input id="scrapedFrom" type="datetime-local">
+
+        <label for="scrapedTo">Scraped to</label>
+        <input id="scrapedTo" type="datetime-local">
+
+        <label for="openFrom">Open from</label>
+        <input id="openFrom" type="date">
+
+        <label for="openTo">Open to</label>
+        <input id="openTo" type="date">
+
+        <label for="closeFrom">Closing from</label>
+        <input id="closeFrom" type="date">
+
+        <label for="closeTo">Closing to</label>
+        <input id="closeTo" type="date">
+
+        <label for="sortField">Sort by</label>
+        <select id="sortField">
+          <option value="scraped_at">Scraped date</option>
+          <option value="open_date">Open date</option>
+          <option value="deadline">Closing date</option>
+          <option value="published_date">Published date</option>
+          <option value="title">Title</option>
+          <option value="source">Source</option>
+        </select>
+
+        <label for="sortDirection">Sort direction</label>
+        <select id="sortDirection">
+          <option value="desc">Newest first</option>
+          <option value="asc">Oldest first</option>
+        </select>
+      </div>
+      <div class="filter-actions">
+        <button id="applyFilters" type="button">Apply filters</button>
+        <button id="resetFilters" type="button" class="outline">Reset</button>
+      </div>
+    </form>
+  </section>
+  <section class="panel">
+    <h2>CPV filtering</h2>
+    <p class="form-hint">Select CPV codes to narrow the table. Use favourites for one-click filters or search to add more.</p>
+    <div class="cpv-mode" role="radiogroup" aria-label="CPV matching mode">
+      <label><input type="radio" name="cpvMode" value="or" checked> Match any (OR)</label>
+      <label><input type="radio" name="cpvMode" value="and"> Match all (AND)</label>
+    </div>
+    <div id="cpvFilterFavourites" class="cpv-filter-favourites"></div>
+    <label for="cpvFilterSearch">Add CPV codes</label>
+    <input id="cpvFilterSearch" type="search" placeholder="Begin typing to search CPV codes">
+    <div id="cpvFilterSuggestions" class="cpv-suggestions" aria-live="polite"></div>
+    <ul id="cpvFilterSelection" class="cpv-selected"></ul>
+  </section>
+  <section class="panel">
+    <h2>Results</h2>
+    <div id="tenderStatus" class="form-hint" aria-live="polite"></div>
+    <table id="tendersTable">
+      <thead>
+        <tr>
+          <th scope="col">Title</th>
+          <th scope="col">Source</th>
+          <th scope="col">Scraped</th>
+          <th scope="col">Open date</th>
+          <th scope="col">Closing date</th>
+          <th scope="col">Value</th>
+          <th scope="col">CPV codes</th>
+          <th scope="col">Tags</th>
+        </tr>
+      </thead>
+      <tbody id="tendersTableBody"></tbody>
+    </table>
+    <div id="tenderPagination" class="pagination">
+      <button type="button" id="tenderPrev" aria-label="Previous page">Previous</button>
+      <span id="tenderPageInfo"></span>
+      <button type="button" id="tenderNext" aria-label="Next page">Next</button>
+    </div>
+  </section>
+  <script>
+    window.__TENDER_PREFILL__ = {
+      sources: <%- JSON.stringify(sources || []) %>,
+      favourites: <%- JSON.stringify(favourites || []) %>
+    };
+  </script>
+  <script src="/tenders-hub.js"></script>
+</body>
+</html>
