@@ -31,6 +31,13 @@ const cpvXmlPath = path.join(__dirname, '..', 'cpv_2008_xml', 'cpv_2008.xml');
 // Ensure the tenders table exists before we attempt any writes. This table will
 // hold every tender that we scrape, avoiding duplicates via the UNIQUE link
 // constraint.
+let schemaResolve;
+let schemaReject;
+const schemaReady = new Promise((resolve, reject) => {
+  schemaResolve = resolve;
+  schemaReject = reject;
+});
+
 // Create tables on startup if they do not already exist. Additional columns
 // store metadata about where each tender came from and when it was scraped.
 db.serialize(() => {
@@ -62,40 +69,62 @@ db.serialize(() => {
   // Older installations may lack some of the newer columns. Check the table
   // schema and add any missing columns so inserts do not fail.
   db.all('PRAGMA table_info(tenders)', (err, cols) => {
-    if (err) return logger.error('Failed to read schema:', err);
+    if (err) {
+      logger.error('Failed to read schema:', err);
+      schemaReject(err);
+      return;
+    }
     const has = name => cols.some(c => c.name === name);
-    const addColumn = name =>
-      db.run(`ALTER TABLE tenders ADD COLUMN ${name} TEXT`, alterErr => {
-        if (alterErr) {
-          return logger.error(`Failed to add ${name} column:`, alterErr);
-        }
-        logger.info(`Added missing ${name} column to tenders table`);
+    const runStatement = sql =>
+      new Promise((resolve, reject) => {
+        db.run(sql, alterErr => {
+          if (alterErr) {
+            const message = alterErr.message || '';
+            if (/duplicate column|already exists/i.test(message)) {
+              return resolve();
+            }
+            return reject(alterErr);
+          }
+          resolve();
+        });
       });
-    const ensureOcidIndex = () =>
-      db.run(
-        'CREATE UNIQUE INDEX IF NOT EXISTS idx_tenders_ocid ON tenders(ocid)'
-      );
-    const ensureCpvIndex = () =>
-      db.run('CREATE INDEX IF NOT EXISTS idx_tenders_cpv ON tenders(cpv)');
-    if (!has('ocid')) {
-      addColumn('ocid');
-      ensureOcidIndex();
-    } else {
-      ensureOcidIndex();
-    }
-    if (!has('cpv')) {
-      addColumn('cpv');
-      ensureCpvIndex();
-    } else {
-      ensureCpvIndex();
-    }
-    ['open_date', 'deadline', 'customer', 'address', 'country', 'eligibility', 'raw_details'].forEach(
-      col => {
-        if (!has(col)) {
-          addColumn(col);
+
+    (async () => {
+      try {
+        if (!has('ocid')) {
+          await runStatement('ALTER TABLE tenders ADD COLUMN ocid TEXT');
+          logger.info('Added missing ocid column to tenders table');
         }
+        await runStatement(
+          'CREATE UNIQUE INDEX IF NOT EXISTS idx_tenders_ocid ON tenders(ocid)'
+        );
+        if (!has('cpv')) {
+          await runStatement('ALTER TABLE tenders ADD COLUMN cpv TEXT');
+          logger.info('Added missing cpv column to tenders table');
+        }
+        await runStatement(
+          'CREATE INDEX IF NOT EXISTS idx_tenders_cpv ON tenders(cpv)'
+        );
+        for (const col of [
+          'open_date',
+          'deadline',
+          'customer',
+          'address',
+          'country',
+          'eligibility',
+          'raw_details'
+        ]) {
+          if (!has(col)) {
+            await runStatement(`ALTER TABLE tenders ADD COLUMN ${col} TEXT`);
+            logger.info(`Added missing ${col} column to tenders table`);
+          }
+        }
+        schemaResolve();
+      } catch (migrationErr) {
+        logger.error('Failed to migrate tenders schema:', migrationErr);
+        schemaReject(migrationErr);
       }
-    );
+    })();
   });
   // Reference table for CPV codes loaded from the official list.
   db.run(
@@ -203,12 +232,19 @@ db.serialize(() => {
 
   // Organisations referenced in tenders or awards. The type column
   // indicates whether the organisation is a customer or supplier.
-  db.run(`CREATE TABLE IF NOT EXISTS organisations (
+  db.run(
+    `CREATE TABLE IF NOT EXISTS organisations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT,
     type TEXT,
     UNIQUE(name, type)
-  )`);
+  )`,
+    err => {
+      if (err) {
+        schemaReject(err);
+      }
+    }
+  );
 });
 
 /**
@@ -339,6 +375,7 @@ function normaliseTenderDate(value) {
 }
 
 module.exports = {
+  ready: schemaReady,
   ensureCpvCodesLoaded,
   /**
    * Insert a tender into the database if it does not already exist.
@@ -408,10 +445,8 @@ module.exports = {
 
   /**
    * Retrieve all stored tenders ordered by published date descending.
-   *
-   * This helper is retained for backwards compatibility in places that
-   * expect all rows at once (primarily tests). New code should prefer
-   * {@link getTendersPage} so large result sets can be fetched in chunks.
+   * Primarily used by tests and legacy tooling that expects the full dataset
+   * in one response.
    *
    * @returns {Promise<Array>} resolves with an array of tender rows
    */
@@ -424,29 +459,6 @@ module.exports = {
           resolve(rows);
         }
       });
-    });
-  },
-
-  /**
-   * Retrieve a single page of tenders ordered by published date.
-   *
-   * @param {number} limit  Maximum number of rows to return
-   * @param {number} offset Number of rows to skip from the start of the table
-   * @returns {Promise<Array>} resolves with the requested tender rows
-   */
-  getTendersPage: (limit, offset) => {
-    return new Promise((resolve, reject) => {
-      db.all(
-        "SELECT * FROM tenders ORDER BY date DESC LIMIT ? OFFSET ?",
-        [limit, offset],
-        (err, rows) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(rows);
-          }
-        }
-      );
     });
   },
 
@@ -1444,8 +1456,20 @@ module.exports = {
             description TEXT,
             source TEXT,
             scraped_at TEXT,
-            tags TEXT
+            tags TEXT,
+            cpv TEXT,
+            open_date TEXT,
+            deadline TEXT,
+            customer TEXT,
+            address TEXT,
+            country TEXT,
+            eligibility TEXT,
+            raw_details TEXT
           )`);
+        db.run(
+          'CREATE UNIQUE INDEX IF NOT EXISTS idx_tenders_ocid ON tenders(ocid)'
+        );
+        db.run('CREATE INDEX IF NOT EXISTS idx_tenders_cpv ON tenders(cpv)');
         db.run(`CREATE TABLE metadata (
             key TEXT PRIMARY KEY,
             value TEXT

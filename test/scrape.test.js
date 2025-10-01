@@ -34,6 +34,16 @@ const scrape = proxyquire('../server/scrape', {
   './db': db
 });
 
+beforeEach(async () => {
+  await db.ready;
+  await db.deleteAllTenders();
+  fetchTextStub.resetHistory();
+  fetchTextStub.resetBehavior();
+  fetchTextStub.onCall(0).resolves(html);
+  fetchTextStub.onCall(1).resolves('<div>CPV 12345678</div>');
+  fetchTextStub.onCall(2).resolves('<div>CPV 87654321</div>');
+});
+
 describe('scrape.run', () => {
   it('parses tenders from HTML and stores them', async () => {
     const count = await scrape.run();

@@ -57,30 +57,28 @@ pkill -f "node server/index.js"
 
 ## Usage
 
-- **Access the dashboard** by navigating to `http://<HOST>:<PORT>/opportunities`
+- **Access the dashboard** by navigating to `http://<HOST>:<PORT>/dashboard`
   once the server is running. If the server is bound to `0.0.0.0` replace `<HOST>`
   with the machine's actual IP address.
-  - **Manage sources** via the `/scraper` page where each source can be tested or
-    scraped individually. Statistics such as last scraped time and number of
-    contracts found are shown alongside edit options.
-  - **Scrape all sources** at once by visiting `/scrape-all`. Each source is
-    processed sequentially and the response details which succeeded or failed.
-  - **Edit or delete sources** directly on the Scraper page which lists all
-    configured entries.
-  - **Review and prune stored tenders** using the Database Tools section on the
-    `/scraper` page. Counts per source are shown and records can be deleted in
-    bulk by source or removed entirely before a chosen date.
-  - **Manage the application** by registering at `/register`, logging in at
-    `/login` and visiting `/scraper`. Once logged in your session persists for 30 days
-    so you remain authenticated after closing the browser. Only
-    authenticated users can access these management functions.
-  - **Open the Admin tab** for a consolidated console that lists live database
-    statistics, offers a confirmation-protected wipe button and lets
-    administrators create, reset or delete user accounts without touching the
-    underlying SQLite files.
-  - **Automatic scraping** runs in the background according to the `CRON_SCHEDULE`
-  environment variable (default `0 6 * * *`). Results are stored in the
-  database without any manual interaction.
+- **Explore live tenders** from the **Tenders** tab, which offers advanced
+  filtering by keywords, CPV codes, time ranges and sources.
+- **Log in or register** at `/login` or `/register` to unlock administration
+  tools. Sessions persist for 30 days so you remain signed in between visits.
+- **Open the Admin console** at `/admin` for a consolidated control centre that:
+  - Displays live database statistics and the timestamp of the last scrape.
+  - Provides a **Cron Scheduler** section for adjusting the automated scraping
+    cadence with dropdowns for minute, hour, day, month and weekday.
+  - Offers database maintenance controls with confirmation prompts.
+  - Lets administrators create, reset or delete user accounts.
+  - Hosts feed management forms for adding, editing, testing or deleting tender
+    and award sources.
+- **Scrape all sources** at once by visiting `/scrape-all`. Each source is
+  processed sequentially and the response details which succeeded or failed.
+- **Trigger targeted scrapes** with `/scrape?source=<KEY>` or
+  `/scrape-awarded?source=<KEY>` to refresh a single feed when diagnosing issues.
+- **Automatic scraping** runs in the background according to the cron expression
+  stored in the database. Adjust it from the Admin console or set the
+  `CRON_SCHEDULE` environment variable before starting the server.
 
 ## Environment variables
 
@@ -112,7 +110,7 @@ pkill -f "node server/index.js"
 
 ## Scheduled cron job
 
-The scraper runs automatically using `node-cron`. With the default schedule `0 6 * * *` the job executes once every day at 06:00. Adjust `CRON_SCHEDULE` to change the frequency. You can also trigger a manual scrape by visiting `/scrape` or clicking the button on the dashboard. Any changes made via the Scraper page are saved in the database so the chosen schedule is retained across restarts.
+The scraper runs automatically using `node-cron`. With the default schedule `0 6 * * *` the job executes once every day at 06:00. Adjust `CRON_SCHEDULE` to change the frequency before the server starts or tweak the value live from the Cron Scheduler panel on the Admin console. Manual scrapes remain available via `/scrape` or the dashboard button, and any updates made in the UI are persisted in the database so the chosen cadence is retained across restarts.
 The schedule form lists the hour before the minute for readability, but the cron expression itself always uses the order _minute hour_.
 
 ## Real-time feedback
@@ -155,15 +153,15 @@ sessions.
 
 ## Adding new sources
 
-The dashboard includes a small form for defining additional tender sources at
-runtime. Follow these steps to register a new site:
-See the `/help` page for example configurations.
+The Admin console includes dedicated forms for defining additional tender
+sources at runtime. Follow these steps to register a new site. See the `/help`
+page for example configurations.
 
-1. Navigate to `/scraper` and locate the **Add Source** form.
+1. Navigate to `/admin` and locate the **Tender sources** form.
 2. Enter a short **key** (letters and numbers only). This is used internally to
    identify the source.
-3. Provide a descriptive **label** which will appear in the drop-down list on
-   the dashboard.
+3. Provide a descriptive **label** which will appear in dropdowns across the
+   dashboard and reporting tools.
 4. Fill in the **search URL** pointing to the RSS feed or web page containing
    tenders.
 5. Set the **base URL** that should be prepended to any relative links found in
@@ -191,7 +189,7 @@ procurement portals pre-configured so you can start scraping immediately.
 ### Awarded contract sources
 
 Award notices are scraped separately using the same mechanism. Use the **Award
-Sources** form on the Scraper page to register feeds that list awarded
+Sources** form on the Admin console to register feeds that list awarded
 contracts. Example award sources are shown on the `/help` page. Like tender
 sources, award feeds are also saved to `sources.json` to ensure they are
 restored after a restart.

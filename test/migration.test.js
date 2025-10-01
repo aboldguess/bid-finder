@@ -24,6 +24,7 @@ it('adds missing columns if absent', async () => {
   process.env.DB_FILE = file;
   delete require.cache[require.resolve('../server/db')];
   const db = require('../server/db');
+  await db.ready;
 
   await db.insertTender('t', 'l', '2024-01-01', 'd', 's', '2024-01-02', 'tag', 'ocid-1', '12345678', '', '', '', '', '', '');
   const rows = await db.getTenders();

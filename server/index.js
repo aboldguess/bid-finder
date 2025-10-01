@@ -96,7 +96,7 @@ function isAllowedUrl(candidate) {
 }
 
 const app = express();
-// Store per-source status strings for display on the scraper screen. Keys
+// Store per-source status strings for display on the admin console. Keys
 // correspond to source identifiers with values like "ok" or an error message.
 const sourceStatus = {};
 
@@ -495,65 +495,6 @@ app.get('/dashboard', async (req, res) => {
   });
 });
 
-// GET /opportunities - Render the table of currently available tenders.
-app.get('/opportunities', async (req, res) => {
-  // Determine which page was requested, defaulting to the first page
-  // when no query parameter is supplied. The value is clamped to avoid
-  // negative offsets or absurdly large pages.
-  const currentPage = Math.max(0, parseInt(req.query.page || '0', 10));
-
-  // Fetch the total count so the template can show navigation controls.
-  const total = await db.getTenderCount();
-
-  // Retrieve a single page of tenders. Limiting the number of rows keeps
-  // memory usage stable even when the table grows to thousands of entries.
-  const limit = 100;
-  const offset = currentPage * limit;
-  const tenders = await db.getTendersPage(limit, offset);
-
-  res.render('opportunities', {
-    tenders,
-    currentPage,
-    total,
-    sources: config.sources,
-    page: 'opportunities'
-  });
-});
-
-// GET /opportunities/:id/raw - Provide the stored raw JSON payload for a tender.
-app.get('/opportunities/:id/raw', async (req, res) => {
-  const id = Number.parseInt(req.params.id, 10);
-  if (!Number.isInteger(id) || id < 1) {
-    return res.status(400).json({ error: 'Invalid tender identifier' });
-  }
-  try {
-    const row = await db.getTenderRawById(id);
-    if (!row) {
-      return res.status(404).json({ error: 'Tender not found' });
-    }
-    let parsed = null;
-    if (row.raw_details) {
-      try {
-        parsed = JSON.parse(row.raw_details);
-      } catch (err) {
-        logger.warn('Raw tender payload could not be parsed as JSON:', err);
-        parsed = row.raw_details;
-      }
-    }
-    res.set('Cache-Control', 'no-store');
-    res.json({
-      id: row.id,
-      title: row.title,
-      source: row.source,
-      scrapedAt: row.scraped_at,
-      raw: parsed
-    });
-  } catch (err) {
-    logger.error('Failed to load raw tender payload:', err);
-    res.status(500).json({ error: 'Unable to load tender payload' });
-  }
-});
-
 // GET /cpv - Render the CPV explorer allowing users to browse and favourite codes.
 app.get('/cpv', requireAuth, async (req, res) => {
   let loadError = null;
@@ -770,28 +711,6 @@ app.get('/awarded', async (req, res) => {
   });
 });
 
-// GET /scraper - Display all configured sources along with stats and actions
-// for testing or scraping them individually. Authentication ensures only
-// authorised users can manage scraping configuration.
-app.get('/scraper', requireAuth, async (req, res) => {
-  const statsRows = await db.getSourceStats();
-  const stats = {};
-  for (const row of statsRows) {
-    stats[row.key] = row;
-  }
-  // Provide current cron schedule so the form can display it
-  res.render('scraper', {
-    sources: config.sources,
-    awardSources: config.awardSources,
-    sourceStats: stats,
-    sourceStatus,
-    cron: config.cronSchedule,
-    parserCatalogue: buildParserCatalogue(),
-    defaultParser: DEFAULT_PARSER_KEY,
-    page: 'scraper'
-  });
-});
-
 // GET /stats - Simple page showing the timestamp of the last successful scrape
 // so users know how fresh the displayed data is.
 app.get('/stats', async (req, res) => {
@@ -861,9 +780,9 @@ app.post('/login', async (req, res) => {
       .render('login', { error: 'Invalid credentials', page: 'login' });
   }
   // Persist minimal user info in the session
-  // Remember the logged in user and redirect to the scraper settings page
+  // Remember the logged in user and redirect to the main dashboard
   req.session.user = { id: user.id, username: user.username };
-  res.redirect('/scraper');
+  res.redirect('/dashboard');
 });
 
 // Render registration form
@@ -894,9 +813,9 @@ app.post('/register', async (req, res) => {
       .status(500)
       .render('register', { error: 'Account created but login failed. Please try signing in.', page: 'login' });
   }
-  // Log the new user in immediately and send them to the scraper page
+  // Log the new user in immediately and send them to the dashboard
   req.session.user = { id: createdUser.id, username: createdUser.username };
-  res.redirect('/scraper');
+  res.redirect('/dashboard');
 });
 
 // Log the user out and destroy their session

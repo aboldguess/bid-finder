@@ -45,8 +45,8 @@ before(async () => {
 after(() => server.close());
 
 describe('requireAuth middleware', () => {
-  it('redirects unauthenticated users from /scraper to /login', async () => {
-    const res = await fetch(url('/scraper'), { redirect: 'manual' });
+  it('redirects unauthenticated users from /admin to /login', async () => {
+    const res = await fetch(url('/admin'), { redirect: 'manual' });
     expect(res.status).to.equal(302);
     // Some versions of Express include an absolute URL in the Location header,
     // so only verify that it ends with the expected path.

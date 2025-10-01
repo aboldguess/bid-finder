@@ -60,10 +60,13 @@ before(async () => {
   }
   expect(setCookie).to.be.a('string');
   cookie = setCookie.split(';')[0];
-  // Fetch the scraper page to retrieve a CSRF token for API requests
-  res = await fetch(url('/scraper'), { headers: { Cookie: cookie } });
+  // Fetch the admin console to retrieve a CSRF token for API requests
+  res = await fetch(url('/admin'), { headers: { Cookie: cookie }, redirect: 'manual' });
+  expect(res.status, 'admin page should be reachable after registration').to.equal(200);
   html = await res.text();
-  csrf = html.match(/name="_csrf" value="([^"]+)"/)[1];
+  const metaMatch = html.match(/name="csrf-token" content="([^"]+)"/);
+  expect(metaMatch, 'admin console should expose csrf token').to.not.be.null;
+  csrf = metaMatch[1];
 });
 
 after(() => server.close());

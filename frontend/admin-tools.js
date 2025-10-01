@@ -1,9 +1,9 @@
 /**
  * @file admin-tools.js
  * @description Client-side controller for the administration console. Handles
- *   destructive database actions, dynamic statistics refreshes, feed source
- *   management and user management operations with friendly status updates and
- *   confirmation dialogues.
+ *   destructive database actions, dynamic statistics refreshes, cron schedule
+ *   management, feed source configuration and user management operations with
+ *   friendly status updates and confirmation dialogues.
  */
 'use strict';
 
@@ -47,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ? initial.parserCatalogue.map(option => ({ ...option }))
       : [],
     defaultParser: initial.defaultParser || 'contractsFinder',
+    cron: typeof initial.cron === 'string' ? initial.cron : '0 6 * * *',
     editing: {
       tender: null,
       award: null
@@ -68,6 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const csrfToken = csrfMeta ? csrfMeta.content : '';
   const dbStatus = document.getElementById('dbStatus');
   const userStatus = document.getElementById('userStatus');
+  const cronStatus = document.getElementById('cronStatus');
   const tenderBody = document.getElementById('tenderBreakdownBody');
   const userBody = document.getElementById('userTableBody');
   const lastScrapedEl = document.getElementById('lastScraped');
@@ -87,10 +89,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const awardSourceBanner = document.getElementById('awardSourceStatus');
   const tenderSourceForm = document.getElementById('tenderSourceForm');
   const awardSourceForm = document.getElementById('awardSourceForm');
+  const cronForm = document.getElementById('cronForm');
+  const cronPreview = document.getElementById('cronPreview');
   const previewDialog = document.getElementById('sourcePreviewDialog');
   const previewBody = document.getElementById('sourcePreviewBody');
   const previewSummary = document.getElementById('sourcePreviewSummary');
   const cancelEditButtons = Array.from(document.querySelectorAll('[data-action="cancel-edit"]'));
+  const cronControls = cronForm
+    ? {
+        minute: document.getElementById('cronMin'),
+        hour: document.getElementById('cronHour'),
+        day: document.getElementById('cronDom'),
+        month: document.getElementById('cronMon'),
+        weekday: document.getElementById('cronDow')
+      }
+    : null;
   const formControls = {
     tender: tenderSourceForm
       ? {
@@ -165,6 +178,180 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!el) return;
     el.hidden = true;
     el.textContent = '';
+  }
+
+  /**
+   * Populate a select element with the supplied cron values.
+   *
+   * @param {HTMLSelectElement|null} select - Target select element.
+   * @param {Array<{value: string, label: string}>} values - Options to insert.
+   */
+  function populateCronSelect(select, values) {
+    if (!select) return;
+    select.innerHTML = '';
+    values.forEach(({ value, label }) => {
+      const opt = document.createElement('option');
+      opt.value = value;
+      opt.textContent = label;
+      select.appendChild(opt);
+    });
+  }
+
+  /** Ensure the select contains a given value, adding a synthetic option if required. */
+  function ensureCronValue(select, value) {
+    if (!select || typeof value !== 'string' || !value) return;
+    const exists = Array.from(select.options).some(opt => opt.value === value);
+    if (!exists) {
+      const opt = document.createElement('option');
+      opt.value = value;
+      opt.textContent = `${value} (custom)`;
+      opt.dataset.custom = 'true';
+      select.appendChild(opt);
+    }
+    select.value = value;
+  }
+
+  /**
+   * Parse a cron expression into its five constituent parts.
+   *
+   * @param {string} expr - Cron expression.
+   * @returns {string[]} Array of five string segments.
+   */
+  function parseCron(expr) {
+    const fallback = ['0', '6', '*', '*', '*'];
+    if (typeof expr !== 'string') return fallback;
+    const parts = expr.trim().split(/\s+/);
+    return parts.length === 5 ? parts : fallback;
+  }
+
+  /** Build a cron string from the current dropdown selections. */
+  function buildCronExpression() {
+    if (!cronControls) return state.cron;
+    const sequence = [
+      cronControls.minute,
+      cronControls.hour,
+      cronControls.day,
+      cronControls.month,
+      cronControls.weekday
+    ];
+    return sequence
+      .map(sel => (sel ? sel.value : '*'))
+      .join(' ');
+  }
+
+  /** Update the on-screen preview with the selected cron expression. */
+  function updateCronPreview() {
+    const expr = buildCronExpression();
+    if (cronPreview) {
+      cronPreview.textContent = `Current expression: ${expr}`;
+    }
+    return expr;
+  }
+
+  /**
+   * Create a sequential range of cron options.
+   * @param {number} start - Starting integer (inclusive).
+   * @param {number} end - Ending integer (inclusive).
+   * @param {function(number): string} labelBuilder - Optional label formatter.
+   * @param {string} wildcardLabel - Label for the wildcard option.
+   * @returns {Array<{value: string, label: string}>}
+   */
+  function createCronOptions(start, end, labelBuilder, wildcardLabel) {
+    const options = [{ value: '*', label: wildcardLabel }];
+    for (let i = start; i <= end; i++) {
+      const label = labelBuilder ? labelBuilder(i) : String(i);
+      options.push({ value: String(i), label });
+    }
+    return options;
+  }
+
+  /** Initialise the cron schedule form when present on the page. */
+  function initialiseCronSchedule() {
+    if (!cronForm || !cronControls) return;
+
+    const minuteOptions = createCronOptions(0, 59, i => i.toString().padStart(2, '0'), 'Every minute (*)');
+    const hourOptions = createCronOptions(0, 23, i => i.toString().padStart(2, '0'), 'Every hour (*)');
+    const dayOptions = createCronOptions(1, 31, i => String(i), 'Every day (*)');
+    const monthNames = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December'
+    ];
+    const monthOptions = [
+      { value: '*', label: 'Every month (*)' },
+      ...monthNames.map((name, index) => ({ value: String(index + 1), label: `${name} (${index + 1})` }))
+    ];
+    const weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const weekdayOptions = [
+      { value: '*', label: 'Every weekday (*)' },
+      ...weekdayNames.map((name, index) => ({ value: String(index), label: `${name} (${index})` }))
+    ];
+
+    populateCronSelect(cronControls.minute, minuteOptions);
+    populateCronSelect(cronControls.hour, hourOptions);
+    populateCronSelect(cronControls.day, dayOptions);
+    populateCronSelect(cronControls.month, monthOptions);
+    populateCronSelect(cronControls.weekday, weekdayOptions);
+
+    const parts = parseCron(state.cron);
+    ensureCronValue(cronControls.minute, parts[0]);
+    ensureCronValue(cronControls.hour, parts[1]);
+    ensureCronValue(cronControls.day, parts[2]);
+    ensureCronValue(cronControls.month, parts[3]);
+    ensureCronValue(cronControls.weekday, parts[4]);
+    updateCronPreview();
+
+    Object.values(cronControls).forEach(select => {
+      if (!select) return;
+      select.addEventListener('change', () => {
+        hideStatus(cronStatus);
+        updateCronPreview();
+      });
+    });
+
+    cronForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const schedule = updateCronPreview();
+      try {
+        announce(cronStatus, 'Updating schedule…', 'info');
+        const res = await fetch('/admin/cron', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            'CSRF-Token': csrfToken
+          },
+          body: JSON.stringify({ schedule })
+        });
+
+        if (res.status === 401) {
+          announce(cronStatus, 'Session expired. Please log in again.', 'error');
+          window.location.assign('/login');
+          return;
+        }
+
+        const data = await res.json().catch(() => null);
+        if (res.ok && data && data.success) {
+          state.cron = schedule;
+          announce(cronStatus, 'Schedule updated successfully.', 'success');
+        } else {
+          const message = (data && data.error) || 'Failed to update schedule.';
+          announce(cronStatus, message, 'error');
+        }
+      } catch (err) {
+        console.error('Failed to update cron schedule', err);
+        announce(cronStatus, 'Unexpected error while updating schedule. Check logs for details.', 'error');
+      }
+    });
   }
 
   /** Update the numeric stat cards from the current state. */
@@ -706,6 +893,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  initialiseCronSchedule();
   updateStatCards();
   renderTenderBreakdown();
   renderUsers();
