@@ -119,6 +119,16 @@ db.serialize(() => {
     password TEXT
   )`);
 
+  // Store per-user CPV favourites so shortlisted codes persist across devices.
+  db.run(`CREATE TABLE IF NOT EXISTS cpv_favourites (
+    user_id INTEGER NOT NULL,
+    code TEXT NOT NULL,
+    description TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, code),
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+  )`);
+
   // Persist custom scraping sources so they survive process restarts. Each
   // source is keyed by a short unique string which is also used in the
   // `config.sources` object. Having the parser column allows different HTML
@@ -1305,6 +1315,73 @@ module.exports = {
   },
 
   /**
+   * Retrieve all CPV favourites that belong to the supplied user.
+   *
+   * @param {number} userId - Account identifier taken from the session.
+   * @returns {Promise<Array<{code:string,description:string}>>} favourites list.
+   */
+  getUserCpvFavourites: userId => {
+    return new Promise((resolve, reject) => {
+      db.all(
+        `SELECT code, COALESCE(description, '') AS description
+         FROM cpv_favourites
+         WHERE user_id = ?
+         ORDER BY code`,
+        [userId],
+        (err, rows) => {
+          if (err) return reject(err);
+          resolve(rows || []);
+        }
+      );
+    });
+  },
+
+  /**
+   * Insert or update a CPV favourite for the specified user.
+   *
+   * @param {number} userId - Identifier of the account storing the favourite.
+   * @param {string} code - Sanitised CPV code (eight digits).
+   * @param {string} description - Friendly description associated with the code.
+   * @returns {Promise<void>} resolves when the favourite is persisted.
+   */
+  upsertUserCpvFavourite: (userId, code, description) => {
+    return new Promise((resolve, reject) => {
+      db.run(
+        `INSERT INTO cpv_favourites (user_id, code, description)
+         VALUES (?, ?, ?)
+         ON CONFLICT(user_id, code) DO UPDATE SET
+           description = excluded.description,
+           created_at = CURRENT_TIMESTAMP`,
+        [userId, code, description],
+        err => {
+          if (err) return reject(err);
+          resolve();
+        }
+      );
+    });
+  },
+
+  /**
+   * Remove a stored CPV favourite for a user when it is no longer required.
+   *
+   * @param {number} userId - Account identifier.
+   * @param {string} code - CPV code to delete.
+   * @returns {Promise<number>} number of rows removed.
+   */
+  deleteUserCpvFavourite: (userId, code) => {
+    return new Promise((resolve, reject) => {
+      db.run(
+        'DELETE FROM cpv_favourites WHERE user_id = ? AND code = ?',
+        [userId, code],
+        function (err) {
+          if (err) return reject(err);
+          resolve(this.changes || 0);
+        }
+      );
+    });
+  },
+
+  /**
    * Update a user's stored password hash. The caller is responsible for hashing
    * the password before invoking this helper.
    *
@@ -1351,6 +1428,7 @@ module.exports = {
         db.run('DROP TABLE IF EXISTS tenders');
         db.run('DROP TABLE IF EXISTS metadata');
         db.run('DROP TABLE IF EXISTS users');
+        db.run('DROP TABLE IF EXISTS cpv_favourites');
         db.run('DROP TABLE IF EXISTS sources');
         db.run('DROP TABLE IF EXISTS source_stats');
         db.run('DROP TABLE IF EXISTS award_sources');
@@ -1376,6 +1454,14 @@ module.exports = {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE,
             password TEXT
+          )`);
+        db.run(`CREATE TABLE cpv_favourites (
+            user_id INTEGER NOT NULL,
+            code TEXT NOT NULL,
+            description TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (user_id, code),
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
           )`);
         db.run(`CREATE TABLE sources (
             key TEXT PRIMARY KEY,

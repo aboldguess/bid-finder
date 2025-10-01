@@ -2,11 +2,11 @@
  * File: cpv-browser.js
  * Overview: Client-side controller for the CPV explorer tab. Handles search
  *   requests against the CPV catalogue, renders paginated results and manages
- *   the user's session-based favourites list.
+ *   the user's account-backed favourites list.
  * Structure:
  *   - Initialises UI references and local state from window.__CPV_PREFILL__.
  *   - Provides debounced search logic with pagination.
- *   - Synchronises favourite selections with the Express session API.
+ *   - Synchronises favourite selections with the authenticated favourites API.
  */
 (function () {
   const prefill = window.__CPV_PREFILL__ || {};
@@ -18,6 +18,11 @@
   const pageInfo = document.getElementById('cpvPageInfo');
   const prevBtn = document.getElementById('cpvPrevPage');
   const nextBtn = document.getElementById('cpvNextPage');
+
+  const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+  const csrfToken =
+    (window.__CSRF_TOKEN__ && window.__CSRF_TOKEN__.toString()) ||
+    (csrfMeta ? csrfMeta.getAttribute('content') : '');
 
   const state = {
     page: 1,
@@ -102,8 +107,14 @@
   async function loadFavourites() {
     try {
       const response = await fetch('/api/cpv-favourites', {
-        headers: { Accept: 'application/json' }
+        headers: {
+          Accept: 'application/json'
+        }
       });
+      if (response.status === 401) {
+        updateStatus('Please sign back in to view your saved CPV favourites.');
+        return;
+      }
       if (!response.ok) {
         throw new Error(`Server responded with ${response.status}`);
       }
@@ -169,6 +180,10 @@
   }
 
   async function modifyFavourite(code, description, shouldAdd) {
+    if (!csrfToken) {
+      updateStatus('Security token missing. Please refresh the page and try again.');
+      return;
+    }
     try {
       const payload = {
         code,
@@ -181,10 +196,15 @@
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Accept: 'application/json'
+          Accept: 'application/json',
+          'CSRF-Token': csrfToken
         },
         body: JSON.stringify(payload)
       });
+      if (response.status === 401) {
+        updateStatus('Your session has expired. Sign in again to manage favourites.');
+        return;
+      }
       const json = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(json.error || `Server responded with ${response.status}`);
