@@ -592,11 +592,13 @@ app.post('/sources', requireAuth, async (req, res) => {
     // Store the new source definition then add it to the in-memory object used
     // by the rest of the application.
     await db.insertSource(key, label, url, base, parser);
-    config.sources[key] = { label, url, base, parser };
+    const record = { label, url, base, parser };
+    config.sources[key] = record;
+    sourceStatus[key] = 'unknown';
     // Persist the updated configuration so custom sources survive restarts.
     sourceStore.save();
     logger.info(`Added new source ${key}: ${label}`);
-    res.json({ success: true });
+    res.json({ success: true, source: { key, ...record } });
   } catch (err) {
     logger.error('Failed to persist source:', err);
     res.status(500).json({ error: 'Failed to save source' });
@@ -627,11 +629,13 @@ app.put('/sources/:key', requireAuth, async (req, res) => {
 
   try {
     await db.updateSource(key, label, url, base, parser);
-    config.sources[key] = { label, url, base, parser };
+    const record = { label, url, base, parser };
+    config.sources[key] = record;
+    sourceStatus[key] = 'unknown';
     // Persist changes so they are reloaded on the next start.
     sourceStore.save();
     logger.info(`Updated source ${key}: ${label}`);
-    res.json({ success: true });
+    res.json({ success: true, source: { key, ...record } });
   } catch (err) {
     logger.error('Failed to update source:', err);
     res.status(500).json({ error: 'Failed to update source' });
@@ -648,10 +652,11 @@ app.delete('/sources/:key', requireAuth, async (req, res) => {
   try {
     await db.deleteSource(key);
     delete config.sources[key];
+    delete sourceStatus[key];
     // Save the remaining sources for persistence.
     sourceStore.save();
     logger.info(`Deleted source ${key}`);
-    res.json({ success: true });
+    res.json({ success: true, key });
   } catch (err) {
     logger.error('Failed to delete source:', err);
     res.status(500).json({ error: 'Failed to delete source' });
@@ -681,11 +686,13 @@ app.post('/award-sources', requireAuth, async (req, res) => {
 
   try {
     await db.insertAwardSource(key, label, url, base, parser);
-    config.awardSources[key] = { label, url, base, parser };
+    const record = { label, url, base, parser };
+    config.awardSources[key] = record;
+    sourceStatus[key] = 'unknown';
     // Ensure award source changes survive server restarts.
     sourceStore.save();
     logger.info(`Added new award source ${key}: ${label}`);
-    res.json({ success: true });
+    res.json({ success: true, source: { key, ...record } });
   } catch (err) {
     logger.error('Failed to save award source:', err);
     res.status(500).json({ error: 'Failed to save source' });
@@ -714,11 +721,13 @@ app.put('/award-sources/:key', requireAuth, async (req, res) => {
 
   try {
     await db.updateAwardSource(key, label, url, base, parser);
-    config.awardSources[key] = { label, url, base, parser };
+    const record = { label, url, base, parser };
+    config.awardSources[key] = record;
+    sourceStatus[key] = 'unknown';
     // Persist the updated award sources list.
     sourceStore.save();
     logger.info(`Updated award source ${key}: ${label}`);
-    res.json({ success: true });
+    res.json({ success: true, source: { key, ...record } });
   } catch (err) {
     logger.error('Failed to update award source:', err);
     res.status(500).json({ error: 'Failed to update source' });
@@ -734,10 +743,11 @@ app.delete('/award-sources/:key', requireAuth, async (req, res) => {
   try {
     await db.deleteAwardSource(key);
     delete config.awardSources[key];
+    delete sourceStatus[key];
     // Keep JSON file in sync after deletion.
     sourceStore.save();
     logger.info(`Deleted award source ${key}`);
-    res.json({ success: true });
+    res.json({ success: true, key });
   } catch (err) {
     logger.error('Failed to delete award source:', err);
     res.status(500).json({ error: 'Failed to delete source' });
@@ -757,7 +767,8 @@ app.get('/test-source', requireAuth, async (req, res) => {
     const html = await r.text();
     const tenders = parseTenders(html, src);
     sourceStatus[key] = 'ok';
-    res.json({ status: 'ok', count: tenders.length });
+    const latest = tenders[0] || null;
+    res.json({ status: 'ok', count: tenders.length, latest });
   } catch (err) {
     sourceStatus[key] = 'error';
     res.status(500).json({ status: 'error', message: err.message });
@@ -774,7 +785,8 @@ app.get('/test-award-source', requireAuth, async (req, res) => {
     const html = await r.text();
     const tenders = parseTenders(html, src);
     sourceStatus[key] = 'ok';
-    res.json({ status: 'ok', count: tenders.length });
+    const latest = tenders[0] || null;
+    res.json({ status: 'ok', count: tenders.length, latest });
   } catch (err) {
     sourceStatus[key] = 'error';
     res.status(500).json({ status: 'error', message: err.message });
@@ -928,7 +940,8 @@ app.get('/admin', requireAuth, requireAdmin, async (req, res) => {
       supplierCount,
       lastScraped,
       tenderBreakdown,
-      users
+      users,
+      sourceStatsRows
     ] = await Promise.all([
       db.getTenderCount(),
       db.getAwardCount(),
@@ -936,8 +949,14 @@ app.get('/admin', requireAuth, requireAdmin, async (req, res) => {
       db.getOrganisationCount('supplier'),
       db.getLastScraped(),
       db.getTenderCountsBySource(),
-      db.getAllUsers()
+      db.getAllUsers(),
+      db.getSourceStats()
     ]);
+
+    const sourceStats = {};
+    for (const row of sourceStatsRows) {
+      sourceStats[row.key] = row;
+    }
 
     const formattedUsers = users.map(row => ({
       id: row.id,
@@ -964,7 +983,11 @@ app.get('/admin', requireAuth, requireAdmin, async (req, res) => {
       cron: config.cronSchedule,
       adminUsersConfigured: adminUsers.size > 0,
       adminUsernames: Array.from(adminUsers),
-      currentUser: req.session.user && req.session.user.username
+      currentUser: req.session.user && req.session.user.username,
+      sources: config.sources,
+      awardSources: config.awardSources,
+      sourceStats,
+      sourceStatus
     });
   } catch (err) {
     logger.error('Failed to render admin console:', err);

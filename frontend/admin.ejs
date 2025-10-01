@@ -8,8 +8,9 @@
     1. Page header and navigation tabs.
     2. Summary cards showing live system metrics.
     3. Database tools for wiping or inspecting stored data.
-    4. User administration area for creating, resetting and deleting accounts.
-    5. Lightweight dialog components for confirmations and password updates.
+    4. Feed source management area for creating, updating and testing tender and award feeds.
+    5. User administration area for creating, resetting and deleting accounts.
+    6. Lightweight dialog components for confirmations, password updates and feed previews.
 -->
 <!DOCTYPE html>
 <html>
@@ -108,6 +109,149 @@
     </table>
   </section>
 
+  <section id="source-admin" class="panel" aria-labelledby="source-admin-heading">
+    <div class="panel-header">
+      <h2 id="source-admin-heading">Feed source management</h2>
+      <p>Configure which tender and award feeds are scraped. Every change is
+        logged and applied immediately, so double-check entries before saving.</p>
+    </div>
+    <p class="hint">Testing a feed fetches the most recent entry and displays it
+      in a pop-up so you can confirm the data looks correct.</p>
+    <div class="instruction-card" role="note" aria-labelledby="source-instructions-title">
+      <h3 id="source-instructions-title">Checklist before saving a feed</h3>
+      <ol class="instruction-list">
+        <li>Choose a unique <strong>Key</strong> using letters, numbers or dashes.
+          This identifier appears in logs and statistics.</li>
+        <li>Enter a clear <strong>Label</strong> so colleagues recognise the feed.</li>
+        <li>Paste the full <strong>Search or RSS URL</strong> that lists the newest
+          notices you need to track.</li>
+        <li>Provide the site <strong>Base URL</strong> (for example
+          <code>https://www.contractsfinder.service.gov.uk</code>). Links in the
+          feed are resolved against this value.</li>
+        <li>Leave the <strong>Parser</strong> as <code>contractsFinder</code> unless
+          the feed requires a bespoke parser. Documentation for available parsers
+          lives on the Help page.</li>
+      </ol>
+    </div>
+    <div class="source-columns">
+      <article class="source-column" aria-labelledby="tender-sources-heading">
+        <h3 id="tender-sources-heading">Tender sources</h3>
+        <p class="hint">These feeds supply the Opportunities page.</p>
+        <div id="tenderSourceStatus" class="status-banner" role="status" aria-live="polite" hidden></div>
+        <table class="source-table" aria-describedby="tender-sources-heading">
+          <thead>
+            <tr>
+              <th scope="col">Key</th>
+              <th scope="col">Label</th>
+              <th scope="col">Status</th>
+              <th scope="col">Last scraped</th>
+              <th scope="col">New items (last run)</th>
+              <th scope="col">Total stored</th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tenderSourceTableBody">
+            <tr class="table-empty"><td colspan="7">Sources load automatically once the page initialises.</td></tr>
+          </tbody>
+        </table>
+        <form id="tenderSourceForm" class="source-form" autocomplete="off" data-kind="tender">
+          <fieldset>
+            <legend class="visually-hidden">Create or update a tender source</legend>
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="tenderSourceKey">Key</label>
+                <input id="tenderSourceKey" name="key" type="text" pattern="[a-zA-Z0-9-]+" required autocomplete="off">
+                <span class="form-hint">Letters, numbers and dashes only.</span>
+              </div>
+              <div class="form-field">
+                <label for="tenderSourceLabel">Label</label>
+                <input id="tenderSourceLabel" name="label" type="text" required autocomplete="off">
+                <span class="form-hint">Shown to end users and in reports.</span>
+              </div>
+              <div class="form-field">
+                <label for="tenderSourceUrl">Search or RSS URL</label>
+                <input id="tenderSourceUrl" name="url" type="url" required placeholder="https://example.com/search?q=...">
+                <span class="form-hint">Must return the newest tenders.</span>
+              </div>
+              <div class="form-field">
+                <label for="tenderSourceBase">Base URL</label>
+                <input id="tenderSourceBase" name="base" type="url" required placeholder="https://example.com">
+                <span class="form-hint">Homepage used to resolve relative links.</span>
+              </div>
+              <div class="form-field">
+                <label for="tenderSourceParser">Parser</label>
+                <input id="tenderSourceParser" name="parser" type="text" value="contractsFinder" autocomplete="off">
+                <span class="form-hint">Advanced: override only if instructed.</span>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" id="tenderSourceSubmit">Add source</button>
+              <button type="button" class="secondary" data-action="cancel-edit" data-kind="tender" hidden>Cancel editing</button>
+            </div>
+          </fieldset>
+        </form>
+      </article>
+
+      <article class="source-column" aria-labelledby="award-sources-heading">
+        <h3 id="award-sources-heading">Award sources</h3>
+        <p class="hint">These feeds populate the Awarded Contracts page.</p>
+        <div id="awardSourceStatus" class="status-banner" role="status" aria-live="polite" hidden></div>
+        <table class="source-table" aria-describedby="award-sources-heading">
+          <thead>
+            <tr>
+              <th scope="col">Key</th>
+              <th scope="col">Label</th>
+              <th scope="col">Status</th>
+              <th scope="col">Last scraped</th>
+              <th scope="col">New items (last run)</th>
+              <th scope="col">Total stored</th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="awardSourceTableBody">
+            <tr class="table-empty"><td colspan="7">Award feeds load automatically once the page initialises.</td></tr>
+          </tbody>
+        </table>
+        <form id="awardSourceForm" class="source-form" autocomplete="off" data-kind="award">
+          <fieldset>
+            <legend class="visually-hidden">Create or update an award source</legend>
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="awardSourceKey">Key</label>
+                <input id="awardSourceKey" name="key" type="text" pattern="[a-zA-Z0-9-]+" required autocomplete="off">
+                <span class="form-hint">Letters, numbers and dashes only.</span>
+              </div>
+              <div class="form-field">
+                <label for="awardSourceLabel">Label</label>
+                <input id="awardSourceLabel" name="label" type="text" required autocomplete="off">
+                <span class="form-hint">Shown to end users and in reports.</span>
+              </div>
+              <div class="form-field">
+                <label for="awardSourceUrl">Search or RSS URL</label>
+                <input id="awardSourceUrl" name="url" type="url" required placeholder="https://example.com/feed">
+                <span class="form-hint">Should list the newest award notices.</span>
+              </div>
+              <div class="form-field">
+                <label for="awardSourceBase">Base URL</label>
+                <input id="awardSourceBase" name="base" type="url" required placeholder="https://example.com">
+                <span class="form-hint">Homepage used to resolve relative links.</span>
+              </div>
+              <div class="form-field">
+                <label for="awardSourceParser">Parser</label>
+                <input id="awardSourceParser" name="parser" type="text" value="contractsFinder" autocomplete="off">
+                <span class="form-hint">Advanced: override only if instructed.</span>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" id="awardSourceSubmit">Add award source</button>
+              <button type="button" class="secondary" data-action="cancel-edit" data-kind="award" hidden>Cancel editing</button>
+            </div>
+          </fieldset>
+        </form>
+      </article>
+    </div>
+  </section>
+
   <section id="user-administration" class="panel" aria-labelledby="user-admin-heading">
     <div class="panel-header">
       <h2 id="user-admin-heading">User administration</h2>
@@ -180,6 +324,18 @@
     </form>
   </dialog>
 
+  <dialog id="sourcePreviewDialog" aria-labelledby="sourcePreviewTitle">
+    <form id="sourcePreviewForm" method="dialog">
+      <h3 id="sourcePreviewTitle">Latest feed item</h3>
+      <p id="sourcePreviewSummary" class="hint">Use the Test button beside a
+        feed to display a preview of the newest entry.</p>
+      <article id="sourcePreviewBody" class="preview-body" aria-live="polite"></article>
+      <div class="dialog-actions">
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
   <script id="adminData" type="application/json"><%- JSON.stringify({
     counts,
     lastScraped,
@@ -188,7 +344,11 @@
     cron,
     adminUsersConfigured,
     adminUsernames,
-    currentUser
+    currentUser,
+    sources,
+    awardSources,
+    sourceStats,
+    sourceStatus
   }).replace(/</g, '\\u003c') %></script>
   <script type="module" src="/admin-tools.js"></script>
 </body>
