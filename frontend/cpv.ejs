@@ -1,0 +1,71 @@
+<!--
+  File: cpv.ejs
+  Overview: Dedicated CPV explorer allowing users to browse the 2008 CPV
+    catalogue bundled with the repository. The page provides an interactive
+    search experience plus per-session favourites for quick reference.
+  Structure:
+    - Navigation header and headline instructions.
+    - Favourites summary showcasing saved CPV codes.
+    - Search form with results table powered by cpv-browser.js.
+  Behaviour:
+    - Fetches CPV data from /api/cpv-codes and favourites from /api/cpv-favourites.
+    - Allows codes to be added/removed from the session favourites list.
+-->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>CPV Explorer</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <h1>CPV Explorer</h1>
+  <%- include('partials/nav', { page: 'cpv', user: user }) %>
+  <div id="instructions">
+    <strong>How to use this page:</strong>
+    <ul>
+      <li>Search the official CPV hierarchy using full or partial keywords.</li>
+      <li>Click the star button beside any code to add it to your favourites list for later.</li>
+      <li>Favourite codes appear both here and on the Tenders tab for rapid filtering.</li>
+    </ul>
+  </div>
+  <% if (loadError) { %>
+    <div class="status-banner error"><%= loadError %></div>
+  <% } %>
+  <section class="panel">
+    <h2>Your favourite CPV codes</h2>
+    <p class="panel-text">Favourite codes are stored in your browser session so you can re-use them while investigating opportunities.</p>
+    <ul id="cpvFavouritesList" class="cpv-favourites"></ul>
+    <p id="cpvFavouritesEmpty" class="form-hint">No favourites yet. Use the search below to bookmark the codes you care about.</p>
+  </section>
+  <section class="panel">
+    <h2>Search the CPV catalogue</h2>
+    <form id="cpvSearchForm" class="cpv-search" role="search">
+      <label for="cpvSearchInput">Keywords or code</label>
+      <input id="cpvSearchInput" type="search" placeholder="E.g. software development" autocomplete="off">
+      <p class="form-hint">Search terms match both CPV codes and their English descriptions. Results update automatically as you type.</p>
+    </form>
+    <div id="cpvSearchStatus" class="form-hint" aria-live="polite"></div>
+    <table id="cpvResultsTable">
+      <thead>
+        <tr>
+          <th scope="col">CPV code</th>
+          <th scope="col">Description</th>
+          <th scope="col">Favourite</th>
+        </tr>
+      </thead>
+      <tbody id="cpvResultsBody"></tbody>
+    </table>
+    <div id="cpvPagination" class="pagination">
+      <button type="button" id="cpvPrevPage" aria-label="Previous results">Previous</button>
+      <span id="cpvPageInfo"></span>
+      <button type="button" id="cpvNextPage" aria-label="Next results">Next</button>
+    </div>
+  </section>
+  <script>
+    window.__CPV_PREFILL__ = {
+      favourites: <%- JSON.stringify(favourites || []) %>
+    };
+  </script>
+  <script src="/cpv-browser.js"></script>
+</body>
+</html>
