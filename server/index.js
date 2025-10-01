@@ -114,65 +114,53 @@ function openBrowser(url) {
 }
 
 /**
- * Normalise the CPV favourites stored in the session ensuring codes are valid
- * eight digit strings and descriptions are safe to render.
+ * Trim and clamp CPV descriptions provided by the frontend. This avoids storing
+ * unexpectedly long strings while keeping user visible data informative.
  *
- * @param {object} session - Express session object.
- * @returns {Array<{code: string, description: string}>} Sanitised favourites.
+ * @param {string} description - Raw description from the request body.
+ * @returns {string} Sanitised description safe to persist.
  */
-function getSessionCpvFavourites(session) {
-  const raw = Array.isArray(session.cpvFavourites) ? session.cpvFavourites : [];
-  const seen = new Set();
-  const cleaned = [];
-  raw.forEach(entry => {
-    if (!entry || typeof entry.code !== 'string') {
-      return;
-    }
-    const code = entry.code.trim();
-    if (!/^\d{8}$/.test(code) || seen.has(code)) {
-      return;
-    }
-    const description =
-      entry.description && typeof entry.description === 'string'
-        ? entry.description.trim()
-        : '';
-    seen.add(code);
-    cleaned.push({ code, description });
-  });
-  session.cpvFavourites = cleaned;
-  return cleaned;
-}
-
-/**
- * Append a CPV favourite to the current session when it does not already
- * exist. The updated array is returned for convenience.
- *
- * @param {object} session - Express session object.
- * @param {string} code - Eight digit CPV code.
- * @param {string} description - Friendly description sourced from the XML.
- * @returns {Array<{code: string, description: string}>} Updated favourites.
- */
-function addSessionCpvFavourite(session, code, description) {
-  const favourites = getSessionCpvFavourites(session);
-  if (!favourites.some(f => f.code === code)) {
-    favourites.push({ code, description });
+function sanitiseCpvDescription(description) {
+  if (typeof description !== 'string') {
+    return '';
   }
-  session.cpvFavourites = favourites;
-  return favourites;
+  return description.trim().slice(0, 255);
 }
 
 /**
- * Remove a CPV favourite from the session if present.
+ * Retrieve CPV favourites associated with the authenticated account. Any
+ * malformed entries are filtered to ensure downstream consumers only receive
+ * valid data.
  *
- * @param {object} session - Express session object.
- * @param {string} code - Eight digit CPV code to delete.
- * @returns {Array<{code: string, description: string}>} Updated favourites.
+ * @param {object} session - Express session which holds the logged in user.
+ * @returns {Promise<Array<{code:string, description:string}>>} favourites list.
  */
-function removeSessionCpvFavourite(session, code) {
-  const favourites = getSessionCpvFavourites(session);
-  const filtered = favourites.filter(entry => entry.code !== code);
-  session.cpvFavourites = filtered;
-  return filtered;
+async function getUserCpvFavourites(session) {
+  if (!session || !session.user || !Number.isInteger(session.user.id)) {
+    return [];
+  }
+  try {
+    const rows = await db.getUserCpvFavourites(session.user.id);
+    const seen = new Set();
+    const cleaned = [];
+    for (const entry of rows) {
+      if (!entry || typeof entry.code !== 'string') {
+        continue;
+      }
+      const code = entry.code.trim();
+      if (!/^\d{8}$/.test(code) || seen.has(code)) {
+        continue;
+      }
+      const description = sanitiseCpvDescription(entry.description || '');
+      seen.add(code);
+      cleaned.push({ code, description });
+    }
+    return cleaned;
+  } catch (err) {
+    const username = session.user && session.user.username;
+    logger.error('Failed to load CPV favourites for %s: %s', username, err.message);
+    throw err;
+  }
 }
 
 /**
@@ -533,7 +521,7 @@ app.get('/opportunities/:id/raw', async (req, res) => {
 });
 
 // GET /cpv - Render the CPV explorer allowing users to browse and favourite codes.
-app.get('/cpv', async (req, res) => {
+app.get('/cpv', requireAuth, async (req, res) => {
   let loadError = null;
   try {
     await db.ensureCpvCodesLoaded();
@@ -541,7 +529,13 @@ app.get('/cpv', async (req, res) => {
     logger.error('Unable to initialise CPV catalogue:', err);
     loadError = 'CPV catalogue could not be initialised. Check server logs for details.';
   }
-  const favourites = getSessionCpvFavourites(req.session);
+  let favourites = [];
+  try {
+    favourites = await getUserCpvFavourites(req.session);
+  } catch (err) {
+    loadError =
+      loadError || 'Your saved CPV favourites could not be loaded. Please retry shortly.';
+  }
   res.render('cpv', {
     page: 'cpv',
     favourites,
@@ -571,14 +565,19 @@ app.get('/api/cpv-codes', async (req, res) => {
   }
 });
 
-// GET /api/cpv-favourites - Surface the session favourites to the frontend.
-app.get('/api/cpv-favourites', (req, res) => {
-  const favourites = getSessionCpvFavourites(req.session);
-  res.json({ favourites });
+// GET /api/cpv-favourites - Surface saved favourites for the logged in user.
+app.get('/api/cpv-favourites', requireAuth, async (req, res) => {
+  try {
+    const favourites = await getUserCpvFavourites(req.session);
+    res.json({ favourites });
+  } catch (err) {
+    logger.error('Unable to fetch CPV favourites for %s: %s', req.session.user.username, err.message);
+    res.status(500).json({ error: 'Unable to load CPV favourites' });
+  }
 });
 
-// POST /api/cpv-favourites - Add or remove CPV favourites stored against the session.
-app.post('/api/cpv-favourites', (req, res) => {
+// POST /api/cpv-favourites - Add or remove CPV favourites saved against the user account.
+app.post('/api/cpv-favourites', requireAuth, async (req, res) => {
   const body = req.body || {};
   const code = typeof body.code === 'string' ? body.code.trim() : '';
   if (!/^\d{8}$/.test(code)) {
@@ -587,28 +586,39 @@ app.post('/api/cpv-favourites', (req, res) => {
   const action = (body.action || 'add').toLowerCase();
 
   if (action === 'remove') {
-    const favourites = removeSessionCpvFavourite(req.session, code);
-    logger.info('Removed CPV favourite %s for session %s', code, req.sessionID);
-    return res.json({ favourites });
+    try {
+      await db.deleteUserCpvFavourite(req.session.user.id, code);
+      const favourites = await getUserCpvFavourites(req.session);
+      logger.info('Removed CPV favourite %s for user %s', code, req.session.user.username);
+      return res.json({ favourites });
+    } catch (err) {
+      logger.error('Failed to remove CPV favourite %s for %s: %s', code, req.session.user.username, err.message);
+      return res.status(500).json({ error: 'Unable to update favourites' });
+    }
   }
 
-  const description =
-    body.description && typeof body.description === 'string'
-      ? body.description.trim()
-      : '';
+  const description = sanitiseCpvDescription(body.description || '');
   if (!description) {
     return res.status(400).json({ error: 'Description is required when favouriting a CPV code' });
   }
 
-  const favourites = addSessionCpvFavourite(req.session, code, description);
-  if (favourites.length > 100) {
-    favourites.pop();
-    return res
-      .status(400)
-      .json({ error: 'Maximum of 100 favourites reached for this session', favourites });
+  try {
+    const existing = await getUserCpvFavourites(req.session);
+    const alreadyTracked = existing.some(entry => entry.code === code);
+    if (!alreadyTracked && existing.length >= 200) {
+      return res.status(400).json({
+        error: 'Maximum of 200 favourites reached for this account',
+        favourites: existing
+      });
+    }
+    await db.upsertUserCpvFavourite(req.session.user.id, code, description);
+    const favourites = await getUserCpvFavourites(req.session);
+    logger.info('Added CPV favourite %s for user %s', code, req.session.user.username);
+    res.json({ favourites });
+  } catch (err) {
+    logger.error('Failed to store CPV favourite %s for %s: %s', code, req.session.user.username, err.message);
+    res.status(500).json({ error: 'Unable to update favourites' });
   }
-  logger.info('Added CPV favourite %s for session %s', code, req.sessionID);
-  res.json({ favourites });
 });
 
 // GET /tenders - Advanced tender browser featuring filtering and CPV discovery tools.
@@ -629,7 +639,12 @@ app.get('/tenders', async (req, res) => {
     loadError = loadError || 'Tender sources could not be loaded from the database.';
   }
 
-  const favourites = getSessionCpvFavourites(req.session);
+  let favourites = [];
+  try {
+    favourites = await getUserCpvFavourites(req.session);
+  } catch (err) {
+    loadError = loadError || 'Your CPV favourites were unavailable. Filtering shortcuts may be limited.';
+  }
   res.render('tenders', {
     page: 'tenders',
     sources,
@@ -834,8 +849,15 @@ app.post('/register', async (req, res) => {
   // Hash the password so only the digest is stored
   const hash = await bcrypt.hash(password, 10);
   await db.createUser(username, hash);
+  const createdUser = await db.getUserByUsername(username);
+  if (!createdUser) {
+    logger.error('User registration succeeded but lookup failed for %s', username);
+    return res
+      .status(500)
+      .render('register', { error: 'Account created but login failed. Please try signing in.', page: 'login' });
+  }
   // Log the new user in immediately and send them to the scraper page
-  req.session.user = { username };
+  req.session.user = { id: createdUser.id, username: createdUser.username };
   res.redirect('/scraper');
 });
 
