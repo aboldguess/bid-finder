@@ -39,6 +39,11 @@ const scrape = proxyquire('../server/scrape', {
   './config': configStub
 });
 
+beforeEach(async () => {
+  await db.ready;
+  await db.deleteAllTenders();
+});
+
 describe('scrape.runAll', () => {
   it('scrapes every configured source', async () => {
     const results = await scrape.runAll();

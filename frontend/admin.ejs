@@ -7,10 +7,11 @@
   @structure
     1. Page header and navigation tabs.
     2. Summary cards showing live system metrics.
-    3. Database tools for wiping or inspecting stored data.
-    4. Feed source management area for creating, updating and testing tender and award feeds.
-    5. User administration area for creating, resetting and deleting accounts.
-    6. Lightweight dialog components for confirmations, password updates and feed previews.
+    3. Cron schedule configuration for the automated scraper job.
+    4. Database tools for wiping or inspecting stored data.
+    5. Feed source management area for creating, updating and testing tender and award feeds.
+    6. User administration area for creating, resetting and deleting accounts.
+    7. Lightweight dialog components for confirmations, password updates and feed previews.
 -->
 <!DOCTYPE html>
 <html>
@@ -76,6 +77,40 @@
       <%= lastScraped ? lastScraped : 'No scrape recorded yet' %>
     </span>
   </p>
+
+  <section id="schedule-admin" class="panel" aria-labelledby="schedule-heading">
+    <div class="panel-header">
+      <h2 id="schedule-heading">Automatic scraping schedule</h2>
+      <p>Control when the background cron job collects fresh tenders. Updates are
+        applied immediately and logged for auditing.</p>
+    </div>
+    <div id="cronStatus" class="status-banner" role="status" aria-live="polite" hidden></div>
+    <form id="cronForm" class="cron-form" autocomplete="off">
+      <p class="hint">Cron expressions use the format <code>minute hour day month weekday</code>.
+        Adjust the dropdowns to match your preferred cadence.</p>
+      <div class="cron-grid">
+        <label for="cronMin">Minute
+          <select id="cronMin" name="minute"></select>
+        </label>
+        <label for="cronHour">Hour
+          <select id="cronHour" name="hour"></select>
+        </label>
+        <label for="cronDom">Day of month
+          <select id="cronDom" name="day"></select>
+        </label>
+        <label for="cronMon">Month
+          <select id="cronMon" name="month"></select>
+        </label>
+        <label for="cronDow">Weekday
+          <select id="cronDow" name="weekday"></select>
+        </label>
+      </div>
+      <div class="form-actions">
+        <button type="submit">Update schedule</button>
+        <output id="cronPreview" class="cron-preview" aria-live="polite"></output>
+      </div>
+    </form>
+  </section>
 
   <section id="db-admin" class="panel" aria-labelledby="db-admin-heading">
     <div class="panel-header">
@@ -147,7 +182,8 @@
     <div class="source-columns">
       <article class="source-column" aria-labelledby="tender-sources-heading">
         <h3 id="tender-sources-heading">Tender sources</h3>
-        <p class="hint">These feeds supply the Opportunities page.</p>
+        <p class="hint">These feeds power the tender explorer, statistics panels and
+          manual scrape tools.</p>
         <div id="tenderSourceStatus" class="status-banner" role="status" aria-live="polite" hidden></div>
         <table class="source-table" aria-describedby="tender-sources-heading">
           <thead>

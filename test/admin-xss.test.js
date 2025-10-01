@@ -1,6 +1,6 @@
 /**
- * @file scraper-xss.test.js
- * @description Integration tests ensuring the scraper management page renders
+ * @file admin-xss.test.js
+ * @description Integration tests ensuring the admin management page renders
  *              data safely and the server rejects malicious source definitions.
  *
  * Structure:
@@ -44,16 +44,38 @@ before(async () => {
     body: new URLSearchParams({ username: 'tester', password: 'pass', _csrf: token }),
     redirect: 'manual'
   });
-  cookie = res.headers.get('set-cookie').split(';')[0];
+  const setCookieHeader = res.headers.get('set-cookie');
+  if (setCookieHeader) {
+    cookie = setCookieHeader.split(';')[0];
+  } else {
+    // Some environments reuse the initial session cookie. Perform an explicit
+    // login to guarantee the session carries authentication details.
+    res = await fetch(url('/login'), { headers: { Cookie: cookie } });
+    html = await res.text();
+    const loginToken = html.match(/name="_csrf" value="([^"]+)"/)[1];
+    res = await fetch(url('/login'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: cookie },
+      body: new URLSearchParams({ username: 'tester', password: 'pass', _csrf: loginToken }),
+      redirect: 'manual'
+    });
+    const loginCookie = res.headers.get('set-cookie');
+    if (loginCookie) {
+      cookie = loginCookie.split(';')[0];
+    }
+  }
   // Retrieve CSRF token for subsequent API calls
-  res = await fetch(url('/scraper'), { headers: { Cookie: cookie } });
+  res = await fetch(url('/admin'), { headers: { Cookie: cookie }, redirect: 'manual' });
+  expect(res.status, 'admin page should be reachable after registration').to.equal(200);
   html = await res.text();
-  csrf = html.match(/name="_csrf" value="([^"]+)"/)[1];
+  const metaMatch = html.match(/name="csrf-token" content="([^"]+)"/);
+  expect(metaMatch, 'admin console should include csrf meta tag').to.not.be.null;
+  csrf = metaMatch[1];
 });
 
 after(() => server.close());
 
-describe('scraper page XSS protections', () => {
+describe('admin page XSS protections', () => {
   it('rejects source definitions containing angle brackets', async () => {
     const res = await fetch(url('/sources'), {
       method: 'POST',
@@ -73,7 +95,7 @@ describe('scraper page XSS protections', () => {
     expect(res.status).to.equal(400);
   });
 
-  it('escapes malicious labels when rendering the scraper page', async () => {
+  it('escapes malicious labels when rendering the admin page', async () => {
     // Inject a source directly into the configuration to emulate stored XSS.
     config.sources.evil = {
       label: '</script><script>alert(1)</script>',
@@ -82,7 +104,7 @@ describe('scraper page XSS protections', () => {
       parser: 'contractsFinder'
     };
 
-    const res = await fetch(url('/scraper'), {
+    const res = await fetch(url('/admin'), {
       headers: { Cookie: cookie }
     });
     const html = await res.text();

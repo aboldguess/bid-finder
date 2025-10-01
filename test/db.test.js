@@ -13,6 +13,20 @@ delete require.cache[require.resolve('../server/db')];
 const db = require('../server/db');
 
 describe('Database helpers', () => {
+  beforeEach(async () => {
+    await db.ready;
+    await db.deleteAllTenders();
+    const sources = await db.getSources();
+    if (sources.length) {
+      await Promise.all(sources.map(src => db.deleteSource(src.key)));
+    }
+    const awardSources = await db.getAwardSources();
+    if (awardSources.length) {
+      await Promise.all(awardSources.map(src => db.deleteAwardSource(src.key)));
+    }
+    await db.setCronSchedule(null);
+  });
+
   it('insertTender ignores duplicates', async () => {
     const first = await db.insertTender(
       't1',
@@ -96,8 +110,8 @@ describe('Database helpers', () => {
     await db.insertTender('t2', 'link2', '2024-02-01', 'd', 's', '2024-02-02T00:00:00Z', 'tag', 'ocds-2', '11111111', '', '', '', '', '', '');
     await db.insertTender('t3', 'link3', '2024-03-01', 'd', 's', '2024-03-02T00:00:00Z', 'tag', 'ocds-3', '22222222', '', '', '', '', '', '');
     const rows = await db.getTenders();
-    // There are now four rows in total including earlier inserts.
-    expect(rows).to.have.length(4);
+    // The database is reset before each test so only the two inserted rows should exist.
+    expect(rows.length).to.equal(2);
     // Ensure ordering by descending date
     expect(rows[0].date).to.equal('2024-03-01');
     expect(rows[1].date).to.equal('2024-02-01');
@@ -225,6 +239,38 @@ describe('Database helpers', () => {
   });
 
   it('count helpers return the number of stored rows', async () => {
+    await db.insertTender(
+      'count tender',
+      'count-link',
+      '2024-10-01',
+      'desc',
+      'count-source',
+      '2024-10-02T00:00:00Z',
+      'tag',
+      'ocds-count',
+      '12340000',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      ''
+    );
+    const awardInsert = await db.insertAward(
+      'count award',
+      'count-award-link',
+      '2024-10-01',
+      'desc',
+      'count-award-source',
+      '2024-10-02T00:00:00Z',
+      'tag'
+    );
+    if (awardInsert.changes) {
+      await db.insertOrganisation('Count Customer', 'customer');
+      await db.insertOrganisation('Count Supplier', 'supplier');
+    }
+
     const tenderCount = await db.getTenderCount();
     const awardCount = await db.getAwardCount();
     const custCount = await db.getOrganisationCount('customer');
@@ -233,9 +279,11 @@ describe('Database helpers', () => {
     expect(awardCount).to.be.a('number');
     expect(custCount).to.be.a('number');
     expect(suppCount).to.be.a('number');
-    // There should be at least one tender and award from previous tests
+    // The explicit inserts above should guarantee at least one row for each helper.
     expect(tenderCount).to.be.greaterThan(0);
     expect(awardCount).to.be.greaterThan(0);
+    expect(custCount).to.be.greaterThan(0);
+    expect(suppCount).to.be.greaterThan(0);
   });
 
   it('getTenderCountsBySource summarises stored rows', async () => {
