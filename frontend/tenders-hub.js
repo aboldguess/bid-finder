@@ -104,8 +104,11 @@
       const description = entry.description || '';
       const button = document.createElement('button');
       button.type = 'button';
-      button.textContent = `${code}`;
-      button.title = description;
+      // Present the favourite using both the code and its label so users can
+      // recognise it without relying on the tooltip alone.
+      const label = description ? `${code} – ${description}` : code;
+      button.textContent = label;
+      button.title = description || code;
       button.className = 'outline';
       const updateState = () => {
         if (state.cpv.has(code)) {
