@@ -43,6 +43,10 @@ document.addEventListener('DOMContentLoaded', () => {
     awardSources: Object.assign({}, initial.awardSources || {}),
     sourceStats: Object.assign({}, initial.sourceStats || {}),
     sourceStatus: Object.assign({}, initial.sourceStatus || {}),
+    parserCatalogue: Array.isArray(initial.parserCatalogue)
+      ? initial.parserCatalogue.map(option => ({ ...option }))
+      : [],
+    defaultParser: initial.defaultParser || 'contractsFinder',
     editing: {
       tender: null,
       award: null
@@ -96,7 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
             label: tenderSourceForm.querySelector('input[name="label"]'),
             url: tenderSourceForm.querySelector('input[name="url"]'),
             base: tenderSourceForm.querySelector('input[name="base"]'),
-            parser: tenderSourceForm.querySelector('input[name="parser"]')
+            parser: tenderSourceForm.querySelector('[name="parser"]')
           },
           submit: tenderSourceForm.querySelector('button[type="submit"]'),
           cancel: tenderSourceForm.querySelector('[data-action="cancel-edit"]')
@@ -110,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
             label: awardSourceForm.querySelector('input[name="label"]'),
             url: awardSourceForm.querySelector('input[name="url"]'),
             base: awardSourceForm.querySelector('input[name="base"]'),
-            parser: awardSourceForm.querySelector('input[name="parser"]')
+            parser: awardSourceForm.querySelector('[name="parser"]')
           },
           submit: awardSourceForm.querySelector('button[type="submit"]'),
           cancel: awardSourceForm.querySelector('[data-action="cancel-edit"]')
@@ -119,15 +123,24 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   const tableBodies = { tender: tenderSourceBody, award: awardSourceBody };
   const sourceBanners = { tender: tenderSourceBanner, award: awardSourceBanner };
+  const defaultParserKey = state.defaultParser || 'contractsFinder';
+  const parserLookup = Array.isArray(state.parserCatalogue)
+    ? state.parserCatalogue.reduce((acc, option) => {
+        if (option && option.key) {
+          acc[option.key] = option.label || option.key;
+        }
+        return acc;
+      }, {})
+    : {};
   const defaultParser = {
     tender:
       formControls.tender && formControls.tender.inputs.parser
-        ? formControls.tender.inputs.parser.value || 'contractsFinder'
-        : 'contractsFinder',
+        ? formControls.tender.inputs.parser.value || defaultParserKey
+        : defaultParserKey,
     award:
       formControls.award && formControls.award.inputs.parser
-        ? formControls.award.inputs.parser.value || 'contractsFinder'
-        : 'contractsFinder'
+        ? formControls.award.inputs.parser.value || defaultParserKey
+        : defaultParserKey
   };
   const apiRoutes = { tender: '/sources', award: '/award-sources' };
   const testRoutes = { tender: '/test-source', award: '/test-award-source' };
@@ -327,7 +340,14 @@ document.addEventListener('DOMContentLoaded', () => {
         labelCell.appendChild(labelTitle);
         const metaBits = [];
         if (src && src.base) metaBits.push(src.base);
-        if (src && src.parser) metaBits.push(`Parser: ${src.parser}`);
+        if (src && src.parser) {
+          const label = parserLookup[src.parser];
+          const parserMeta =
+            label && label !== src.parser
+              ? `Parser: ${src.parser} (${label})`
+              : `Parser: ${src.parser}`;
+          metaBits.push(parserMeta);
+        }
         if (metaBits.length) {
           const meta = document.createElement('div');
           meta.className = 'source-meta';

@@ -18,6 +18,17 @@
   <div id="instructions">
     Manage tender and award sources here. Hover over each input for guidance or
     visit the <a href="/help">help page</a> for full instructions.
+    <details class="parser-reference" open>
+      <summary>Parser reference</summary>
+      <ul class="parser-reference-list">
+        <% parserCatalogue.forEach(parser => { %>
+          <li>
+            <strong><%= parser.label %></strong>
+            (<code><%= parser.key %></code>) &ndash; <%= parser.description %>
+          </li>
+        <% }) %>
+      </ul>
+    </details>
   </div>
   <!-- Collapsible section listing administrative database actions -->
   <details id="dbTools" open>
@@ -117,7 +128,13 @@
             <input class="editLabel" value="<%= sources[key].label %>">
             <input class="editUrl" value="<%= sources[key].url %>">
             <input class="editBase" value="<%= sources[key].base %>">
-            <input class="editParser" value="<%= sources[key].parser %>">
+            <select class="editParser" title="Parser">
+              <% parserCatalogue.forEach(parser => { %>
+                <option value="<%= parser.key %>" <%= sources[key].parser === parser.key ? 'selected' : '' %> title="<%= parser.description %>">
+                  <%= parser.label %>
+                </option>
+              <% }) %>
+            </select>
             <button class="saveBtn">Save</button>
             <button class="cancelBtn">Cancel</button>
           </div>
@@ -131,8 +148,14 @@
     <input id="newLabel" placeholder="Label" title="Display name" required>
     <input id="newUrl" placeholder="Search URL" title="Feed or search page" required>
     <input id="newBase" placeholder="Base URL" title="Website root" required>
-    <!-- Optional parser name; defaults to Contracts Finder if left unchanged -->
-    <input id="newParser" placeholder="Parser" title="Parser name" value="contractsFinder">
+    <!-- Parser selection determines which HTML/RSS parser will normalise the feed -->
+    <select id="newParser" title="Parser">
+      <% parserCatalogue.forEach(parser => { %>
+        <option value="<%= parser.key %>" <%= parser.key === defaultParser ? 'selected' : '' %> title="<%= parser.description %>">
+          <%= parser.label %>
+        </option>
+      <% }) %>
+    </select>
     <button id="addBtn" type="submit">Add Source</button>
   </form>
 
@@ -176,7 +199,13 @@
             <input class="editLabel" value="<%= awardSources[key].label %>">
             <input class="editUrl" value="<%= awardSources[key].url %>">
             <input class="editBase" value="<%= awardSources[key].base %>">
-            <input class="editParser" value="<%= awardSources[key].parser %>">
+            <select class="editParser" title="Parser">
+              <% parserCatalogue.forEach(parser => { %>
+                <option value="<%= parser.key %>" <%= awardSources[key].parser === parser.key ? 'selected' : '' %> title="<%= parser.description %>">
+                  <%= parser.label %>
+                </option>
+              <% }) %>
+            </select>
             <button class="saveBtn">Save</button>
             <button class="cancelBtn">Cancel</button>
           </div>
@@ -191,7 +220,13 @@
     <input id="newAwardUrl" placeholder="Search URL" title="Award feed" required>
     <input id="newAwardBase" placeholder="Base URL" title="Website root" required>
     <!-- Optional parser field for award feed scraping -->
-    <input id="newAwardParser" placeholder="Parser" title="Parser name" value="contractsFinder">
+    <select id="newAwardParser" title="Parser">
+      <% parserCatalogue.forEach(parser => { %>
+        <option value="<%= parser.key %>" <%= parser.key === defaultParser ? 'selected' : '' %> title="<%= parser.description %>">
+          <%= parser.label %>
+        </option>
+      <% }) %>
+    </select>
     <button id="addAwardBtn" type="submit">Add Award Source</button>
   </form>
 
@@ -203,6 +238,7 @@
 const csrfToken = '<%= csrfToken %>';
 const sourceData = <%= JSON.stringify(sources).replace(/</g, '\u003c') %>;
 const awardSourceData = <%= JSON.stringify(awardSources).replace(/</g, '\u003c') %>;
+const defaultParser = '<%= defaultParser %>';
 let editingKey = null;
 let editingAwardKey = null;
 const statusBanner = document.getElementById('dbToolStatus');
@@ -359,7 +395,7 @@ document.getElementById('addSourceForm').addEventListener('submit', async e => {
   const label = document.getElementById('newLabel').value.trim();
   const url = document.getElementById('newUrl').value.trim();
   const base = document.getElementById('newBase').value.trim();
-  // Parser field allows custom HTML parsing rules
+  // Parser dropdown selects the HTML/RSS parsing logic applied to the feed
   const parser = document.getElementById('newParser').value.trim();
   let method = 'POST';
   let endpoint = '/sources';
@@ -400,8 +436,8 @@ document.querySelectorAll('#sourceTable .sourceRow').forEach(row => {
     e.stopPropagation();
     editingKey = null;
     document.getElementById('newKey').disabled = false;
-    // Reset parser field to the default value
-    document.getElementById('newParser').value = 'contractsFinder';
+    // Reset parser field to the default value configured server-side
+    document.getElementById('newParser').value = defaultParser;
     document.getElementById('addBtn').textContent = 'Add Source';
   });
   detail.querySelector('.deleteBtn').addEventListener('click', async ev => {
@@ -420,7 +456,7 @@ document.getElementById('addAwardSourceForm').addEventListener('submit', async e
   const label = document.getElementById('newAwardLabel').value.trim();
   const url = document.getElementById('newAwardUrl').value.trim();
   const base = document.getElementById('newAwardBase').value.trim();
-  // Award parser allows custom extraction from award feeds
+  // Award parser dropdown mirrors the tender parser selection
   const parser = document.getElementById('newAwardParser').value.trim();
   let method = 'POST';
   let endpoint = '/award-sources';
@@ -476,7 +512,7 @@ document.querySelectorAll('#awardSourceTable .awardSourceRow').forEach(row => {
     editingAwardKey = null;
     document.getElementById('newAwardKey').disabled = false;
     // Reset award parser to the default parser name
-    document.getElementById('newAwardParser').value = 'contractsFinder';
+    document.getElementById('newAwardParser').value = defaultParser;
     document.getElementById('addAwardBtn').textContent = 'Add Award Source';
   });
   detail.querySelector('.deleteBtn').addEventListener('click', async ev => {

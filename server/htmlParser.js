@@ -18,6 +18,65 @@
 const cheerio = require('cheerio');
 
 /**
+ * Identifier used when no parser is specified. Exposed so the UI can present
+ * a consistent default option and server code can reference a single source of
+ * truth instead of repeating string literals.
+ */
+const DEFAULT_PARSER_KEY = 'contractsFinder';
+
+/**
+ * Catalogue describing the built-in parsers. The admin and scraper UIs use the
+ * metadata to present human-friendly dropdowns and the help page renders the
+ * descriptions so operators can choose the correct parser for each source.
+ */
+const PARSER_CATALOGUE = Object.freeze(
+  [
+    {
+      key: DEFAULT_PARSER_KEY,
+      label: 'Contracts Finder (HTML)',
+      description:
+        'Purpose-built for the Contracts Finder HTML listings when an RSS feed is unavailable. '
+        + 'Use this when scraping the Contracts Finder search results pages directly.'
+    },
+    {
+      key: 'rss',
+      label: 'RSS / Atom feed',
+      description:
+        'Generic RSS and Atom parser that reads standard feed elements. Choose this whenever '
+        + 'a source exposes a valid RSS or Atom feed of opportunities.'
+    },
+    {
+      key: 'generic',
+      label: 'Generic (CSS selectors)',
+      description:
+        'Uses custom CSS selectors configured for the source to extract fields. '
+        + 'Select only when advanced selectors have been defined for the feed.'
+    },
+    {
+      key: 'eusupply',
+      label: 'EU Supply',
+      description:
+        'Handles the unique markup produced by EU Supply portals such as uk.eu-supply.com. '
+        + 'Select this for opportunities sourced from EU Supply instances.'
+    },
+    {
+      key: 'sell2wales',
+      label: 'Sell2Wales',
+      description:
+        'Tailored to the Sell2Wales opportunity listings. Apply this parser when scraping '
+        + 'sell2wales.gov.wales feeds or HTML listings.'
+    },
+    {
+      key: 'ukri',
+      label: 'UK Research and Innovation',
+      description:
+        'Optimised for the UK Research and Innovation tender portal. Use it for ukri.org '
+        + 'procurement listings.'
+    }
+  ].map(option => Object.freeze(option))
+);
+
+/**
  * Normalise a snippet of markup by stripping tags and collapsing whitespace.
  * @param {string} str Raw HTML or text.
  * @returns {string} Cleaned string.
@@ -433,17 +492,18 @@ function parseRss(xml) {
  * @param {string|object} source Either a parser key or full source definition.
  * @returns {Array<object>} Parsed tender rows.
  */
-exports.parseTenders = function parseTenders(html, source = 'contractsFinder') {
+exports.parseTenders = function parseTenders(html, source = DEFAULT_PARSER_KEY) {
   const sourceConfig =
     typeof source === 'string' || !source
-      ? { parser: source || 'contractsFinder' }
+      ? { parser: source || DEFAULT_PARSER_KEY }
       : source;
 
   if (sourceConfig && sourceConfig.selectors) {
     return parseGeneric(html, sourceConfig.selectors);
   }
 
-  const parserKey = sourceConfig && sourceConfig.parser ? sourceConfig.parser : 'contractsFinder';
+  const parserKey =
+    sourceConfig && sourceConfig.parser ? sourceConfig.parser : DEFAULT_PARSER_KEY;
 
   switch (parserKey) {
     case 'eusupply':
@@ -454,8 +514,11 @@ exports.parseTenders = function parseTenders(html, source = 'contractsFinder') {
       return parseUkri(html);
     case 'rss':
       return parseRss(html);
-    case 'contractsFinder':
+    case DEFAULT_PARSER_KEY:
     default:
       return parseContractsFinder(html);
   }
 };
+
+exports.PARSER_CATALOGUE = PARSER_CATALOGUE;
+exports.DEFAULT_PARSER_KEY = DEFAULT_PARSER_KEY;
