@@ -79,20 +79,66 @@ if (process.env.ALLOWED_SOURCE_DOMAINS) {
 }
 
 /**
- * Determine whether a provided URL is permitted based on protocol and
- * hostname. Only HTTPS URLs whose hostname appears in the allow list are
- * accepted.
+ * Validate whether a provided URL is permitted based on protocol and hostname.
+ * Only HTTPS URLs whose hostname appears in the allow list are accepted. The
+ * helper returns a structured response so calling routes can surface precise
+ * diagnostics to the user.
  *
  * @param {string} candidate - URL to validate
- * @returns {boolean} true when the URL is allowed
+ * @returns {{valid: boolean, reason?: string}} Validation outcome
  */
-function isAllowedUrl(candidate) {
-  try {
-    const { protocol, hostname } = new URL(candidate);
-    return protocol === 'https:' && allowedDomains.has(hostname.toLowerCase());
-  } catch {
-    return false;
+function validateAllowedUrl(candidate) {
+  if (!candidate) {
+    return { valid: false, reason: 'No URL supplied.' };
   }
+
+  let parsed;
+  try {
+    parsed = new URL(candidate);
+  } catch {
+    return {
+      valid: false,
+      reason:
+        'Enter a full HTTPS address including the protocol, for example https://example.com/path.'
+    };
+  }
+
+  if (parsed.protocol !== 'https:') {
+    return { valid: false, reason: 'Only HTTPS URLs are permitted.' };
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+  if (!allowedDomains.has(hostname)) {
+    return {
+      valid: false,
+      reason: `Host "${hostname}" is not on the allow list. Add it via the ALLOWED_SOURCE_DOMAINS environment variable or include it in the initial configuration.`
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validate both the search URL and base URL provided for a feed. Separate
+ * messages are returned for each value so the UI can highlight the field that
+ * needs attention.
+ *
+ * @param {string} searchUrl - Listing or RSS URL entered by the user
+ * @param {string} baseUrl - Base website URL used for resolving relative links
+ * @returns {{valid: boolean, message?: string}} Outcome of the validation
+ */
+function validateSourceUrls(searchUrl, baseUrl) {
+  const urlResult = validateAllowedUrl(searchUrl);
+  if (!urlResult.valid) {
+    return { valid: false, message: `Search URL rejected: ${urlResult.reason}` };
+  }
+
+  const baseResult = validateAllowedUrl(baseUrl);
+  if (!baseResult.valid) {
+    return { valid: false, message: `Base URL rejected: ${baseResult.reason}` };
+  }
+
+  return { valid: true };
 }
 
 const app = express();
@@ -1176,8 +1222,9 @@ app.post('/sources', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Invalid characters in key or label' });
   }
 
-  if (!isAllowedUrl(url) || !isAllowedUrl(base)) {
-    return res.status(400).json({ error: 'URL not permitted' });
+  const urlValidation = validateSourceUrls(url, base);
+  if (!urlValidation.valid) {
+    return res.status(400).json({ error: urlValidation.message });
   }
 
   if (config.sources[key]) {
@@ -1220,8 +1267,9 @@ app.put('/sources/:key', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Invalid characters in key or label' });
   }
 
-  if (!isAllowedUrl(url) || !isAllowedUrl(base)) {
-    return res.status(400).json({ error: 'URL not permitted' });
+  const urlValidation = validateSourceUrls(url, base);
+  if (!urlValidation.valid) {
+    return res.status(400).json({ error: urlValidation.message });
   }
 
   try {
@@ -1278,8 +1326,9 @@ app.post('/award-sources', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Invalid characters in key or label' });
   }
 
-  if (!isAllowedUrl(url) || !isAllowedUrl(base)) {
-    return res.status(400).json({ error: 'URL not permitted' });
+  const urlValidation = validateSourceUrls(url, base);
+  if (!urlValidation.valid) {
+    return res.status(400).json({ error: urlValidation.message });
   }
 
   try {
@@ -1314,8 +1363,9 @@ app.put('/award-sources/:key', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Invalid characters in key or label' });
   }
 
-  if (!isAllowedUrl(url) || !isAllowedUrl(base)) {
-    return res.status(400).json({ error: 'URL not permitted' });
+  const urlValidation = validateSourceUrls(url, base);
+  if (!urlValidation.valid) {
+    return res.status(400).json({ error: urlValidation.message });
   }
 
   try {
