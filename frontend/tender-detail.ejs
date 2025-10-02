@@ -77,13 +77,15 @@
     <% } %>
   </section>
   <script>
+    // Protect the embedded JSON from prematurely closing this script block
+    // when tender data includes HTML fragments that resemble closing script tags.
     window.__TENDER_CONTEXT__ = <%- JSON.stringify({
       tender,
       bookmark: bookmark || null,
       detailPayload: detailPayload || null,
       user: user || null,
       bookmarkError: bookmarkError || null
-    }) %>;
+    }).replace(/</g, '\\u003c') %>;
   </script>
   <script src="/tender-detail.js"></script>
 </body>
