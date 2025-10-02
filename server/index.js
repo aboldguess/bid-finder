@@ -1099,8 +1099,16 @@ app.get('/scrape', requireAuth, async (req, res) => {
   const sourceKey = req.query.source || 'default';
   const source = config.sources[sourceKey] || config.sources.default;
   logger.info(`Manual scrape triggered for ${sourceKey}`);
-  const newTenders = await scrape.run(null, source, sourceKey);
-  res.json({ added: newTenders });
+  sourceStatus[sourceKey] = 'running';
+  try {
+    const newTenders = await scrape.run(null, source, sourceKey);
+    sourceStatus[sourceKey] = 'ok';
+    res.json({ added: newTenders });
+  } catch (err) {
+    sourceStatus[sourceKey] = 'error';
+    logger.error('Manual scrape failed for %s: %s', sourceKey, err.message);
+    res.status(500).json({ error: 'Scrape failed', details: err.message });
+  }
 });
 
 // Trigger the awards scraper for a specific source.
@@ -1108,8 +1116,16 @@ app.get('/scrape-awarded', requireAuth, async (req, res) => {
   const sourceKey = req.query.source || 'default';
   const source = config.awardSources[sourceKey] || config.awardSources.default;
   logger.info(`Manual awards scrape triggered for ${sourceKey}`);
-  const added = await scrapeAwarded.run(null, source, sourceKey);
-  res.json({ added });
+  sourceStatus[sourceKey] = 'running';
+  try {
+    const added = await scrapeAwarded.run(null, source, sourceKey);
+    sourceStatus[sourceKey] = 'ok';
+    res.json({ added });
+  } catch (err) {
+    sourceStatus[sourceKey] = 'error';
+    logger.error('Manual awards scrape failed for %s: %s', sourceKey, err.message);
+    res.status(500).json({ error: 'Scrape failed', details: err.message });
+  }
 });
 
 // GET /scrape-all - Run the scraper against every configured source. This
@@ -1117,14 +1133,26 @@ app.get('/scrape-awarded', requireAuth, async (req, res) => {
 // returns a summary of how many tenders were added per source.
 app.get('/scrape-all', requireAuth, async (req, res) => {
   logger.info('Manual scrape triggered for all sources');
+  Object.keys(config.sources).forEach(key => {
+    sourceStatus[key] = 'running';
+  });
   const results = await scrape.runAll();
+  Object.entries(results).forEach(([key, result]) => {
+    sourceStatus[key] = result && result.error ? 'error' : 'ok';
+  });
   res.json(results);
 });
 
 // Scrape all award sources sequentially and return per-source stats.
 app.get('/scrape-awarded-all', requireAuth, async (req, res) => {
   logger.info('Manual awards scrape triggered for all sources');
+  Object.keys(config.awardSources).forEach(key => {
+    sourceStatus[key] = 'running';
+  });
   const results = await scrapeAwarded.runAll();
+  Object.entries(results).forEach(([key, result]) => {
+    sourceStatus[key] = result && result.error ? 'error' : 'ok';
+  });
   res.json(results);
 });
 
@@ -1138,7 +1166,13 @@ app.get('/scrape-all-stream', requireAuth, async (req, res) => {
   res.flushHeaders();
 
   const send = data => res.write(`data: ${JSON.stringify(data)}\n\n`);
+  Object.keys(config.sources).forEach(key => {
+    sourceStatus[key] = 'running';
+  });
   const results = await scrape.runAll(p => send(p));
+  Object.entries(results).forEach(([key, result]) => {
+    sourceStatus[key] = result && result.error ? 'error' : 'ok';
+  });
   send({ done: true, results });
   res.end();
 });
@@ -1168,15 +1202,26 @@ app.get('/scrape-stream', requireAuth, async (req, res) => {
 
   // Run the scraper and stream progress for each tender found. The selected
   // source is forwarded to the scraper so different sites can be targeted.
-  const count = await scrape.run(progress => send(progress), source, sourceKey);
-
-  // Emit a final message indicating completion and close the connection.
-  send({
-    done: true,
-    added: count,
-    duration: Math.round((Date.now() - start) / 1000)
-  });
-  res.end();
+  sourceStatus[sourceKey] = 'running';
+  try {
+    const count = await scrape.run(progress => send(progress), source, sourceKey);
+    sourceStatus[sourceKey] = 'ok';
+    send({
+      done: true,
+      added: count,
+      duration: Math.round((Date.now() - start) / 1000)
+    });
+  } catch (err) {
+    sourceStatus[sourceKey] = 'error';
+    logger.error('Manual SSE scrape failed for %s: %s', sourceKey, err.message);
+    send({
+      done: true,
+      error: err.message,
+      duration: Math.round((Date.now() - start) / 1000)
+    });
+  } finally {
+    res.end();
+  }
 });
 
 // SSE streaming variant of the awards scraper.
@@ -1196,13 +1241,26 @@ app.get('/scrape-awarded-stream', requireAuth, async (req, res) => {
 
   const send = data => res.write(`data: ${JSON.stringify(data)}\n\n`);
 
-  const count = await scrapeAwarded.run(progress => send(progress), source, sourceKey);
-  send({
-    done: true,
-    added: count,
-    duration: Math.round((Date.now() - start) / 1000)
-  });
-  res.end();
+  sourceStatus[sourceKey] = 'running';
+  try {
+    const count = await scrapeAwarded.run(progress => send(progress), source, sourceKey);
+    sourceStatus[sourceKey] = 'ok';
+    send({
+      done: true,
+      added: count,
+      duration: Math.round((Date.now() - start) / 1000)
+    });
+  } catch (err) {
+    sourceStatus[sourceKey] = 'error';
+    logger.error('Manual SSE award scrape failed for %s: %s', sourceKey, err.message);
+    send({
+      done: true,
+      error: err.message,
+      duration: Math.round((Date.now() - start) / 1000)
+    });
+  } finally {
+    res.end();
+  }
 });
 
 // Stream log entries to the dashboard so progress can be monitored live. The
@@ -1393,6 +1451,18 @@ app.get('/admin/db-info', requireAuth, requireAdmin, async (req, res) => {
   } catch (err) {
     logger.error('Failed to fetch database info:', err);
     res.status(500).json({ error: 'Failed to fetch data' });
+  }
+});
+
+// Provide the latest per-source scraping statistics so the admin console can
+// refresh timestamps after manual runs without reloading the full page.
+app.get('/admin/source-stats', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const rows = await db.getSourceStats();
+    res.json(rows);
+  } catch (err) {
+    logger.error('Failed to fetch source stats:', err);
+    res.status(500).json({ error: 'Failed to fetch source statistics' });
   }
 });
 
