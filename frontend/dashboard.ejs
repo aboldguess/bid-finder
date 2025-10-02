@@ -1,3 +1,15 @@
+<!--
+  @file dashboard.ejs
+  @description Landing page summarising scraper activity for quick status
+    checks. The dashboard renders a summary of stored records, exposes manual
+    "scrape now" controls for every configured source and streams application
+    logs so operators can monitor progress without opening the terminal.
+  @structure
+    1. Page shell, navigation and global "scrape all" control.
+    2. Summary list covering total tenders, awards, customers and suppliers.
+    3. Source status list with individual scrape controls and progress output.
+    4. Client-side script handling log streaming and scrape triggers.
+-->
 <!DOCTYPE html>
 <html>
 <head>
@@ -7,59 +19,243 @@
 <body>
   <h1>Dashboard</h1>
   <%- include('partials/nav', { page: 'dashboard', user: user }) %>
-  <button id="scrapeAll">Scrape All Now</button>
-  <div id="feed"></div>
+  <div class="action-row">
+    <button id="scrapeAll">Scrape all sources now</button>
+  </div>
+  <div id="feed" class="log-feed" aria-live="polite" aria-label="Live scraper log output"></div>
   <!-- Quick overview showing how much data has been scraped so far -->
   <h2>Summary</h2>
-  <ul>
-    <li>Open tenders: <%= counts.tenders %></li>
-    <li>Awarded contracts: <%= counts.awards %></li>
-    <li>Customers: <%= counts.customers %></li>
-    <li>Suppliers: <%= counts.suppliers %></li>
+  <ul class="summary-list">
+    <li><strong>Open tenders</strong>: <%= counts.tenders %></li>
+    <li><strong>Awarded contracts</strong>: <%= counts.awards %></li>
+    <li><strong>Customers</strong>: <%= counts.customers %></li>
+    <li><strong>Suppliers</strong>: <%= counts.suppliers %></li>
   </ul>
-  <h2>Source Status</h2>
-  <ul>
-    <% Object.keys(sources).forEach(key => { %>
-      <li id="status-<%= key %>">
-        <span class="status-light <%= sourceStatus[key] === 'ok' ? 'ok' : sourceStatus[key] === 'error' ? 'error' : '' %>"></span>
-        <%= sources[key].label %>
+  <h2>Source status</h2>
+  <p class="hint">Run individual scrapes to debug a problematic feed without touching the rest of the schedule.</p>
+  <ul class="source-list" id="sourceStatusList">
+    <% Object.keys(sources).forEach(key => { const source = sources[key]; %>
+      <li id="status-<%= key %>" data-source-key="<%= key %>">
+        <div class="source-list-details">
+          <span class="status-light <%= sourceStatus[key] === 'ok' ? 'ok' : sourceStatus[key] === 'error' ? 'error' : '' %>" aria-hidden="true"></span>
+          <div class="source-list-meta">
+            <span class="source-label"><%= source.label %></span>
+            <% if (source.base) { %>
+              <span class="source-meta"><%= source.base %></span>
+            <% } %>
+          </div>
+        </div>
+        <div class="source-list-actions">
+          <button type="button" class="scrape-now" data-source="<%= key %>">Scrape now</button>
+          <span class="scrape-feedback" data-role="feedback" aria-live="polite"></span>
+        </div>
       </li>
     <% }) %>
   </ul>
 <script>
-// Display log messages from the server in real time
-const feed = document.getElementById('feed');
-const logStream = new EventSource('/logs');
-logStream.onmessage = e => {
-  const data = JSON.parse(e.data);
-  const div = document.createElement('div');
-  div.textContent = `[${data.level}] ${data.message}`;
-  feed.appendChild(div);
-  feed.scrollTop = feed.scrollHeight;
-};
+// eslint-disable-next-line no-unused-vars
+(function initialiseDashboard() {
+  // Cache source metadata and status flags rendered by the server so we can
+  // update indicators instantly before fresh data is fetched.
+  const sourceData = <%- JSON.stringify(sources).replace(/</g, '\u003c') %>;
+  const statusCache = Object.assign({}, <%- JSON.stringify(sourceStatus).replace(/</g, '\u003c') %>);
 
-// Trigger a scrape of all sources using SSE progress reporting
-function runScrape(){
-  const es = new EventSource('/scrape-all-stream');
-  es.onmessage = evt => {
-    const data = JSON.parse(evt.data);
-    if(data.done){
-      es.close();
-    } else if(data.source){
-      const li = document.getElementById('status-'+data.source);
-      if(li){
-        const light = li.querySelector('.status-light');
-        if(data.error){
-          light.classList.add('error');
-        } else {
-          light.classList.add('ok');
-        }
-      }
+  const feed = document.getElementById('feed');
+  const scrapeAllBtn = document.getElementById('scrapeAll');
+  const sourceButtons = Array.from(document.querySelectorAll('button.scrape-now'));
+
+  /**
+   * Helper returning the list item representing a source. We keep lookups
+   * centralised to avoid duplicated selectors.
+   * @param {string} key - Source identifier
+   * @returns {HTMLLIElement|null}
+   */
+  function getSourceListItem(key) {
+    return document.querySelector(`li[data-source-key="${key}"]`);
+  }
+
+  /**
+   * Update the coloured status indicator for a source to reflect the most
+   * recent result.
+   * @param {string} key - Source identifier
+   * @param {'ok'|'error'|'running'|'unknown'} state - Visual state to apply
+   */
+  function setStatusLight(key, state) {
+    const item = getSourceListItem(key);
+    if (!item) return;
+    const light = item.querySelector('.status-light');
+    if (!light) return;
+    light.classList.remove('ok', 'error', 'running');
+    if (state === 'ok') light.classList.add('ok');
+    if (state === 'error') light.classList.add('error');
+    if (state === 'running') light.classList.add('running');
+  }
+
+  /**
+   * Provide human friendly feedback beneath a source button.
+   * @param {string} key - Source identifier
+   * @param {string} message - Message to display
+   */
+  function setFeedback(key, message) {
+    const item = getSourceListItem(key);
+    if (!item) return;
+    const feedback = item.querySelector('[data-role="feedback"]');
+    if (feedback) {
+      feedback.textContent = message;
+    }
+  }
+
+  /** Enable or disable every per-source button. */
+  function toggleSourceButtons(disabled) {
+    sourceButtons.forEach(btn => {
+      btn.disabled = disabled;
+    });
+  }
+
+  // Display log messages from the server in real time to assist debugging.
+  const logStream = new EventSource('/logs');
+  logStream.onmessage = e => {
+    try {
+      const data = JSON.parse(e.data);
+      const div = document.createElement('div');
+      div.textContent = `[${data.level}] ${data.message}`;
+      feed.appendChild(div);
+      feed.scrollTop = feed.scrollHeight;
+    } catch (err) {
+      console.error('Failed to parse log stream payload', err);
     }
   };
-}
 
-document.getElementById('scrapeAll').addEventListener('click', runScrape);
+  /**
+   * Run a scrape for a specific source using the SSE endpoint for progress.
+   * @param {string} key - Source identifier
+   */
+  function runScrapeForSource(key) {
+    const meta = sourceData[key];
+    if (!meta) return;
+
+    setStatusLight(key, 'running');
+    setFeedback(key, 'Starting scrape…');
+    const button = sourceButtons.find(btn => btn.dataset.source === key);
+    if (button) button.disabled = true;
+
+    const route = new URL('/scrape-stream', window.location.origin);
+    route.searchParams.set('source', key);
+    const es = new EventSource(route.toString());
+
+    es.onmessage = evt => {
+      let payload;
+      try {
+        payload = JSON.parse(evt.data);
+      } catch (err) {
+        console.error('Invalid SSE payload for scrape stream', err);
+        return;
+      }
+
+      if (payload.step === 'tender' && payload.total) {
+        setFeedback(key, `Processing ${payload.index}/${payload.total} results…`);
+      }
+
+      if (payload.done) {
+        es.close();
+        if (button) button.disabled = false;
+        if (payload.error) {
+          statusCache[key] = 'error';
+          setStatusLight(key, 'error');
+          setFeedback(key, `Scrape failed: ${payload.error}`);
+        } else {
+          statusCache[key] = 'ok';
+          setStatusLight(key, 'ok');
+          const added = typeof payload.added === 'number' ? payload.added : 0;
+          const duration = typeof payload.duration === 'number' ? payload.duration : 0;
+          const durationMsg = duration ? ` in ${duration}s` : '';
+          setFeedback(key, added ? `Added ${added} new tenders${durationMsg}.` : `No new tenders${durationMsg}.`);
+        }
+      }
+    };
+
+    es.onerror = err => {
+      console.error('Scrape stream error', err);
+      es.close();
+      if (button) button.disabled = false;
+      statusCache[key] = 'error';
+      setStatusLight(key, 'error');
+      setFeedback(key, 'Stream interrupted. Check server logs.');
+    };
+  }
+
+  // Trigger a scrape of all sources using SSE progress reporting.
+  function runScrapeAll() {
+    setFeedback('*', '');
+    toggleSourceButtons(true);
+    if (scrapeAllBtn) scrapeAllBtn.disabled = true;
+    Object.keys(sourceData).forEach(key => {
+      setStatusLight(key, 'running');
+      setFeedback(key, 'Queued…');
+      statusCache[key] = 'running';
+    });
+
+    const es = new EventSource('/scrape-all-stream');
+    es.onmessage = evt => {
+      let payload;
+      try {
+        payload = JSON.parse(evt.data);
+      } catch (err) {
+        console.error('Invalid payload from scrape-all stream', err);
+        return;
+      }
+
+      if (payload.source) {
+        const state = payload.error ? 'error' : 'ok';
+        statusCache[payload.source] = state;
+        setStatusLight(payload.source, state === 'ok' ? 'ok' : 'error');
+        setFeedback(
+          payload.source,
+          payload.error ? `Failed: ${payload.error}` : 'Scrape completed.'
+        );
+      }
+
+      if (payload.done) {
+        if (payload.results) {
+          Object.entries(payload.results).forEach(([key, result]) => {
+            const state = result && result.error ? 'error' : 'ok';
+            statusCache[key] = state;
+            setStatusLight(key, state === 'ok' ? 'ok' : 'error');
+            if (result && result.error) {
+              setFeedback(key, `Failed: ${result.error}`);
+            } else {
+              setFeedback(key, 'Scrape completed.');
+            }
+          });
+        }
+        es.close();
+        toggleSourceButtons(false);
+        if (scrapeAllBtn) scrapeAllBtn.disabled = false;
+      }
+    };
+
+    es.onerror = err => {
+      console.error('Scrape-all stream error', err);
+      es.close();
+      toggleSourceButtons(false);
+      if (scrapeAllBtn) scrapeAllBtn.disabled = false;
+      Object.keys(sourceData).forEach(key => {
+        if (statusCache[key] !== 'ok') {
+          setStatusLight(key, 'error');
+          setFeedback(key, 'Stream interrupted before completion.');
+        }
+      });
+    };
+  }
+
+  // Wire up click handlers once the DOM has been prepared.
+  if (scrapeAllBtn) {
+    scrapeAllBtn.addEventListener('click', runScrapeAll);
+  }
+  sourceButtons.forEach(btn => {
+    btn.addEventListener('click', () => runScrapeForSource(btn.dataset.source));
+  });
+})();
 </script>
 </body>
 </html>

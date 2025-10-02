@@ -157,6 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   const apiRoutes = { tender: '/sources', award: '/award-sources' };
   const testRoutes = { tender: '/test-source', award: '/test-award-source' };
+  const scrapeRoutes = { tender: '/scrape-stream', award: '/scrape-awarded-stream' };
 
   /**
    * Display a status message within the supplied banner element.
@@ -465,7 +466,17 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function normaliseStatus(value) {
-    return value ? String(value) : 'unknown';
+    switch (value) {
+      case 'ok':
+        return 'Healthy';
+      case 'error':
+        return 'Error';
+      case 'running':
+        return 'Running…';
+      case 'unknown':
+      default:
+        return 'Unknown';
+    }
   }
 
   function formatTimestamp(value) {
@@ -559,6 +570,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const actions = document.createElement('td');
         actions.className = 'source-actions';
+        const scrapeBtn = document.createElement('button');
+        scrapeBtn.type = 'button';
+        scrapeBtn.className = 'scrape-now source-scrape';
+        scrapeBtn.textContent = 'Scrape now';
+        scrapeBtn.addEventListener('click', () => triggerSourceScrape(kind, key));
+
         const testBtn = document.createElement('button');
         testBtn.type = 'button';
         testBtn.className = 'secondary source-test';
@@ -577,7 +594,7 @@ document.addEventListener('DOMContentLoaded', () => {
         deleteBtn.textContent = 'Delete';
         deleteBtn.addEventListener('click', () => confirmDeleteSource(kind, key));
 
-        actions.append(testBtn, editBtn, deleteBtn);
+        actions.append(scrapeBtn, testBtn, editBtn, deleteBtn);
 
         row.append(keyCell, labelCell, statusCell, lastScrapedCell, lastAddedCell, totalCell, actions);
         fragment.appendChild(row);
@@ -588,6 +605,147 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderSources() {
     renderSourceTable('tender');
     renderSourceTable('award');
+  }
+
+  /** Disable or enable all action buttons within a source table row. */
+  function setRowDisabled(row, disabled) {
+    if (!row) return;
+    row.querySelectorAll('button').forEach(btn => {
+      btn.disabled = disabled;
+    });
+  }
+
+  /**
+   * Fetch the latest scraping statistics from the server and re-render both
+   * tender and award tables so timestamps stay current after a manual run.
+   *
+   * @returns {Promise<void>}
+   */
+  async function refreshSourceStatsData() {
+    const res = await fetch('/admin/source-stats', {
+      headers: { Accept: 'application/json' }
+    });
+    if (res.status === 401) {
+      redirectToLogin();
+      throw new Error('Session expired');
+    }
+    if (res.status === 403) {
+      throw new Error('Administrator access required to refresh source statistics.');
+    }
+    if (!res.ok) {
+      throw new Error(`Failed to refresh source statistics (status ${res.status})`);
+    }
+    const rows = await res.json();
+    const next = {};
+    (Array.isArray(rows) ? rows : []).forEach(row => {
+      if (row && row.key) {
+        next[row.key] = row;
+      }
+    });
+    state.sourceStats = next;
+    renderSourceTable('tender');
+    renderSourceTable('award');
+  }
+
+  /**
+   * Trigger a live scrape for a single source via the SSE endpoint so
+   * administrators can debug a feed without touching others.
+   *
+   * @param {'tender'|'award'} kind - Source type.
+   * @param {string} key - Source identifier.
+   */
+  function triggerSourceScrape(kind, key) {
+    const route = scrapeRoutes[kind];
+    if (!route) return;
+    const banner = sourceBanners[kind];
+    const collection = getSourceCollection(kind);
+    const source = collection[key] || {};
+    const label = source.label || key;
+    const row = tableBodies[kind]
+      ? tableBodies[kind].querySelector(`tr[data-key="${key}"]`)
+      : null;
+    const statusCell = row ? row.querySelector('.source-status') : null;
+
+    hideStatus(banner);
+    announce(banner, `Scraping ${label}…`, 'info');
+    state.sourceStatus[key] = 'running';
+    if (statusCell) statusCell.textContent = 'Running…';
+    setRowDisabled(row, true);
+
+    const url = new URL(route, window.location.origin);
+    url.searchParams.set('source', key);
+    const es = new EventSource(url.toString());
+
+    es.onmessage = evt => {
+      let payload;
+      try {
+        payload = JSON.parse(evt.data);
+      } catch (err) {
+        console.error('Invalid payload from scrape stream', err);
+        return;
+      }
+
+      if (payload.step === 'tender' && payload.total) {
+        const total = Number(payload.total) || 0;
+        const index = Number(payload.index) || 0;
+        if (statusCell) {
+          statusCell.textContent = total
+            ? `Processing ${index}/${total}`
+            : 'Processing feed…';
+        }
+      }
+
+      if (payload.done) {
+        es.close();
+        setRowDisabled(row, false);
+
+        if (payload.error) {
+          state.sourceStatus[key] = 'error';
+          if (statusCell) statusCell.textContent = 'Error';
+          announce(
+            banner,
+            `Scrape failed for ${label}: ${payload.error}`,
+            'error'
+          );
+          return;
+        }
+
+        state.sourceStatus[key] = 'ok';
+        if (statusCell) statusCell.textContent = 'Refreshing statistics…';
+        const noun = kind === 'award' ? 'awards' : 'tenders';
+        const added = Number(payload.added) || 0;
+        const successMessage =
+          added > 0
+            ? `Scrape completed. Added ${added} new ${noun}.`
+            : `Scrape completed. No new ${noun} were stored.`;
+
+        refreshSourceStatsData()
+          .then(() => {
+            announce(banner, successMessage, 'success');
+          })
+          .catch(err => {
+            console.error('Unable to refresh source statistics', err);
+            announce(
+              banner,
+              `${successMessage} Statistics refresh failed; check connectivity.`,
+              'info'
+            );
+          });
+      }
+    };
+
+    es.onerror = err => {
+      console.error('Stream error while scraping source', err);
+      es.close();
+      setRowDisabled(row, false);
+      state.sourceStatus[key] = 'error';
+      if (statusCell) statusCell.textContent = 'Error';
+      announce(
+        banner,
+        `Connection lost while scraping ${label}. Check server logs for details.`,
+        'error'
+      );
+    };
   }
 
   function resetSourceForm(kind, focus = false) {
