@@ -1,0 +1,64 @@
+<!--
+  @file award-detail.ejs
+  @description Detailed view for an awarded contract. Displays stored summary
+    information and any extended fields scraped from the award detail page so
+    analysts can verify the captured data in one place.
+  @structure
+    1. Summary card covering title, source, dates and tags.
+    2. Optional contract specifics table populated when the award_details table
+       contains extended metadata.
+-->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Award detail - <%= award.title %></title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <h1>Award detail</h1>
+  <%- include('partials/nav', { page: 'awarded', user: user }) %>
+  <section class="panel">
+    <h2>Summary</h2>
+    <p class="form-hint">This data was captured directly from the award listing and stored in the awards table.</p>
+    <table class="detail-table">
+      <tbody>
+        <tr><th scope="row">Title</th><td><%= award.title %></td></tr>
+        <tr><th scope="row">Source</th><td><%= award.source %></td></tr>
+        <tr><th scope="row">Link</th><td><a href="<%= award.link %>" target="_blank" rel="noopener"><%= award.link %></a></td></tr>
+        <tr><th scope="row">Published</th><td><%= award.date %></td></tr>
+        <tr><th scope="row">Scraped</th><td><%= award.scraped_at %></td></tr>
+        <tr><th scope="row">Tags</th><td><%= (award.tags || '').split(',').filter(Boolean).join(', ') || 'None' %></td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section class="panel">
+    <h2>Contract specifics</h2>
+    <% if (detail) { %>
+      <table class="detail-table">
+        <tbody>
+          <tr><th scope="row">Buyer</th><td><%= detail.buyer || 'Not provided' %></td></tr>
+          <tr><th scope="row">Status</th><td><%= detail.status || 'Not provided' %></td></tr>
+          <tr><th scope="row">Industry</th><td><%= detail.industry || 'Not provided' %></td></tr>
+          <tr><th scope="row">Location</th><td><%= detail.location || 'Not provided' %></td></tr>
+          <tr><th scope="row">Value</th><td><%= detail.value || 'Not provided' %></td></tr>
+          <tr><th scope="row">Reference</th><td><%= detail.procurement_reference || 'Not provided' %></td></tr>
+          <tr><th scope="row">Closing date</th><td><%= detail.closing_date || 'Not provided' %></td></tr>
+          <tr><th scope="row">Closing time</th><td><%= detail.closing_time || 'Not provided' %></td></tr>
+          <tr><th scope="row">Start date</th><td><%= detail.start_date || 'Not provided' %></td></tr>
+          <tr><th scope="row">End date</th><td><%= detail.end_date || 'Not provided' %></td></tr>
+          <tr><th scope="row">Contract type</th><td><%= detail.contract_type || 'Not provided' %></td></tr>
+          <tr><th scope="row">Procedure type</th><td><%= detail.procedure_type || 'Not provided' %></td></tr>
+          <tr><th scope="row">Procedure description</th><td><%= detail.procedure_desc || 'Not provided' %></td></tr>
+          <tr><th scope="row">Suitable for SME</th><td><%= detail.suitable_for_sme ? 'Yes' : 'No/Unknown' %></td></tr>
+          <tr><th scope="row">Suitable for VCSE</th><td><%= detail.suitable_for_vcse ? 'Yes' : 'No/Unknown' %></td></tr>
+          <tr><th scope="row">How to apply</th><td><%= detail.how_to_apply || 'Not provided' %></td></tr>
+          <tr><th scope="row">Buyer address</th><td><%= detail.buyer_address || 'Not provided' %></td></tr>
+          <tr><th scope="row">Buyer email</th><td><%= detail.buyer_email || 'Not provided' %></td></tr>
+        </tbody>
+      </table>
+    <% } else { %>
+      <p class="form-hint">Extended award metadata has not been captured for this record.</p>
+    <% } %>
+  </section>
+</body>
+</html>

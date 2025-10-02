@@ -91,6 +91,25 @@ db.serialize(() => {
     base TEXT,
     parser TEXT
   )`);
+  db.run(`CREATE TABLE IF NOT EXISTS tender_bookmarks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    tender_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, tender_id),
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY(tender_id) REFERENCES tenders(id) ON DELETE CASCADE
+  )`);
+  db.run(`CREATE TABLE IF NOT EXISTS tender_bookmark_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bookmark_id INTEGER NOT NULL,
+    note TEXT,
+    due_date TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(bookmark_id) REFERENCES tender_bookmarks(id) ON DELETE CASCADE
+  )`);
   // Awarded contract sources managed separately from regular tender sources
   db.run(`CREATE TABLE IF NOT EXISTS award_sources (
     key TEXT PRIMARY KEY,

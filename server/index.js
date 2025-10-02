@@ -272,6 +272,50 @@ function deriveTenderValue(rawDetails) {
   return '';
 }
 
+/**
+ * Strip heavy fields from bookmark rows so API responses stay compact while
+ * retaining the metadata required by the UI.
+ *
+ * @param {object|null} bookmark - Bookmark with nested tender details.
+ * @returns {object|null} Sanitised bookmark ready for JSON serialisation.
+ */
+function serialiseBookmark(bookmark) {
+  if (!bookmark) {
+    return null;
+  }
+  const tender = bookmark.tender || {};
+  return {
+    id: bookmark.id,
+    userId: bookmark.userId,
+    tenderId: bookmark.tenderId,
+    createdAt: bookmark.createdAt,
+    updatedAt: bookmark.updatedAt,
+    tender: {
+      id: tender.id,
+      title: tender.title,
+      link: tender.link,
+      source: tender.source,
+      publishedDate: tender.publishedDate,
+      scrapedAt: tender.scrapedAt,
+      openDate: tender.openDate,
+      deadline: tender.deadline,
+      customer: tender.customer,
+      address: tender.address,
+      country: tender.country,
+      eligibility: tender.eligibility
+    },
+    notes: Array.isArray(bookmark.notes)
+      ? bookmark.notes.map(note => ({
+          id: note.id,
+          note: note.note,
+          dueDate: note.dueDate,
+          createdAt: note.createdAt,
+          updatedAt: note.updatedAt
+        }))
+      : []
+  };
+}
+
 // Load settings such as the cron schedule and any user-added sources from the
 // database before the server begins handling requests. This ensures the in-memory
 // configuration matches what was saved previously.
@@ -628,6 +672,57 @@ app.get('/tenders', async (req, res) => {
   });
 });
 
+// GET /tenders/:id - Detailed view for a specific tender including bookmark state.
+app.get('/tenders/:id', async (req, res) => {
+  const tenderId = Number.parseInt(req.params.id, 10);
+  if (!Number.isInteger(tenderId)) {
+    return res.status(404).send('Tender not found');
+  }
+
+  try {
+    const tender = await db.getTenderById(tenderId);
+    if (!tender) {
+      return res.status(404).send('Tender not found');
+    }
+
+    let detailPayload = null;
+    let detailError = null;
+    if (tender.raw_details) {
+      try {
+        detailPayload = JSON.parse(tender.raw_details);
+      } catch (err) {
+        detailError = 'Raw detail payload could not be parsed as JSON.';
+        logger.warn('Failed to parse raw detail JSON for tender %d: %s', tenderId, err.message);
+      }
+    }
+
+    let bookmark = null;
+    let bookmarkError = null;
+    if (req.session.user) {
+      try {
+        const rawBookmark = await db.getTenderBookmarkWithNotes(req.session.user.id, tenderId);
+        bookmark = serialiseBookmark(rawBookmark);
+      } catch (err) {
+        bookmarkError = 'Your bookmark information could not be loaded at this time.';
+        logger.error('Failed to load bookmark for tender %d and user %s: %s', tenderId, req.session.user.username, err.message);
+      }
+    }
+
+    res.render('tender-detail', {
+      page: 'tenders',
+      tender,
+      detailPayload,
+      detailJson: detailPayload ? JSON.stringify(detailPayload, null, 2) : null,
+      detailError,
+      bookmark,
+      bookmarkError
+    });
+  } catch (err) {
+    logger.error('Tender detail view failed for %d: %s', tenderId, err.message);
+    res.status(500).send('Unable to load tender details');
+  }
+});
+
 // GET /api/tenders - Provide filtered tender data for the explorer interface.
 app.get('/api/tenders', async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page || '1', 10));
@@ -681,6 +776,24 @@ app.get('/api/tenders', async (req, res) => {
         value: deriveTenderValue(row.raw_details)
       };
     });
+
+    let bookmarkedTenderIds = [];
+    if (req.session.user) {
+      try {
+        const summaries = await db.getBookmarkSummaries(
+          req.session.user.id,
+          results.map(r => r.id)
+        );
+        bookmarkedTenderIds = summaries.map(row => row.tender_id);
+      } catch (err) {
+        logger.error('Failed to load bookmark summaries for user %s: %s', req.session.user.username, err.message);
+      }
+    }
+    const bookmarkedSet = new Set(bookmarkedTenderIds);
+    results.forEach(entry => {
+      entry.bookmarked = bookmarkedSet.has(entry.id);
+    });
+
     logger.info(
       'Tender explorer query returned %d rows from %d total (page %d, size %d)',
       results.length,
@@ -700,6 +813,165 @@ app.get('/api/tenders', async (req, res) => {
   }
 });
 
+// POST /api/tenders/:id/bookmark - Create or update a bookmark for the tender.
+app.post('/api/tenders/:id/bookmark', requireAuth, async (req, res) => {
+  const tenderId = Number.parseInt(req.params.id, 10);
+  if (!Number.isInteger(tenderId)) {
+    return res.status(400).json({ error: 'Invalid tender identifier' });
+  }
+
+  try {
+    const tender = await db.getTenderById(tenderId);
+    if (!tender) {
+      return res.status(404).json({ error: 'Tender not found' });
+    }
+  } catch (err) {
+    logger.error('Tender lookup failed during bookmark creation: %s', err.message);
+    return res.status(500).json({ error: 'Unable to validate tender' });
+  }
+
+  const { note = '', dueDate = '' } = req.body || {};
+
+  try {
+    let bookmark;
+    if (note || dueDate) {
+      bookmark = await db.createBookmarkNote(req.session.user.id, tenderId, note, dueDate);
+    } else {
+      bookmark = await db.ensureTenderBookmark(req.session.user.id, tenderId);
+      bookmark = await db.getTenderBookmarkWithNotes(req.session.user.id, tenderId);
+    }
+    res.json({ bookmark: serialiseBookmark(bookmark) });
+  } catch (err) {
+    logger.error(
+      'Failed to create bookmark for tender %d and user %s: %s',
+      tenderId,
+      req.session.user.username,
+      err.message
+    );
+    res.status(500).json({ error: 'Unable to save bookmark' });
+  }
+});
+
+// DELETE /api/tenders/:id/bookmark - Remove a bookmark entirely.
+app.delete('/api/tenders/:id/bookmark', requireAuth, async (req, res) => {
+  const tenderId = Number.parseInt(req.params.id, 10);
+  if (!Number.isInteger(tenderId)) {
+    return res.status(400).json({ error: 'Invalid tender identifier' });
+  }
+  try {
+    const changes = await db.deleteTenderBookmark(req.session.user.id, tenderId);
+    if (!changes) {
+      return res.status(404).json({ error: 'Bookmark not found' });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    logger.error(
+      'Failed to delete bookmark for tender %d and user %s: %s',
+      tenderId,
+      req.session.user.username,
+      err.message
+    );
+    res.status(500).json({ error: 'Unable to delete bookmark' });
+  }
+});
+
+// GET /api/tenders/:id/notes - Retrieve bookmark notes for a tender.
+app.get('/api/tenders/:id/notes', requireAuth, async (req, res) => {
+  const tenderId = Number.parseInt(req.params.id, 10);
+  if (!Number.isInteger(tenderId)) {
+    return res.status(400).json({ error: 'Invalid tender identifier' });
+  }
+  try {
+    const bookmark = await db.getTenderBookmarkWithNotes(req.session.user.id, tenderId);
+    res.json({ bookmark: serialiseBookmark(bookmark) });
+  } catch (err) {
+    logger.error('Failed to load bookmark notes for tender %d: %s', tenderId, err.message);
+    res.status(500).json({ error: 'Unable to load bookmark notes' });
+  }
+});
+
+// POST /api/tenders/:id/notes - Append a note to a bookmark (creating it if needed).
+app.post('/api/tenders/:id/notes', requireAuth, async (req, res) => {
+  const tenderId = Number.parseInt(req.params.id, 10);
+  if (!Number.isInteger(tenderId)) {
+    return res.status(400).json({ error: 'Invalid tender identifier' });
+  }
+  const { note = '', dueDate = '' } = req.body || {};
+  if (!note && !dueDate) {
+    return res.status(400).json({ error: 'Provide a note or due date when creating an entry' });
+  }
+  try {
+    const bookmark = await db.createBookmarkNote(req.session.user.id, tenderId, note, dueDate);
+    res.json({ bookmark: serialiseBookmark(bookmark) });
+  } catch (err) {
+    logger.error(
+      'Failed to add bookmark note for tender %d and user %s: %s',
+      tenderId,
+      req.session.user.username,
+      err.message
+    );
+    res.status(500).json({ error: 'Unable to save note' });
+  }
+});
+
+// PUT /api/bookmark-notes/:noteId - Update an existing bookmark note.
+app.put('/api/bookmark-notes/:noteId', requireAuth, async (req, res) => {
+  const noteId = Number.parseInt(req.params.noteId, 10);
+  if (!Number.isInteger(noteId)) {
+    return res.status(400).json({ error: 'Invalid note identifier' });
+  }
+  const { note = '', dueDate = '' } = req.body || {};
+  try {
+    const bookmark = await db.updateBookmarkNote(req.session.user.id, noteId, note, dueDate);
+    if (!bookmark) {
+      return res.status(404).json({ error: 'Note not found' });
+    }
+    res.json({ bookmark: serialiseBookmark(bookmark) });
+  } catch (err) {
+    logger.error(
+      'Failed to update bookmark note %d for user %s: %s',
+      noteId,
+      req.session.user.username,
+      err.message
+    );
+    res.status(500).json({ error: 'Unable to update note' });
+  }
+});
+
+// DELETE /api/bookmark-notes/:noteId - Remove a bookmark note.
+app.delete('/api/bookmark-notes/:noteId', requireAuth, async (req, res) => {
+  const noteId = Number.parseInt(req.params.noteId, 10);
+  if (!Number.isInteger(noteId)) {
+    return res.status(400).json({ error: 'Invalid note identifier' });
+  }
+  try {
+    const bookmark = await db.deleteBookmarkNote(req.session.user.id, noteId);
+    if (!bookmark) {
+      return res.status(404).json({ error: 'Note not found' });
+    }
+    res.json({ bookmark: serialiseBookmark(bookmark) });
+  } catch (err) {
+    logger.error(
+      'Failed to delete bookmark note %d for user %s: %s',
+      noteId,
+      req.session.user.username,
+      err.message
+    );
+    res.status(500).json({ error: 'Unable to delete note' });
+  }
+});
+
+// GET /api/bookmarks - List all bookmarks for the signed-in user.
+app.get('/api/bookmarks', requireAuth, async (req, res) => {
+  try {
+    const bookmarks = await db.listTenderBookmarks(req.session.user.id);
+    res.json({ bookmarks: bookmarks.map(serialiseBookmark) });
+  } catch (err) {
+    logger.error('Failed to list bookmarks for user %s: %s', req.session.user.username, err.message);
+    res.status(500).json({ error: 'Unable to load bookmarks' });
+  }
+});
+
 // GET /awarded - Display contracts that have been awarded using the separate
 // awards scraper.
 app.get('/awarded', async (req, res) => {
@@ -709,6 +981,35 @@ app.get('/awarded', async (req, res) => {
     sources: config.awardSources,
     page: 'awarded'
   });
+});
+
+// GET /awards/:id - Present structured data for an awarded contract.
+app.get('/awards/:id', async (req, res) => {
+  const awardId = Number.parseInt(req.params.id, 10);
+  if (!Number.isInteger(awardId)) {
+    return res.status(404).send('Award not found');
+  }
+
+  try {
+    const award = await db.getAwardById(awardId);
+    if (!award) {
+      return res.status(404).send('Award not found');
+    }
+    let detail = null;
+    try {
+      detail = await db.getAwardDetailByAwardId(awardId);
+    } catch (err) {
+      logger.error('Failed to load award detail for %d: %s', awardId, err.message);
+    }
+    res.render('award-detail', {
+      page: 'awarded',
+      award,
+      detail
+    });
+  } catch (err) {
+    logger.error('Award detail view failed for %d: %s', awardId, err.message);
+    res.status(500).send('Unable to load award details');
+  }
 });
 
 // GET /stats - Simple page showing the timestamp of the last successful scrape
