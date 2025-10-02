@@ -13,6 +13,7 @@
 <head>
   <title>Tender Explorer</title>
   <link rel="stylesheet" href="/style.css">
+  <meta name="csrf-token" content="<%= csrfToken %>">
 </head>
 <body>
   <h1>Tenders</h1>
@@ -24,6 +25,7 @@
       <li>Select "Match all" in the CPV section to require every chosen code, or "Match any" for a broader sweep.</li>
       <li>Favourite codes from the CPV Explorer tab appear here for quick one-click filtering.</li>
       <li>Most filters apply automatically; use the reset button to start again if the view feels too narrow.</li>
+      <li>Bookmark any tender to capture personal notes and reminders that follow you to the dashboard.</li>
     </ul>
   </div>
   <% if (loadError) { %>
@@ -106,6 +108,7 @@
           <th scope="col">Value</th>
           <th scope="col">CPV codes</th>
           <th scope="col">Tags</th>
+          <th scope="col">Actions</th>
         </tr>
       </thead>
       <tbody id="tendersTableBody"></tbody>
@@ -121,7 +124,23 @@
       sources: <%- JSON.stringify(sources || []) %>,
       favourites: <%- JSON.stringify(favourites || []) %>
     };
+    window.__CURRENT_USER__ = <%- JSON.stringify(user || null) %>;
   </script>
+  <dialog id="bookmarkDialog" class="bookmark-dialog">
+    <form id="bookmarkForm" method="dialog">
+      <h2 id="bookmarkDialogHeading">Add bookmark note</h2>
+      <p class="form-hint">Bookmarking stores this tender against your account. Add an optional reminder so it appears on your dashboard.</p>
+      <label for="bookmarkNote">Note</label>
+      <textarea id="bookmarkNote" name="note" rows="4" placeholder="Record why this tender matters or next steps"></textarea>
+      <label for="bookmarkDueDate">Follow-up date</label>
+      <input id="bookmarkDueDate" type="date" name="dueDate">
+      <div id="bookmarkDialogError" class="status-banner error" hidden></div>
+      <div class="dialog-actions">
+        <button type="submit">Save bookmark</button>
+        <button type="button" id="bookmarkCancel" class="outline">Cancel</button>
+      </div>
+    </form>
+  </dialog>
   <script src="/tenders-hub.js"></script>
 </body>
 </html>

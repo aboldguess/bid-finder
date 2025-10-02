@@ -1,54 +1,84 @@
+<!--
+  @file awarded.ejs
+  @description Award results view summarising contracts that have progressed to
+    award status. The table presents the key headline fields with quick access
+    to raw listings and a dedicated detail page that surfaces every structured
+    field captured during scraping.
+  @structure
+    1. Page chrome with navigation and instructional copy.
+    2. Summary table listing awards with quick access actions.
+    3. Progressive disclosure rows mirroring the structured data already stored
+       on platform for rapid at-a-glance verification.
+-->
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Tender Dashboard</title>
+  <title>Awarded Contracts</title>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <h1>Awarded Contracts</h1>
   <%- include('partials/nav', { page: 'awarded', user: user }) %>
-  <table>
-    <tr>
-      <th>Title</th>
-      <th data-type="date">Date</th>
-      <th>Description</th>
-      <th data-type="source">Source</th>
-      <!-- Track when each award was retrieved -->
-      <th data-type="date">Scraped At</th>
-      <th>Tags</th>
-      <th>Link</th>
-    </tr>
-    <% tenders.forEach(t => { %>
-      <tr class="tenderRow toggle-row" data-id="<%= t.id %>">
-        <td><%= t.title %></td>
-        <td><%= t.date %></td>
-        <td><%= t.description %></td>
-        <td><%= t.source %></td>
-        <!-- Full timestamp available for investigations -->
-        <td><%= t.scraped_at %></td>
-        <td><%= t.tags %></td>
-        <!-- Open award links in a new tab to keep the list available -->
-        <td><a href="<%= t.link %>" target="_blank">View</a></td>
-      </tr>
-      <tr class="detailRow" data-id="<%= t.id %>">
-        <td colspan="7">
-          <table>
-            <tr><th>Title</th><td><%= t.title %></td></tr>
-            <tr><th>Date</th><td><%= t.date %></td></tr>
-            <tr><th>Description</th><td><%= t.description %></td></tr>
-            <tr><th>Source</th><td><%= t.source %></td></tr>
-            <!-- Timestamp for precise audit trail -->
-            <tr><th>Scraped At</th><td><%= t.scraped_at %></td></tr>
-            <tr><th>Tags</th><td><%= t.tags %></td></tr>
-            <tr><th>Link</th><td><a href="<%= t.link %>" target="_blank"><%= t.link %></a></td></tr>
-          </table>
-        </td>
-      </tr>
-    <% }) %>
-    <% if (tenders.length === 0) { %>
-      <tr><td colspan="7">No awarded contracts found. Scrape an award source to populate this list.</td></tr>
-    <% } %>
-  </table>
+  <section class="panel">
+    <h2>Recently awarded opportunities</h2>
+    <p class="form-hint">
+      Use the <strong>Details</strong> action to open the full record, including
+      every structured data point held on the platform. The inline summary below
+      mirrors what is stored in the database so that any discrepancies stand out
+      immediately.
+    </p>
+    <table class="striped">
+      <thead>
+        <tr>
+          <th scope="col">Title</th>
+          <th scope="col" data-type="date">Awarded</th>
+          <th scope="col">Description</th>
+          <th scope="col" data-type="source">Source</th>
+          <th scope="col" data-type="date">Scraped</th>
+          <th scope="col">Tags</th>
+          <th scope="col">Listing</th>
+          <th scope="col">Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% tenders.forEach(t => { %>
+          <tr class="tenderRow toggle-row" data-id="<%= t.id %>">
+            <td><%= t.title %></td>
+            <td><%= t.date %></td>
+            <td><%= t.description %></td>
+            <td><%= t.source %></td>
+            <td><%= t.scraped_at %></td>
+            <td><%= t.tags %></td>
+            <td><a href="<%= t.link %>" target="_blank" rel="noopener">View</a></td>
+            <td><a href="/awards/<%= t.id %>" class="outline">Details</a></td>
+          </tr>
+          <tr class="detailRow" data-id="<%= t.id %>">
+            <td colspan="8">
+              <table class="detail-table">
+                <tbody>
+                  <tr><th scope="row">Title</th><td><%= t.title %></td></tr>
+                  <tr><th scope="row">Awarded</th><td><%= t.date %></td></tr>
+                  <tr><th scope="row">Description</th><td><%= t.description %></td></tr>
+                  <tr><th scope="row">Source</th><td><%= t.source %></td></tr>
+                  <tr><th scope="row">Scraped</th><td><%= t.scraped_at %></td></tr>
+                  <tr><th scope="row">Tags</th><td><%= t.tags %></td></tr>
+                  <tr>
+                    <th scope="row">Listing</th>
+                    <td><a href="<%= t.link %>" target="_blank" rel="noopener"><%= t.link %></a></td>
+                  </tr>
+                </tbody>
+              </table>
+            </td>
+          </tr>
+        <% }) %>
+        <% if (tenders.length === 0) { %>
+          <tr>
+            <td colspan="8" class="form-hint">No awarded contracts found. Run the award scraper or adjust your filters to populate this list.</td>
+          </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </section>
   <!-- table-tools.js handles row detail toggling and table utilities -->
   <script src="/table-tools.js"></script>
 </body>

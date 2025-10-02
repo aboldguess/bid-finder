@@ -1,0 +1,90 @@
+<!--
+  @file tender-detail.ejs
+  @description Detailed view for a single tender. Presents structured metadata,
+    raw payload information and personal bookmark tools so account holders can
+    add, edit or remove reminder notes tied to the tender.
+  @structure
+    1. Summary header with navigation and quick actions.
+    2. Tender metadata table highlighting key fields from the database.
+    3. Bookmark management panel supporting note CRUD operations.
+    4. Raw JSON payload viewer for debugging scraped content.
+-->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Tender detail - <%= tender.title %></title>
+  <link rel="stylesheet" href="/style.css">
+  <meta name="csrf-token" content="<%= csrfToken %>">
+</head>
+<body>
+  <h1>Tender detail</h1>
+  <%- include('partials/nav', { page: 'tenders', user: user }) %>
+  <section class="panel">
+    <h2>Opportunity overview</h2>
+    <p class="form-hint">Review the structured data captured during scraping. Use the bookmark tools below to track bespoke actions.</p>
+    <table class="detail-table">
+      <tbody>
+        <tr><th scope="row">Title</th><td><%= tender.title %></td></tr>
+        <tr><th scope="row">Source</th><td><%= tender.source %></td></tr>
+        <tr><th scope="row">Link</th><td><a href="<%= tender.link %>" target="_blank" rel="noopener"><%= tender.link %></a></td></tr>
+        <tr><th scope="row">Published</th><td><%= tender.date %></td></tr>
+        <tr><th scope="row">Scraped</th><td><%= tender.scraped_at %></td></tr>
+        <tr><th scope="row">Opens</th><td><%= tender.open_date || 'Not supplied' %></td></tr>
+        <tr><th scope="row">Deadline</th><td><%= tender.deadline || 'Not supplied' %></td></tr>
+        <tr><th scope="row">Customer</th><td><%= tender.customer || 'Not captured' %></td></tr>
+        <tr><th scope="row">Address</th><td><%= tender.address || 'Not captured' %></td></tr>
+        <tr><th scope="row">Country</th><td><%= tender.country || 'Not captured' %></td></tr>
+        <tr><th scope="row">Eligibility</th><td><%= tender.eligibility || 'Not captured' %></td></tr>
+        <tr><th scope="row">Tags</th><td><%= (tender.tags || '').split(',').filter(Boolean).join(', ') || 'None' %></td></tr>
+        <tr><th scope="row">CPV codes</th><td><%= (tender.cpv || '').split(',').filter(Boolean).join(', ') || 'None' %></td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section class="panel note-panel">
+    <h2>Bookmark &amp; notes</h2>
+    <p class="form-hint">Notes are private to your account and appear on the dashboard with traffic-light reminders.</p>
+    <% if (bookmarkError) { %>
+      <div class="status-banner error"><%= bookmarkError %></div>
+    <% } %>
+    <div id="bookmarkBanner" class="status-banner info" hidden></div>
+    <div class="bookmark-controls">
+      <button id="detailBookmarkButton" type="button">Bookmark tender</button>
+      <p class="form-hint">Bookmarking without a note keeps the tender on your dashboard for quick reference.</p>
+    </div>
+    <form id="noteCreateForm" class="note-create">
+      <label for="noteText">Add a note</label>
+      <textarea id="noteText" rows="4" placeholder="Record next actions, stakeholders or qualification notes"></textarea>
+      <label for="noteDate">Follow-up date</label>
+      <input id="noteDate" type="date">
+      <div class="form-actions">
+        <button type="submit">Add note</button>
+      </div>
+    </form>
+    <div id="noteStatus" class="status-banner" hidden></div>
+    <ul id="noteList" class="note-list"></ul>
+  </section>
+  <section class="panel">
+    <h2>Raw detail payload</h2>
+    <% if (detailError) { %>
+      <div class="status-banner error"><%= detailError %></div>
+    <% } %>
+    <% if (detailJson) { %>
+      <pre class="json-viewer"><%= detailJson %></pre>
+    <% } else if (tender.raw_details) { %>
+      <pre class="json-viewer"><%= tender.raw_details %></pre>
+    <% } else { %>
+      <p class="form-hint">Raw payload data was not stored for this tender.</p>
+    <% } %>
+  </section>
+  <script>
+    window.__TENDER_CONTEXT__ = <%- JSON.stringify({
+      tender,
+      bookmark: bookmark || null,
+      detailPayload: detailPayload || null,
+      user: user || null,
+      bookmarkError: bookmarkError || null
+    }) %>;
+  </script>
+  <script src="/tender-detail.js"></script>
+</body>
+</html>

@@ -158,6 +158,30 @@ db.serialize(() => {
     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
   )`);
 
+  // Bookmark join table linking tenders with interested users. Notes are stored
+  // in a companion table so multiple reminders can be attached to a single
+  // bookmark.
+  db.run(`CREATE TABLE IF NOT EXISTS tender_bookmarks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    tender_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, tender_id),
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY(tender_id) REFERENCES tenders(id) ON DELETE CASCADE
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS tender_bookmark_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bookmark_id INTEGER NOT NULL,
+    note TEXT,
+    due_date TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(bookmark_id) REFERENCES tender_bookmarks(id) ON DELETE CASCADE
+  )`);
+
   // Persist custom scraping sources so they survive process restarts. Each
   // source is keyed by a short unique string which is also used in the
   // `config.sources` object. Having the parser column allows different HTML
@@ -374,6 +398,329 @@ function normaliseTenderDate(value) {
   return null;
 }
 
+/**
+ * Convert denormalised bookmark rows (with tender and note data) into a nested
+ * structure that is easier for the HTTP layer to consume.
+ *
+ * @param {Array<object>} rows - Result set produced by the bookmark queries.
+ * @returns {Array<object>} bookmarks grouped with tender metadata and notes.
+ */
+function hydrateBookmarkRows(rows) {
+  const map = new Map();
+  for (const row of rows) {
+    if (!row) continue;
+    if (!map.has(row.bookmark_id)) {
+      map.set(row.bookmark_id, {
+        id: row.bookmark_id,
+        userId: row.user_id,
+        tenderId: row.tender_id,
+        createdAt: row.bookmark_created_at,
+        updatedAt: row.bookmark_updated_at,
+        tender: {
+          id: row.tender_id,
+          title: row.tender_title,
+          link: row.tender_link,
+          source: row.tender_source,
+          publishedDate: row.tender_date,
+          scrapedAt: row.tender_scraped_at,
+          description: row.tender_description,
+          tags: row.tender_tags,
+          cpv: row.tender_cpv,
+          openDate: row.tender_open_date,
+          deadline: row.tender_deadline,
+          customer: row.tender_customer,
+          address: row.tender_address,
+          country: row.tender_country,
+          eligibility: row.tender_eligibility,
+          rawDetails: row.tender_raw_details
+        },
+        notes: []
+      });
+    }
+    if (row.note_id) {
+      map.get(row.bookmark_id).notes.push({
+        id: row.note_id,
+        note: row.note_text || '',
+        dueDate: row.note_due_date || null,
+        createdAt: row.note_created_at,
+        updatedAt: row.note_updated_at
+      });
+    }
+  }
+  return Array.from(map.values()).map(entry => ({
+    ...entry,
+    notes: entry.notes.sort((a, b) => {
+      const aTime = a.dueDate ? new Date(a.dueDate).getTime() : Number.POSITIVE_INFINITY;
+      const bTime = b.dueDate ? new Date(b.dueDate).getTime() : Number.POSITIVE_INFINITY;
+      if (aTime !== bTime) return aTime - bTime;
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    })
+  }));
+}
+
+/** Ensure bookmark notes only persist reasonable text lengths. */
+function sanitiseNoteText(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  return value.trim().slice(0, 2000);
+}
+
+/** Normalise due dates to YYYY-MM-DD to keep comparisons predictable. */
+function normaliseDueDate(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+  }
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed.toISOString().slice(0, 10);
+}
+
+function getTenderById(id) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `SELECT id, title, link, ocid, date, description, source, scraped_at, tags, cpv, open_date, deadline, customer, address, country, eligibility, raw_details
+       FROM tenders WHERE id = ?`,
+      [id],
+      (err, row) => {
+        if (err) return reject(err);
+        resolve(row || null);
+      }
+    );
+  });
+}
+
+function getAwardById(id) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `SELECT id, title, link, date, description, source, scraped_at, tags
+       FROM awards WHERE id = ?`,
+      [id],
+      (err, row) => {
+        if (err) return reject(err);
+        resolve(row || null);
+      }
+    );
+  });
+}
+
+function getAwardDetailByAwardId(id) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `SELECT award_id, buyer, status, industry, location, value, procurement_reference, closing_date, closing_time, start_date, end_date, contract_type, procedure_type, procedure_desc, suitable_for_sme, suitable_for_vcse, how_to_apply, buyer_address, buyer_email
+       FROM award_details WHERE award_id = ?`,
+      [id],
+      (err, row) => {
+        if (err) return reject(err);
+        resolve(row || null);
+      }
+    );
+  });
+}
+
+function getTenderBookmark(userId, tenderId) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `SELECT id, user_id, tender_id, created_at, updated_at
+       FROM tender_bookmarks WHERE user_id = ? AND tender_id = ?`,
+      [userId, tenderId],
+      (err, row) => {
+        if (err) return reject(err);
+        resolve(row || null);
+      }
+    );
+  });
+}
+
+function upsertTenderBookmark(userId, tenderId) {
+  const timestamp = new Date().toISOString();
+  return new Promise((resolve, reject) => {
+    db.run(
+      `INSERT INTO tender_bookmarks (user_id, tender_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(user_id, tender_id) DO UPDATE SET updated_at=excluded.updated_at`,
+      [userId, tenderId, timestamp, timestamp],
+      err => {
+        if (err) return reject(err);
+        resolve();
+      }
+    );
+  }).then(() => getTenderBookmark(userId, tenderId));
+}
+
+function deleteTenderBookmark(userId, tenderId) {
+  return new Promise((resolve, reject) => {
+    db.run(
+      'DELETE FROM tender_bookmarks WHERE user_id = ? AND tender_id = ?',
+      [userId, tenderId],
+      function (err) {
+        if (err) return reject(err);
+        resolve(this.changes || 0);
+      }
+    );
+  });
+}
+
+function fetchBookmarkRows(userId, tenderId = null) {
+  return new Promise((resolve, reject) => {
+    const params = [userId];
+    let where = 'WHERE b.user_id = ?';
+    if (typeof tenderId === 'number') {
+      where += ' AND b.tender_id = ?';
+      params.push(tenderId);
+    }
+    const sql = `SELECT
+        b.id AS bookmark_id,
+        b.user_id,
+        b.tender_id,
+        b.created_at AS bookmark_created_at,
+        b.updated_at AS bookmark_updated_at,
+        t.title AS tender_title,
+        t.link AS tender_link,
+        t.date AS tender_date,
+        t.description AS tender_description,
+        t.source AS tender_source,
+        t.scraped_at AS tender_scraped_at,
+        t.tags AS tender_tags,
+        t.cpv AS tender_cpv,
+        t.open_date AS tender_open_date,
+        t.deadline AS tender_deadline,
+        t.customer AS tender_customer,
+        t.address AS tender_address,
+        t.country AS tender_country,
+        t.eligibility AS tender_eligibility,
+        t.raw_details AS tender_raw_details,
+        n.id AS note_id,
+        n.note AS note_text,
+        n.due_date AS note_due_date,
+        n.created_at AS note_created_at,
+        n.updated_at AS note_updated_at
+      FROM tender_bookmarks b
+      JOIN tenders t ON t.id = b.tender_id
+      LEFT JOIN tender_bookmark_notes n ON n.bookmark_id = b.id
+      ${where}
+      ORDER BY
+        t.deadline IS NULL,
+        t.deadline,
+        n.due_date IS NULL,
+        n.due_date,
+        n.created_at`;
+    db.all(sql, params, (err, rows) => {
+      if (err) return reject(err);
+      resolve(rows);
+    });
+  });
+}
+
+function getBookmarkSummaries(userId, tenderIds) {
+  if (!Array.isArray(tenderIds) || !tenderIds.length) {
+    return Promise.resolve([]);
+  }
+  const placeholders = tenderIds.map(() => '?').join(',');
+  const params = [userId, ...tenderIds];
+  return new Promise((resolve, reject) => {
+    db.all(
+      `SELECT tender_id FROM tender_bookmarks WHERE user_id = ? AND tender_id IN (${placeholders})`,
+      params,
+      (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows || []);
+      }
+    );
+  });
+}
+
+function getTenderBookmarkWithNotes(userId, tenderId) {
+  return fetchBookmarkRows(userId, tenderId).then(rows => {
+    const [bookmark] = hydrateBookmarkRows(rows);
+    return bookmark || null;
+  });
+}
+
+function listTenderBookmarks(userId) {
+  return fetchBookmarkRows(userId).then(hydrateBookmarkRows);
+}
+
+async function createBookmarkNote(userId, tenderId, note, dueDate) {
+  const bookmark = await upsertTenderBookmark(userId, tenderId);
+  const text = sanitiseNoteText(note);
+  const due = normaliseDueDate(dueDate);
+  const timestamp = new Date().toISOString();
+  await new Promise((resolve, reject) => {
+    db.run(
+      `INSERT INTO tender_bookmark_notes (bookmark_id, note, due_date, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [bookmark.id, text, due, timestamp, timestamp],
+      function (err) {
+        if (err) return reject(err);
+        resolve(this.lastID);
+      }
+    );
+  });
+  return getTenderBookmarkWithNotes(userId, tenderId);
+}
+
+function updateBookmarkNote(userId, noteId, note, dueDate) {
+  const text = sanitiseNoteText(note);
+  const due = normaliseDueDate(dueDate);
+  const timestamp = new Date().toISOString();
+  return new Promise((resolve, reject) => {
+    db.get(
+      `SELECT b.tender_id AS tender_id
+       FROM tender_bookmark_notes n
+       JOIN tender_bookmarks b ON b.id = n.bookmark_id
+       WHERE n.id = ? AND b.user_id = ?`,
+      [noteId, userId],
+      (err, row) => {
+        if (err) return reject(err);
+        if (!row) return resolve(null);
+        db.run(
+          'UPDATE tender_bookmark_notes SET note = ?, due_date = ?, updated_at = ? WHERE id = ?',
+          [text, due, timestamp, noteId],
+          updateErr => {
+            if (updateErr) return reject(updateErr);
+            getTenderBookmarkWithNotes(userId, row.tender_id)
+              .then(resolve)
+              .catch(reject);
+          }
+        );
+      }
+    );
+  });
+}
+
+function deleteBookmarkNote(userId, noteId) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `SELECT n.bookmark_id AS bookmark_id, b.tender_id AS tender_id
+       FROM tender_bookmark_notes n
+       JOIN tender_bookmarks b ON b.id = n.bookmark_id
+       WHERE n.id = ? AND b.user_id = ?`,
+      [noteId, userId],
+      (err, row) => {
+        if (err) return reject(err);
+        if (!row) return resolve(null);
+        db.run('DELETE FROM tender_bookmark_notes WHERE id = ?', [noteId], deleteErr => {
+          if (deleteErr) return reject(deleteErr);
+          getTenderBookmarkWithNotes(userId, row.tender_id)
+            .then(resolve)
+            .catch(reject);
+        });
+      }
+    );
+  });
+}
+
 module.exports = {
   ready: schemaReady,
   ensureCpvCodesLoaded,
@@ -483,6 +830,7 @@ module.exports = {
       );
     });
   },
+  getTenderById,
 
   /**
    * Search the CPV catalogue using a combination of code and description terms.
@@ -565,6 +913,8 @@ module.exports = {
       });
     });
   },
+  getAwardById,
+  getAwardDetailByAwardId,
 
   /**
    * Insert additional details for an award. The details object may contain
@@ -1225,6 +1575,15 @@ module.exports = {
       });
     });
   },
+  getTenderBookmark,
+  ensureTenderBookmark: upsertTenderBookmark,
+  deleteTenderBookmark,
+  getTenderBookmarkWithNotes,
+  listTenderBookmarks,
+  getBookmarkSummaries,
+  createBookmarkNote,
+  updateBookmarkNote,
+  deleteBookmarkNote,
 
   /**
    * Update scraping statistics for a source after a run completes. The row is
@@ -1441,6 +1800,8 @@ module.exports = {
         db.run('DROP TABLE IF EXISTS metadata');
         db.run('DROP TABLE IF EXISTS users');
         db.run('DROP TABLE IF EXISTS cpv_favourites');
+        db.run('DROP TABLE IF EXISTS tender_bookmark_notes');
+        db.run('DROP TABLE IF EXISTS tender_bookmarks');
         db.run('DROP TABLE IF EXISTS sources');
         db.run('DROP TABLE IF EXISTS source_stats');
         db.run('DROP TABLE IF EXISTS award_sources');
@@ -1486,6 +1847,25 @@ module.exports = {
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (user_id, code),
             FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+          )`);
+        db.run(`CREATE TABLE tender_bookmarks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            tender_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, tender_id),
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY(tender_id) REFERENCES tenders(id) ON DELETE CASCADE
+          )`);
+        db.run(`CREATE TABLE tender_bookmark_notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            bookmark_id INTEGER NOT NULL,
+            note TEXT,
+            due_date TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(bookmark_id) REFERENCES tender_bookmarks(id) ON DELETE CASCADE
           )`);
         db.run(`CREATE TABLE sources (
             key TEXT PRIMARY KEY,

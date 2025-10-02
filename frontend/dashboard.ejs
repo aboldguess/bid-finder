@@ -31,6 +31,21 @@
     <li><strong>Customers</strong>: <%= counts.customers %></li>
     <li><strong>Suppliers</strong>: <%= counts.suppliers %></li>
   </ul>
+  <h2>Bookmarked tenders</h2>
+  <p class="hint">Notes saved while browsing are listed here with follow-up dates and urgency lights. Use the detail view to edit or remove notes.</p>
+  <div id="bookmarkStatusMessage" class="status-banner info" hidden></div>
+  <table class="bookmark-table">
+    <thead>
+      <tr>
+        <th scope="col">Tender</th>
+        <th scope="col">Note</th>
+        <th scope="col">Follow-up</th>
+        <th scope="col">Urgency</th>
+        <th scope="col">Actions</th>
+      </tr>
+    </thead>
+    <tbody id="bookmarkTableBody"></tbody>
+  </table>
   <h2>Source status</h2>
   <p class="hint">Run individual scrapes to debug a problematic feed without touching the rest of the schedule.</p>
   <ul class="source-list" id="sourceStatusList">
@@ -63,6 +78,8 @@
   const feed = document.getElementById('feed');
   const scrapeAllBtn = document.getElementById('scrapeAll');
   const sourceButtons = Array.from(document.querySelectorAll('button.scrape-now'));
+  const bookmarkTableBody = document.getElementById('bookmarkTableBody');
+  const bookmarkStatusMessage = document.getElementById('bookmarkStatusMessage');
 
   /**
    * Helper returning the list item representing a source. We keep lookups
@@ -110,6 +127,138 @@
     sourceButtons.forEach(btn => {
       btn.disabled = disabled;
     });
+  }
+
+  function setBookmarkStatus(message, type = 'info') {
+    if (!bookmarkStatusMessage) return;
+    bookmarkStatusMessage.classList.remove('info', 'error', 'success');
+    if (!message) {
+      bookmarkStatusMessage.hidden = true;
+      bookmarkStatusMessage.textContent = '';
+      return;
+    }
+    bookmarkStatusMessage.hidden = false;
+    bookmarkStatusMessage.textContent = message;
+    bookmarkStatusMessage.classList.add(type);
+  }
+
+  function formatLocalDate(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+    return date.toLocaleDateString();
+  }
+
+  function computeUrgency(dueDate) {
+    if (!dueDate) {
+      return { label: 'No date', className: 'idle' };
+    }
+    const date = new Date(dueDate);
+    if (Number.isNaN(date.getTime())) {
+      return { label: dueDate, className: 'idle' };
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    date.setHours(0, 0, 0, 0);
+    const diffDays = Math.floor((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays < 0) {
+      return { label: `Overdue (${formatLocalDate(dueDate)})`, className: 'danger' };
+    }
+    if (diffDays <= 7) {
+      return { label: `Due soon (${formatLocalDate(dueDate)})`, className: 'warning' };
+    }
+    return { label: `Upcoming (${formatLocalDate(dueDate)})`, className: 'ok' };
+  }
+
+  function renderBookmarks(bookmarks) {
+    if (!bookmarkTableBody) return;
+    bookmarkTableBody.innerHTML = '';
+    if (!bookmarks.length) {
+      const row = document.createElement('tr');
+      const cell = document.createElement('td');
+      cell.colSpan = 5;
+      cell.className = 'form-hint';
+      cell.textContent = 'No bookmarks yet. Add one from the Tenders tab to track it here.';
+      row.appendChild(cell);
+      bookmarkTableBody.appendChild(row);
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    bookmarks.forEach(entry => {
+      const tender = entry.tender || {};
+      const notes = Array.isArray(entry.notes) && entry.notes.length ? entry.notes : [null];
+      notes.forEach(note => {
+        const row = document.createElement('tr');
+        const tenderCell = document.createElement('td');
+        const tenderLink = document.createElement('a');
+        tenderLink.href = `/tenders/${tender.id}`;
+        tenderLink.textContent = tender.title || 'Untitled tender';
+        tenderLink.className = 'bookmark-link';
+        tenderCell.appendChild(tenderLink);
+        if (tender.source) {
+          const meta = document.createElement('div');
+          meta.className = 'table-subtext';
+          meta.textContent = tender.source;
+          tenderCell.appendChild(meta);
+        }
+
+        const noteCell = document.createElement('td');
+        noteCell.textContent = note && note.note ? note.note : 'No note recorded.';
+
+        const dueCell = document.createElement('td');
+        dueCell.textContent = note && note.dueDate ? formatLocalDate(note.dueDate) : '—';
+
+        const urgencyCell = document.createElement('td');
+        const urgency = computeUrgency(note && note.dueDate);
+        const light = document.createElement('span');
+        light.className = `traffic-light ${urgency.className}`;
+        const label = document.createElement('span');
+        label.className = 'traffic-label';
+        label.textContent = urgency.label;
+        urgencyCell.append(light, label);
+
+        const actionCell = document.createElement('td');
+        const detailLink = document.createElement('a');
+        detailLink.href = `/tenders/${tender.id}`;
+        detailLink.textContent = 'Details';
+        detailLink.className = 'outline';
+        actionCell.appendChild(detailLink);
+
+        row.append(tenderCell, noteCell, dueCell, urgencyCell, actionCell);
+        fragment.appendChild(row);
+      });
+    });
+    bookmarkTableBody.appendChild(fragment);
+  }
+
+  async function fetchBookmarks() {
+    if (!bookmarkTableBody) return;
+    try {
+      const response = await fetch('/api/bookmarks', { headers: { Accept: 'application/json' } });
+      if (response.status === 401) {
+        renderBookmarks([]);
+        setBookmarkStatus('Sign in to manage bookmarks and notes.', 'info');
+        return;
+      }
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `Server responded with ${response.status}`);
+      }
+      const payload = await response.json();
+      const entries = Array.isArray(payload.bookmarks) ? payload.bookmarks : [];
+      renderBookmarks(entries);
+      if (!entries.length) {
+        setBookmarkStatus('No bookmarks yet. Add one from the Tenders tab to see it here.', 'info');
+      } else {
+        setBookmarkStatus('', 'info');
+      }
+    } catch (err) {
+      console.error('Failed to load bookmarks', err);
+      setBookmarkStatus('Unable to load bookmarks. Refresh the page to retry.', 'error');
+    }
   }
 
   // Display log messages from the server in real time to assist debugging.
@@ -255,6 +404,7 @@
   sourceButtons.forEach(btn => {
     btn.addEventListener('click', () => runScrapeForSource(btn.dataset.source));
   });
+  fetchBookmarks();
 })();
 </script>
 </body>

@@ -31,6 +31,11 @@ td {
   border: 1px solid #dee2e6;
 }
 
+/* Optional striped helper so tables opting in get consistent zebra striping */
+.striped tbody tr:nth-child(even) {
+  background-color: #f8f9fa;
+}
+
 /* Highlight the table header and alternate rows for readability */
 th {
   background-color: #f1f3f5;
@@ -184,6 +189,181 @@ button:hover {
 
 .status-banner[hidden] {
   display: none;
+}
+
+/* Bookmark dialog styling for tender explorer */
+.bookmark-dialog {
+  border: none;
+  border-radius: 8px;
+  padding: 1.5rem;
+  max-width: 460px;
+  width: 100%;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.2);
+}
+
+.bookmark-dialog form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.bookmark-button {
+  background-color: #6f42c1;
+  margin-right: 0.5rem;
+}
+
+.bookmark-button.active {
+  background-color: #198754;
+}
+
+.table-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.table-actions a.outline {
+  padding: 0.3rem 0.6rem;
+}
+
+.bookmark-table {
+  margin-top: 0.5rem;
+}
+
+.traffic-light {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 0.5rem;
+  background: #adb5bd;
+}
+
+.traffic-light.ok {
+  background: #198754;
+}
+
+.traffic-light.warning {
+  background: #fd7e14;
+}
+
+.traffic-light.danger {
+  background: #dc3545;
+}
+
+.traffic-light.idle {
+  background: #adb5bd;
+}
+
+.traffic-label {
+  vertical-align: middle;
+}
+
+.detail-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.detail-table th {
+  width: 25%;
+  background: #f8f9fa;
+}
+
+.detail-table th,
+.detail-table td {
+  border: 1px solid #dee2e6;
+  padding: 0.6rem;
+}
+
+.note-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.note-create textarea {
+  min-height: 120px;
+  padding: 0.6rem;
+  border-radius: 6px;
+  border: 1px solid #ced4da;
+}
+
+.note-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.note-item {
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  padding: 0.75rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.note-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+}
+
+.note-date {
+  font-size: 0.85em;
+  color: #6c757d;
+}
+
+.note-actions {
+  margin-top: 0.5rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.note-edit {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.note-edit.hidden {
+  display: none;
+}
+
+.note-edit textarea {
+  min-height: 100px;
+  padding: 0.6rem;
+  border-radius: 6px;
+  border: 1px solid #ced4da;
+}
+
+.note-edit-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.json-viewer {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 1rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 0.9rem;
+}
+
+.bookmark-link {
+  font-weight: 600;
 }
 
 /* Administration dashboard layout ------------------------------------------------ */

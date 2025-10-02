@@ -35,6 +35,16 @@
   const cpvSearchInput = document.getElementById('cpvFilterSearch');
   const cpvSuggestions = document.getElementById('cpvFilterSuggestions');
   const cpvSelectionList = document.getElementById('cpvFilterSelection');
+  const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+  const csrfToken = csrfMeta ? csrfMeta.content : '';
+  const currentUser = window.__CURRENT_USER__ || null;
+  const bookmarkDialog = document.getElementById('bookmarkDialog');
+  const bookmarkForm = document.getElementById('bookmarkForm');
+  const bookmarkNoteInput = document.getElementById('bookmarkNote');
+  const bookmarkDueInput = document.getElementById('bookmarkDueDate');
+  const bookmarkDialogError = document.getElementById('bookmarkDialogError');
+  const bookmarkCancelBtn = document.getElementById('bookmarkCancel');
+  const bookmarkHeading = document.getElementById('bookmarkDialogHeading');
 
   const state = {
     page: 1,
@@ -51,8 +61,23 @@
     cpv: new Map(),
     cpvMode: 'or',
     sort: 'scraped_at',
-    direction: 'desc'
+    direction: 'desc',
+    bookmarks: new Set(),
+    rowCache: new Map(),
+    latestResults: [],
+    pendingBookmarkId: null
   };
+
+  function buildHeaders(includeJson = false) {
+    const headers = { Accept: 'application/json' };
+    if (includeJson) {
+      headers['Content-Type'] = 'application/json';
+    }
+    if (csrfToken) {
+      headers['CSRF-Token'] = csrfToken;
+    }
+    return headers;
+  }
 
   function renderSourceOptions() {
     if (!sourceContainer) return;
@@ -221,17 +246,21 @@
 
   function renderTable(results) {
     tableBody.innerHTML = '';
-    if (!results.length) {
+    state.rowCache.clear();
+    state.latestResults = Array.isArray(results) ? results.map(item => ({ ...item })) : [];
+    if (!state.latestResults.length) {
       const row = document.createElement('tr');
       const cell = document.createElement('td');
-      cell.colSpan = 8;
+      cell.colSpan = 9;
       cell.textContent = 'No tenders matched the selected filters.';
       row.appendChild(cell);
       tableBody.appendChild(row);
       return;
     }
     const fragment = document.createDocumentFragment();
-    results.forEach(item => {
+    state.latestResults.forEach(item => {
+      item.bookmarked = state.bookmarks.has(item.id);
+      state.rowCache.set(item.id, item);
       const row = document.createElement('tr');
 
       const titleCell = document.createElement('td');
@@ -269,10 +298,123 @@
       const tagsCell = document.createElement('td');
       tagsCell.textContent = (item.tags || []).join(', ');
 
-      row.append(titleCell, sourceCell, scrapedCell, openCell, closeCell, valueCell, cpvCell, tagsCell);
+      const actionCell = document.createElement('td');
+      actionCell.className = 'table-actions';
+      const bookmarkBtn = document.createElement('button');
+      bookmarkBtn.type = 'button';
+      bookmarkBtn.className = item.bookmarked ? 'bookmark-button active' : 'bookmark-button';
+      bookmarkBtn.textContent = item.bookmarked ? 'Bookmarked' : 'Bookmark';
+      bookmarkBtn.setAttribute('aria-pressed', item.bookmarked ? 'true' : 'false');
+      bookmarkBtn.addEventListener('click', () => handleBookmarkClick(item.id));
+
+      const detailLink = document.createElement('a');
+      detailLink.href = `/tenders/${item.id}`;
+      detailLink.textContent = 'Details';
+      detailLink.className = 'outline';
+      detailLink.target = '_blank';
+      detailLink.rel = 'noopener';
+
+      actionCell.append(bookmarkBtn, detailLink);
+
+      row.append(titleCell, sourceCell, scrapedCell, openCell, closeCell, valueCell, cpvCell, tagsCell, actionCell);
       fragment.appendChild(row);
     });
     tableBody.appendChild(fragment);
+  }
+
+  function closeBookmarkDialog() {
+    if (!bookmarkDialog) return;
+    if (typeof bookmarkDialog.close === 'function') {
+      bookmarkDialog.close();
+    } else {
+      bookmarkDialog.removeAttribute('open');
+    }
+    state.pendingBookmarkId = null;
+    showBookmarkError('');
+  }
+
+  function showBookmarkError(message) {
+    if (!bookmarkDialogError) return;
+    bookmarkDialogError.textContent = message;
+    bookmarkDialogError.hidden = !message;
+  }
+
+  function openBookmarkDialog(tenderId) {
+    if (!bookmarkDialog || !bookmarkForm) return;
+    state.pendingBookmarkId = tenderId;
+    showBookmarkError('');
+    if (bookmarkNoteInput) bookmarkNoteInput.value = '';
+    if (bookmarkDueInput) bookmarkDueInput.value = '';
+    const record = state.rowCache.get(tenderId);
+    if (bookmarkHeading) {
+      bookmarkHeading.textContent = record && record.title ? `Bookmark: ${record.title}` : 'Add bookmark note';
+    }
+    if (typeof bookmarkDialog.showModal === 'function') {
+      bookmarkDialog.showModal();
+    } else {
+      bookmarkDialog.setAttribute('open', '');
+    }
+  }
+
+  function syncBookmarkFlag(tenderId, bookmarked) {
+    if (bookmarked) {
+      state.bookmarks.add(tenderId);
+    } else {
+      state.bookmarks.delete(tenderId);
+    }
+    const record = state.rowCache.get(tenderId);
+    if (record) {
+      record.bookmarked = bookmarked;
+    }
+  }
+
+  async function createOrUpdateBookmark(tenderId, payload) {
+    const response = await fetch(`/api/tenders/${tenderId}/bookmark`, {
+      method: 'POST',
+      headers: buildHeaders(true),
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Server responded with ${response.status}`);
+    }
+    const data = await response.json();
+    syncBookmarkFlag(tenderId, true);
+    renderTable(state.latestResults);
+    return data;
+  }
+
+  async function deleteBookmark(tenderId) {
+    const response = await fetch(`/api/tenders/${tenderId}/bookmark`, {
+      method: 'DELETE',
+      headers: buildHeaders()
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Server responded with ${response.status}`);
+    }
+    syncBookmarkFlag(tenderId, false);
+    renderTable(state.latestResults);
+    updateStatus('Bookmark removed.');
+  }
+
+  function handleBookmarkClick(tenderId) {
+    if (!currentUser) {
+      updateStatus('Sign in to bookmark tenders and add personal reminders.');
+      return;
+    }
+    if (!csrfToken) {
+      updateStatus('Unable to bookmark without a CSRF token. Refresh the page and try again.');
+      return;
+    }
+    if (state.bookmarks.has(tenderId)) {
+      deleteBookmark(tenderId).catch(err => {
+        console.error('Failed to remove bookmark', err);
+        updateStatus('Unable to remove bookmark right now. Please retry shortly.');
+      });
+    } else {
+      openBookmarkDialog(tenderId);
+    }
   }
 
   function updatePaginationControls() {
@@ -320,10 +462,12 @@
         fetchTenders();
         return;
       }
-      renderTable(payload.results || []);
+      const resultsArray = Array.isArray(payload.results) ? payload.results : [];
+      state.bookmarks = new Set(resultsArray.filter(entry => entry.bookmarked).map(entry => entry.id));
+      renderTable(resultsArray);
       updatePaginationControls();
-      if (payload.results && payload.results.length) {
-        updateStatus(`Showing ${payload.results.length} tenders (of ${payload.total || 0}).`);
+      if (resultsArray.length) {
+        updateStatus(`Showing ${resultsArray.length} tenders (of ${payload.total || 0}).`);
       } else {
         updateStatus('No tenders matched the selected filters.');
       }
@@ -391,6 +535,35 @@
 
   if (sortDirection) {
     sortDirection.addEventListener('change', () => scheduleFetch(true));
+  }
+
+  if (bookmarkForm) {
+    bookmarkForm.addEventListener('submit', evt => {
+      evt.preventDefault();
+      if (state.pendingBookmarkId == null) {
+        closeBookmarkDialog();
+        return;
+      }
+      const payload = {
+        note: bookmarkNoteInput ? bookmarkNoteInput.value.trim() : '',
+        dueDate: bookmarkDueInput ? bookmarkDueInput.value : ''
+      };
+      createOrUpdateBookmark(state.pendingBookmarkId, payload)
+        .then(() => {
+          updateStatus('Bookmark saved to your dashboard.');
+          closeBookmarkDialog();
+        })
+        .catch(err => {
+          console.error('Failed to save bookmark', err);
+          showBookmarkError('Unable to save bookmark. Please check your note and try again.');
+        });
+    });
+  }
+
+  if (bookmarkCancelBtn) {
+    bookmarkCancelBtn.addEventListener('click', () => {
+      closeBookmarkDialog();
+    });
   }
 
   prevBtn.addEventListener('click', () => {
