@@ -24,11 +24,12 @@
     <ul>
       <li><strong>Key</strong> &ndash; short identifier such as <code>eusupply</code></li>
       <li><strong>Label</strong> &ndash; human readable name displayed in lists</li>
-      <li><strong>Search URL</strong> &ndash; RSS feed or results page containing opportunities</li>
-      <li><strong>Base URL</strong> &ndash; website root prepended to relative links</li>
+      <li><strong>Search URL</strong> &ndash; paste the full RSS feed or results page that lists new opportunities, for example <code>https://contracts.mod.uk/esop/toolkit/opportunity/current/list.si</code></li>
+      <li><strong>Base URL</strong> &ndash; the site prefix used to build tender detail links. This can include a trailing path, such as <code>https://contracts.mod.uk/esop/toolkit/opportunity/current/</code>, so that relative links like <code>60054/detail.si</code> open correctly.</li>
       <li><strong>Parser</strong> &ndash; choose the parser from the dropdown. The default (<code><%= defaultParser %></code>) matches most Contracts Finder feeds.</li>
     </ul>
     <p>Award sources follow the same structure but point at feeds of awarded contracts.</p>
+    <p class="hint">If you see a “URL not permitted” warning, check that both addresses start with <code>https://</code> and that the hostname appears in the allowed list. Administrators can extend the allow list using the <code>ALLOWED_SOURCE_DOMAINS</code> environment variable (comma-separated hostnames).</p>
   </div>
   <div id="parser-reference">
     <h2>Parser Reference</h2>
