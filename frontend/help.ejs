@@ -29,7 +29,7 @@
       <li><strong>Parser</strong> &ndash; choose the parser from the dropdown. The default (<code><%= defaultParser %></code>) matches most Contracts Finder feeds.</li>
     </ul>
     <p>Award sources follow the same structure but point at feeds of awarded contracts.</p>
-    <p class="hint">If you see a “URL not permitted” warning, check that both addresses start with <code>https://</code> and that the hostname appears in the allowed list. Administrators can extend the allow list using the <code>ALLOWED_SOURCE_DOMAINS</code> environment variable (comma-separated hostnames).</p>
+    <p class="hint">If you see a “URL not permitted” warning, check that both addresses start with <code>https://</code> and that the hostname appears in the allowed list. DSTL’s <code>contracts.mod.uk</code> domain is pre-approved, but you can extend the list with the <code>ALLOWED_SOURCE_DOMAINS</code> environment variable or by launching the server through <code>./scripts/run.sh --allow-domain example.org</code>.</p>
   </div>
   <div id="parser-reference">
     <h2>Parser Reference</h2>

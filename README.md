@@ -107,6 +107,43 @@ pkill -f "node server/index.js"
   accounts.
 - `ENABLE_LOG_STREAM` - set to `false` to disable the `/logs` streaming endpoint
   in production and avoid exposing real-time log data if not required.
+- `ALLOWED_SOURCE_DOMAINS` - comma-separated list of additional hostnames that
+  administrators are permitted to use when defining custom feeds. The value is
+  merged with the built-in allow list (which already includes
+  `contracts.mod.uk` for the DSTL portal).
+
+### Allowing additional source domains
+
+If you see a message similar to `Search URL rejected: Host "contracts.mod.uk"
+is not on the allow list` while adding a feed, extend the allow list using the
+`ALLOWED_SOURCE_DOMAINS` environment variable. Example commands:
+
+- **Linux/macOS/Raspberry Pi**
+  ```bash
+  export ALLOWED_SOURCE_DOMAINS="contracts.mod.uk"
+  ```
+- **Windows PowerShell**
+  ```powershell
+  $env:ALLOWED_SOURCE_DOMAINS="contracts.mod.uk"
+  ```
+
+Restart the server after setting the variable so the new domains are loaded.
+Multiple hostnames can be supplied by separating them with commas, for example
+`contracts.mod.uk,example.org`.
+
+For convenience, the helper script below can export the variable and launch the
+server in one step:
+
+```bash
+./scripts/run.sh --allow-domain contracts.mod.uk
+```
+
+To configure a Raspberry Pi in a single command, the setup script forwards the
+same option to the background server:
+
+```bash
+./scripts/rpi_bidfinder.sh --allow-domain contracts.mod.uk 4000
+```
 
 ## Scheduled cron job
 

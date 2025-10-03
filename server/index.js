@@ -68,15 +68,10 @@ function normaliseParserKey(parserKey) {
 // statically configured sources but can be extended via the
 // ALLOWED_SOURCE_DOMAINS environment variable.
 const allowedDomains = new Set([
-  ...Object.values(config.sources).map(s => new URL(s.base).hostname),
-  ...Object.values(config.awardSources).map(s => new URL(s.base).hostname)
+  ...Object.values(config.sources).map(s => new URL(s.base).hostname.toLowerCase()),
+  ...Object.values(config.awardSources).map(s => new URL(s.base).hostname.toLowerCase()),
+  ...config.allowedSourceDomains
 ]);
-if (process.env.ALLOWED_SOURCE_DOMAINS) {
-  for (const dom of process.env.ALLOWED_SOURCE_DOMAINS.split(',')) {
-    const trimmed = dom.trim().toLowerCase();
-    if (trimmed) allowedDomains.add(trimmed);
-  }
-}
 
 /**
  * Validate whether a provided URL is permitted based on protocol and hostname.

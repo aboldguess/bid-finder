@@ -31,6 +31,66 @@ function parseSelectorList(value, fallback = []) {
 }
 
 /**
+ * Convert environment input into a deduplicated list of domain names. The
+ * helper accepts a string, array or undefined value and always returns lower
+ * case hostnames without protocols, ports or trailing slashes so downstream
+ * comparisons remain consistent. Full URLs are tolerated for operator
+ * convenience and are reduced to their hostname component.
+ *
+ * @param {string|string[]|undefined} value - Domains supplied via environment
+ * @param {string[]} fallback - Default domains to include when none provided
+ * @returns {string[]} normalised hostname list
+ */
+function parseDomainList(value, fallback = []) {
+  const result = [];
+  const seen = new Set();
+
+  /**
+   * Normalise and register a hostname candidate if it has not been seen before.
+   *
+   * @param {string} candidate - Potential hostname or URL to add
+   */
+  function register(candidate) {
+    if (!candidate) return;
+    let host = candidate.trim().toLowerCase();
+    if (!host) return;
+
+    if (host.includes('://')) {
+      try {
+        host = new URL(host).hostname.toLowerCase();
+      } catch {
+        // Ignore values that are not valid URLs; they will be skipped.
+        return;
+      }
+    }
+
+    host = host.replace(/\/$/, '');
+    if (!host) return;
+
+    // Strip any lingering port numbers (e.g. example.com:8080).
+    const portSeparator = host.indexOf(':');
+    if (portSeparator !== -1) {
+      host = host.slice(0, portSeparator);
+    }
+
+    if (!seen.has(host)) {
+      seen.add(host);
+      result.push(host);
+    }
+  }
+
+  fallback.forEach(register);
+
+  if (Array.isArray(value)) {
+    value.forEach(register);
+  } else if (typeof value === 'string' && value.trim()) {
+    value.split(',').forEach(register);
+  }
+
+  return result;
+}
+
+/**
  * Convert an environment string into a positive integer, falling back to a
  * default when parsing fails or the provided value is out of range.
  *
@@ -95,6 +155,16 @@ const defaultNetwork = {
   retryAttempts: parsePositiveInt(process.env.HTTP_RETRY_ATTEMPTS, 3),
   detailConcurrency: parsePositiveInt(process.env.HTTP_DETAIL_CONCURRENCY, 4)
 };
+
+// Domains explicitly permitted when administrators add custom sources. The
+// default list includes DSTL's contracts portal to prevent validation failures
+// when configuring the DSTL feed. Operators can extend the allow list via the
+// ALLOWED_SOURCE_DOMAINS environment variable.
+const defaultAllowedDomains = ['contracts.mod.uk'];
+const allowedSourceDomains = parseDomainList(
+  process.env.ALLOWED_SOURCE_DOMAINS,
+  defaultAllowedDomains
+);
 
 // Centralised configuration object used throughout the server code. Values can
 // be overridden via environment variables for flexibility in different
@@ -376,6 +446,11 @@ module.exports = {
   // Network-level safeguards shared by the HTTP client wrapper controlling
   // timeouts, retry counts and detail page concurrency.
   network: defaultNetwork,
+
+  // Hostnames that are always permitted when defining custom sources. Values
+  // come from defaults above and can be extended through the
+  // ALLOWED_SOURCE_DOMAINS environment variable.
+  allowedSourceDomains,
 
   // Legacy fields maintained for backwards compatibility. These map to the
   // default source so existing code and tests continue to work.
