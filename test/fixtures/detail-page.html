@@ -1,0 +1,32 @@
+<!--
+  File: test/fixtures/detail-page.html
+  Mini README: Simplified opportunity detail page consumed by integration tests.
+  Structure:
+    - Semantic headings naming the metadata fields expected by detailParser.
+    - Paragraphs providing mock values, including an eight-digit CPV code to
+      exercise enrichment behaviour.
+-->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Integration Test Opportunity</title>
+  </head>
+  <body>
+    <main>
+      <h2>Published date</h2>
+      <p>2024-03-01</p>
+      <h2>Closing date</h2>
+      <p>2024-03-15</p>
+      <h2>Name of buying organisation</h2>
+      <p>Integration Authority</p>
+      <h2>Description</h2>
+      <p>
+        Comprehensive integration tooling and services. The scope references CPV
+        code 12345678 to validate downstream enrichment.
+      </p>
+      <h2>Eligibility</h2>
+      <p>Open to SME suppliers.</p>
+    </main>
+  </body>
+</html>
