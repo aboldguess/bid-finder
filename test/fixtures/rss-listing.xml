@@ -1,0 +1,23 @@
+<!--
+  File: test/fixtures/rss-listing.xml
+  Mini README: RSS feed fixture representing a single Contracts Finder tender.
+  Structure:
+    - <rss><channel> container describing the feed metadata.
+    - One <item> element containing title, link, publication date, description
+      and OCID for the tender used by integration tests.
+-->
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Integration Feed</title>
+    <link>https://www.contractsfinder.service.gov.uk/integration</link>
+    <description>Contracts Finder feed used for automated testing.</description>
+    <item>
+      <title>Integration Test Opportunity</title>
+      <link>https://www.contractsfinder.service.gov.uk/Notice/123456</link>
+      <pubDate>Fri, 01 Mar 2024 12:00:00 GMT</pubDate>
+      <description><![CDATA[Opportunity to supply integration tooling and support.]]></description>
+      <ocid>ocds-1234567890</ocid>
+    </item>
+  </channel>
+</rss>
