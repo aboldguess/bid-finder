@@ -22,7 +22,8 @@ const fetch = require('node-fetch');
 const {
   parseTenders,
   PARSER_CATALOGUE,
-  DEFAULT_PARSER_KEY
+  DEFAULT_PARSER_KEY,
+  inferParserForSource
 } = require('./htmlParser');
 // Built-in modules used for checking port availability and launching the browser
 const net = require('net');
@@ -1203,8 +1204,7 @@ app.get('/manage-users', requireAuth, (req, res) => {
 // Persist new sources in the database so they remain available after a restart.
 // The parser field defaults to "contractsFinder" since it matches our test HTML.
 app.post('/sources', requireAuth, async (req, res) => {
-  const { key, label, url, base, parser = DEFAULT_PARSER_KEY } = req.body || {};
-  const parserKey = normaliseParserKey(parser);
+  const { key, label, url, base, parser } = req.body || {};
 
   // Basic validation of the supplied data
   if (!key || !label || !url || !base) {
@@ -1225,6 +1225,12 @@ app.post('/sources', requireAuth, async (req, res) => {
   if (config.sources[key]) {
     return res.status(400).json({ error: 'Source key already exists' });
   }
+
+  const hasExplicitParser = typeof parser === 'string' && parser.trim().length > 0;
+  const inferredParserKey = hasExplicitParser
+    ? parser
+    : await inferParserForSource({ url });
+  const parserKey = normaliseParserKey(inferredParserKey);
 
   try {
     // Store the new source definition then add it to the in-memory object used
@@ -1248,8 +1254,7 @@ app.post('/sources', requireAuth, async (req, res) => {
 // new one.
 app.put('/sources/:key', requireAuth, async (req, res) => {
   const key = req.params.key;
-  const { label, url, base, parser = DEFAULT_PARSER_KEY } = req.body || {};
-  const parserKey = normaliseParserKey(parser);
+  const { label, url, base, parser } = req.body || {};
 
   if (!config.sources[key]) {
     return res.status(404).json({ error: 'Source not found' });
@@ -1266,6 +1271,12 @@ app.put('/sources/:key', requireAuth, async (req, res) => {
   if (!urlValidation.valid) {
     return res.status(400).json({ error: urlValidation.message });
   }
+
+  const hasExplicitParser = typeof parser === 'string' && parser.trim().length > 0;
+  const inferredParserKey = hasExplicitParser
+    ? parser
+    : await inferParserForSource({ url });
+  const parserKey = normaliseParserKey(inferredParserKey);
 
   try {
     await db.updateSource(key, label, url, base, parserKey);
