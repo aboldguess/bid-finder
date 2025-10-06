@@ -85,13 +85,23 @@ client.interceptors.response.use(
  * @returns {Promise<string>} response body
  */
 async function fetchText(url, options = {}) {
+  const { includeMeta = false, ...axiosOptions } = options;
+
   // `transformResponse` is disabled to avoid implicit JSON parsing when the
   // upstream incorrectly reports a JSON content-type for HTML pages.
   const response = await client.get(url, {
-    ...options,
+    ...axiosOptions,
     responseType: 'text',
     transformResponse: data => data
   });
+
+  if (includeMeta) {
+    return {
+      body: response.data,
+      contentType: response.headers ? response.headers['content-type'] || '' : ''
+    };
+  }
+
   return response.data;
 }
 

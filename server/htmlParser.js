@@ -10,12 +10,16 @@
  *   - parseUkri
  *   - parseEuSupply
  *   - parseRss
+ *   - detectParserFromContentType / detectParserFromMarkup
+ *   - inferParserForSource (auto-detect helper)
  *   - parseTenders (exported dispatcher)
  *
  * The parsers rely on Cheerio selectors rather than regex for reliability.
  * Each function returns an array of tender objects with common fields.
  */
 const cheerio = require('cheerio');
+const { fetchText } = require('./httpClient');
+const logger = require('./logger');
 
 /**
  * Identifier used when no parser is specified. Exposed so the UI can present
@@ -75,6 +79,8 @@ const PARSER_CATALOGUE = Object.freeze(
     }
   ].map(option => Object.freeze(option))
 );
+
+const PARSER_KEY_SET = new Set(PARSER_CATALOGUE.map(option => option.key));
 
 /**
  * Normalise a snippet of markup by stripping tags and collapsing whitespace.
@@ -484,6 +490,167 @@ function parseRss(xml) {
 }
 
 /**
+ * Attempt to identify a parser from the server provided content-type header.
+ * Only coarse-grained checks are performed because upstreams are often lax
+ * with their MIME declarations.
+ *
+ * @param {string} contentType Raw content-type header value
+ * @returns {string|null} Parser key if one can be inferred
+ */
+function detectParserFromContentType(contentType = '') {
+  if (!contentType) {
+    return null;
+  }
+
+  const lower = String(contentType).toLowerCase();
+
+  if (lower.includes('rss') || lower.includes('atom')) {
+    return 'rss';
+  }
+
+  if (lower.includes('xml') && (lower.includes('application/') || lower.includes('text/'))) {
+    // Many feeds advertise themselves as generic XML. When this is the case we
+    // still prefer the RSS parser over the HTML fallbacks.
+    return 'rss';
+  }
+
+  return null;
+}
+
+/**
+ * Inspect the downloaded markup to guess which specialised parser best fits
+ * the structure. The heuristics prefer very distinctive markers to reduce the
+ * chance of selecting the wrong parser which would lead to empty scrape
+ * results.
+ *
+ * @param {string} body HTML/XML document body
+ * @returns {string|null} Parser key when a confident match is found
+ */
+function detectParserFromMarkup(body) {
+  if (typeof body !== 'string') {
+    return null;
+  }
+
+  const trimmed = body.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  // Quick RSS/Atom detection based purely on the raw text to avoid unnecessary
+  // DOM parsing when an XML feed is obvious.
+  if (/<rss\b/i.test(trimmed) || /<feed\b/i.test(trimmed) || /<channel\b/i.test(trimmed)) {
+    return 'rss';
+  }
+
+  let $;
+  try {
+    $ = cheerio.load(trimmed);
+  } catch (error) {
+    logger.error('Failed to parse markup during parser inference: %s', error.message);
+    return null;
+  }
+
+  if ($('rss, channel, feed, item').length > 0) {
+    return 'rss';
+  }
+
+  // EU Supply tables contain distinctive headers and often a dedicated class.
+  const euSpecificTable = $('table.eu-supply-table, table[data-eusupply-table], table#tendersTable');
+  if (euSpecificTable.length > 0) {
+    return 'eusupply';
+  }
+
+  const euHeaders = ['tender title', 'tender reference', 'publication date'];
+  const euHeaderMatches = $('th')
+    .toArray()
+    .map(el => $(el).text().trim().toLowerCase())
+    .filter(text => text && euHeaders.some(marker => text.includes(marker)));
+  if (euHeaderMatches.length >= 2 && $('td.description').length > 0) {
+    return 'eusupply';
+  }
+
+  // Sell2Wales pages typically expose branded captions or table level markers.
+  const sellTables = $('table.sell2wales, table[data-sell2wales-table], table#sell2wales-list');
+  if (sellTables.length > 0) {
+    return 'sell2wales';
+  }
+
+  const sellCaptions = $('caption')
+    .toArray()
+    .map(el => $(el).text().trim().toLowerCase());
+  if (sellCaptions.some(text => text.includes('sell2wales') || text.includes('sell 2 wales'))) {
+    return 'sell2wales';
+  }
+
+  if ($('td.description').length > 0 && /sell2wales/i.test(trimmed)) {
+    return 'sell2wales';
+  }
+
+  // UKRI listings are wrapped in <article> elements with time and anchor tags.
+  const ukriArticles = $('article');
+  if (
+    ukriArticles.length > 0 &&
+    ukriArticles.find('a').length > 0 &&
+    ukriArticles.find('time').length > 0
+  ) {
+    return 'ukri';
+  }
+
+  // Contracts Finder pages contain search-result blocks.
+  if ($('.search-result, .search-result-entry').length > 0) {
+    return DEFAULT_PARSER_KEY;
+  }
+
+  return null;
+}
+
+/**
+ * Fetch a sample document for a source and infer which parser should be used.
+ * The helper is defensive: failures to fetch or classify fall back to the
+ * default parser to avoid breaking source creation flows.
+ *
+ * @param {{url: string, headers?: object}} source Source configuration snippet
+ * @returns {Promise<string>} Parser key present in PARSER_CATALOGUE
+ */
+async function inferParserForSource(source) {
+  if (!source || !source.url) {
+    throw new Error('A source URL is required to infer a parser.');
+  }
+
+  try {
+    const response = await fetchText(source.url, {
+      headers: source.headers,
+      includeMeta: true
+    });
+
+    const body = typeof response === 'string' ? response : response.body;
+    const contentType = typeof response === 'object' ? response.contentType : '';
+
+    const parserFromHeader = detectParserFromContentType(contentType);
+    if (parserFromHeader && PARSER_KEY_SET.has(parserFromHeader)) {
+      logger.info('Parser inference from content-type selected "%s" for %s.', parserFromHeader, source.url);
+      return parserFromHeader;
+    }
+
+    const parserFromMarkup = detectParserFromMarkup(body);
+    if (parserFromMarkup && PARSER_KEY_SET.has(parserFromMarkup)) {
+      logger.info('Parser inference from markup selected "%s" for %s.', parserFromMarkup, source.url);
+      return parserFromMarkup;
+    }
+
+    logger.info(
+      'Parser inference defaulted to "%s" for %s because no specialised parser matched.',
+      DEFAULT_PARSER_KEY,
+      source.url
+    );
+  } catch (error) {
+    logger.error('Parser inference failed for %s: %s', source.url, error.message);
+  }
+
+  return DEFAULT_PARSER_KEY;
+}
+
+/**
  * Dispatch parser based on source configuration. When a selectors object is
  * supplied the new generic parser is used; otherwise the legacy named parsers
  * remain available for backwards compatibility and specialised behaviour.
@@ -522,3 +689,4 @@ exports.parseTenders = function parseTenders(html, source = DEFAULT_PARSER_KEY) 
 
 exports.PARSER_CATALOGUE = PARSER_CATALOGUE;
 exports.DEFAULT_PARSER_KEY = DEFAULT_PARSER_KEY;
+exports.inferParserForSource = inferParserForSource;
